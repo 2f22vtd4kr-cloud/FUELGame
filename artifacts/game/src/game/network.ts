@@ -49,12 +49,17 @@ export class GameNetwork {
 
     this.ws.addEventListener('close', () => {
       this._ready = false;
-      callbacks.onClose?.();
+      this.callbacks.onClose?.();
     });
 
     this.ws.addEventListener('error', () => {
-      callbacks.onError?.('Ошибка соединения с сервером');
+      this.callbacks.onError?.('Ошибка соединения с сервером');
     });
+  }
+
+  /** Replace callbacks after construction (e.g. when game starts and lobby unmounts). */
+  updateCallbacks(cb: Partial<NetworkCallbacks>): void {
+    Object.assign(this.callbacks, cb);
   }
 
   // ── Public API ──────────────────────────────────────────────────────────────

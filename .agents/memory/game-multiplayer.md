@@ -29,9 +29,10 @@ Three-phase per tick to avoid N× timer bugs:
 - Server: `artifacts/api-server/src/game/room.ts` — GameRoom class (tick, addClient, removeClient, handleAction)
 - Server: `artifacts/api-server/src/game/logic.ts` — tickGameMulti appended at end
 - Server: `artifacts/api-server/src/game/state.ts` — setGs(), startGameMultiplayer(), makePlayer()
-- Client: `artifacts/game/src/game/network.ts` — GameNetwork class (WS client, sendInput, applyLatestState)
+- Client: `artifacts/game/src/game/network.ts` — GameNetwork class (WS client, sendInput, applyLatestState, updateCallbacks)
 - Client: `artifacts/game/src/game/gameActions.ts` — proxy layer; calls WS in multi, logic directly in single
 - Client: `artifacts/game/src/components/MultiplayerLobby.tsx` — create/join UI + waiting room
+- Client: `artifacts/game/src/App.tsx` — multiplayer flow; handles disconnect overlay
 
 ## Protocol messages
 
@@ -44,6 +45,14 @@ Server→Client: `room_created | room_joined | lobby_update | game_started | sta
 - If game started: sets `p.isAlive = false`, `p.isHuman = false` on disconnected player in gs
 - If in lobby and host disconnects: reassigns hostPlayerId to next client, broadcasts `host_changed`
 
+## Critical bug fixes applied (socket lifecycle)
+
+- **MultiplayerLobby cleanup was closing socket on game start** (critical). Fix: `gameStartedRef` tracks whether game started; cleanup only closes socket if `!gameStartedRef.current`. See `MultiplayerLobby.tsx` lines ~34-45.
+- **WS close/error listeners bound to constructor param** not `this.callbacks`, preventing `updateCallbacks` from working. Fix: changed to `this.callbacks.onClose?.()`. See `network.ts`.
+- **GameNetwork.updateCallbacks()** added so App.tsx can swap in in-game callbacks after lobby unmounts.
+- **App.tsx `handleMultiGameStarted`** calls `network.updateCallbacks()` to install in-game disconnect handler → sets `multiDisconnected` state → shows overlay with "← В главное меню".
+- **Start gate**: `clients.size < 1` → `clients.size < 2` (server enforces minimum 2 players). See `wsHandler.ts`.
+
 ## Input validation (security)
 
 `wsHandler.ts` sanitizes all ingress before use:
@@ -52,6 +61,15 @@ Server→Client: `room_created | room_joined | lobby_update | game_started | sta
 - `numSlivshchiki`: clamped to [1, floor((numPlayers-1)/2)]
 - `playerName`: sliced to 20 chars, trimmed, defaults to 'Игрок'
 - `roomCode`: uppercased + sliced to 4 chars
+
+## Lib package builds (dev workflow)
+
+`lib/api-zod` and `lib/db` must have their `dist/` built for `tsc --noEmit` typecheck to pass (project references). Run:
+```
+pnpm --filter @workspace/api-zod exec tsc -p tsconfig.json
+pnpm --filter @workspace/db exec tsc -p tsconfig.json
+```
+esbuild (runtime bundling) reads source .ts directly via `exports`, so builds are only needed for typechecking.
 
 ## Known limitations (first version)
 

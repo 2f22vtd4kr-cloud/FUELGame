@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import type { GameState } from './game/types';
 import { gs, resetGameState } from './game/state';
 import { CHARACTERS } from './data/characters';
@@ -22,6 +22,7 @@ export default function App() {
   // Multiplayer network ref (null in single-player mode)
   const networkRef = useRef<GameNetwork | null>(null);
   const [myPlayerId, setMyPlayerId] = useState<string | null>(null);
+  const [multiDisconnected, setMultiDisconnected] = useState(false);
 
   // ── Snapshot from game loop ────────────────────────────────────────────────
   const handleSnapshot = useCallback((snap: GameState) => {
@@ -48,6 +49,21 @@ export default function App() {
     networkRef.current = network;
     setMyPlayerId(playerId);
     setActiveNetwork(network);
+    setMultiDisconnected(false);
+    // Re-register callbacks for the in-game phase so lobby-unmount callbacks
+    // don't try to update unmounted lobby state.
+    network.updateCallbacks({
+      onClose() {
+        setMultiDisconnected(true);
+      },
+      onError(_msg) {
+        setMultiDisconnected(true);
+      },
+      // Disable lobby-phase callbacks that would reference unmounted state
+      onRoomCreated: undefined,
+      onRoomJoined: undefined,
+      onLobbyUpdate: undefined,
+    });
     setAppPhase('briefing');
   }, []);
 
@@ -59,6 +75,7 @@ export default function App() {
     }
     setActiveNetwork(null);
     setMyPlayerId(null);
+    setMultiDisconnected(false);
     resetGameState();
     setAppPhase('lobby');
   }, []);
@@ -173,6 +190,37 @@ export default function App() {
       {/* ── Results screen ── */}
       {appPhase === 'results' && (
         <GameResults gs={snapshot} onPlayAgain={handlePlayAgain} />
+      )}
+
+      {/* ── Multiplayer disconnect overlay ── */}
+      {multiDisconnected && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 200,
+          background: 'rgba(0,0,0,0.85)',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          fontFamily: 'sans-serif',
+        }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>📡</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: '#FF5722', marginBottom: 8 }}>
+            Соединение потеряно
+          </div>
+          <div style={{ fontSize: 13, color: '#aaa', marginBottom: 28, textAlign: 'center' }}>
+            Связь с сервером прервалась.
+          </div>
+          <button
+            onClick={handlePlayAgain}
+            style={{
+              padding: '12px 28px',
+              background: 'linear-gradient(135deg,#FF5722,#FF8A65)',
+              border: 'none', borderRadius: 10,
+              fontSize: 15, fontWeight: 700, color: '#fff',
+              cursor: 'pointer',
+            }}
+          >
+            ← В главное меню
+          </button>
+        </div>
       )}
 
       <style>{`

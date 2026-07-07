@@ -126,7 +126,7 @@ wss.on('connection', (ws) => {
       case 'start': {
         if (!myRoom || !myPlayerId) { send({ type: 'error', message: 'Не в комнате' }); return; }
         if (myPlayerId !== myRoom.hostPlayerId) { send({ type: 'error', message: 'Только хост может начать' }); return; }
-        if (myRoom.clients.size < 1) { send({ type: 'error', message: 'Нужно хотя бы 2 игрока' }); return; }
+        if (myRoom.clients.size < 2) { send({ type: 'error', message: 'Нужно хотя бы 2 игрока' }); return; }
         myRoom.startGame();
         logger.info({ roomCode: myRoom.roomCode }, 'Game started');
         break;

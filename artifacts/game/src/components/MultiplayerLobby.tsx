@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { CharacterKey } from '../game/types';
 import { CHARACTERS, CHARACTER_KEYS } from '../data/characters';
 import { GameNetwork } from '../game/network';
@@ -30,14 +30,20 @@ export default function MultiplayerLobby({ onGameStarted, onBack }: Props) {
   const charDef = CHARACTERS[character];
   const effectiveName = playerName.trim() || charDef.name;
 
-  // Cleanup network on unmount
+  // Track whether the game has started so we don't close the socket on lobby unmount
+  const gameStartedRef = useRef(false);
+
+  // Cleanup network on unmount — only close if game never started (lobby was abandoned)
   useEffect(() => {
-    return () => { network?.close(); };
+    return () => {
+      if (!gameStartedRef.current) network?.close();
+    };
   }, [network]);
 
   function buildNetwork(onCreate: (net: GameNetwork) => void): void {
     setConnecting(true);
     setError('');
+    gameStartedRef.current = false;
     const net = new GameNetwork({
       onRoomCreated(code, _id) {
         setRoomCode(code);
@@ -56,6 +62,8 @@ export default function MultiplayerLobby({ onGameStarted, onBack }: Props) {
         setAmHost(net.myPlayerId === hostId);
       },
       onGameStarted(yourPlayerId) {
+        // Mark as started so the cleanup effect leaves the socket alive
+        gameStartedRef.current = true;
         onGameStarted(net, yourPlayerId);
       },
       onError(msg) {
