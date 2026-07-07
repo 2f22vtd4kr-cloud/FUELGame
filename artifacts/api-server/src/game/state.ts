@@ -111,6 +111,8 @@ export function startGame(
       botTaskId: null,
       botCarId: null,
       botCooldown: Math.random() * 2,
+      khozainLockCooldown: 0,
+      khozainLockProgress: 0,
     };
   });
 
@@ -225,6 +227,8 @@ function makePlayer(
     botTaskId: null,
     botCarId: null,
     botCooldown: isHuman ? 0 : Math.random() * 2,
+    khozainLockCooldown: 0,
+    khozainLockProgress: 0,
   };
 }
 
