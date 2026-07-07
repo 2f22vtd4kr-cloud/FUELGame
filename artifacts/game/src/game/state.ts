@@ -82,6 +82,7 @@ export function startGame(
       ambushTarget: null,
       ambushChargeTimer: 0,
       ambushCooldown: 0,
+      siphonCooldown: 0,
       isCarryingCanister: false,
       emote: null,
       emoteTimer: 0,

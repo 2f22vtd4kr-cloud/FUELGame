@@ -321,7 +321,7 @@ function drawCars(ctx: CanvasRenderingContext2D, state: GameState): void {
 
 function drawBodies(ctx: CanvasRenderingContext2D, state: GameState): void {
   for (const body of state.bodies) {
-    if (body.reportedBy !== null) continue; // fade out after reported (TODO)
+    // Bodies remain visible after being reported (they stay as evidence)
     const { x, y } = body.pos;
 
     // Shadow

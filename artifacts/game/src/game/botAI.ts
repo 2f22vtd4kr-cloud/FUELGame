@@ -5,7 +5,7 @@ import {
   CANISTER_RADIUS, TASK_RESPAWN_TIME,
 } from './types';
 import { TASK_DEFS } from '../data/tasks';
-import { isInsideBuilding, clampToMap, dist } from '../data/map';
+import { isInsideBuilding, clampToMap, dist, DUMPSTER_POSITIONS } from '../data/map';
 import { callMeeting } from './logic';
 import { audio } from './audio';
 
@@ -16,6 +16,7 @@ export function updateBots(dt: number): void {
       bot.botCooldown = Math.max(0, bot.botCooldown - dt);
     }
     if (bot.ambushCooldown > 0) bot.ambushCooldown -= dt;
+    if (bot.siphonCooldown > 0) bot.siphonCooldown -= dt;
 
     if (bot.role === 'khozain') updateKhozainBot(bot, dt);
     else updateSlivshchikBot(bot, dt);
@@ -190,8 +191,25 @@ function updateSlivshchikBot(bot: Player, dt: number): void {
     }
   }
 
+  // 4a. Dispose of carried canister at dumpster (§2.4 — Сливщики must dispose)
+  if (bot.isCarryingCanister) {
+    const nearDump = DUMPSTER_POSITIONS.some(dp => dist(bot.pos, dp) < 60);
+    if (nearDump) {
+      bot.isCarryingCanister = false;
+    } else {
+      let nearest: { x: number; y: number } | null = null;
+      let nearestDist = Infinity;
+      for (const dp of DUMPSTER_POSITIONS) {
+        const dd = dist(bot.pos, dp);
+        if (dd < nearestDist) { nearestDist = dd; nearest = dp; }
+      }
+      if (nearest) { moveBot(bot, nearest, dt); return; }
+    }
+  }
+
   // 4. Find a car to siphon
   if (bot.botState === 'idle' || bot.botState === 'fake_task') {
+    if (bot.siphonCooldown > 0) { randomWander(bot, dt); return; } // §2.4 cooldown
     let best = null; let bestDist = Infinity;
     for (const car of gs.cars) {
       if (car.fuel <= 0 || car.hasImmunity || car.siphoner) continue;

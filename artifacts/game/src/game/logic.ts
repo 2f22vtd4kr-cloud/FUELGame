@@ -15,32 +15,42 @@ import { NEWS_HEADLINES, TICKER_INTERVAL } from '../data/ticker';
 import { updateBots } from './botAI';
 import { audio } from './audio';
 
-// ─── Ejection texts (20 total, from §2.7.6) ──────────────────────────────────
+// ─── Ejection texts (20 total, §2.7.6 — character-specific) ─────────────────
 
-const SIPHONER_EJECTED = [
-  'был Сливщиком. Теперь он работает на промзоне за еду.',
-  'был Сливщиком. Его USDT конфисковали.',
-  'был Сливщиком. Это было очевидно с самого начала.',
-  'была Сливщицей. «Это не моя тачка» — это было её прикрытие.',
-  'был Сливщиком. «У меня травматик» — это был блеф.',
-  'была Сливщицей. Контент «реакция на слив» зашёл слишком далеко.',
-  'был Сливщиком. Он молчал, потому что ему было стыдно.',
-  'был Сливщиком. Велосипед был для отвода глаз.',
-  'была Сливщицей. Талоны были отвлечением. Хитро.',
-  'был Сливщиком. Барсик знал. Барсик всегда знает.',
-];
-const INNOCENT_EJECTED = [
-  'не был Сливщиком. Он просто любил машины.',
-  'не была Сливщицей. Она снимала контент, а не сливала.',
-  'не был Сливщиком. Но его всё равно выгнали.',
-  'не была Сливщицей. Она на велосипеде.',
-  'не был Сливщиком. Ахмет молчал — это подозрительно, но не улика.',
-  'не был Сливщиком. У него и так талоны. Зачем ему сливать?',
-  'не была Сливщицей. Она просто любила каршеринг.',
-  'не был Сливщиком. Но его выкинули за «Смена горит» в третий раз.',
-  'не был Сливщиком. Он просто хотел внимания.',
-  'не был Сливщиком. Барсик — кот. Барсик пошёл спать.',
-];
+// Maps character key to their specific ejection suffix when they ARE a slivshchik
+const EJECTED_AS_SLIVSHCHIK: Partial<Record<string, string>> = {
+  denis:         'Денис был Сливщиком. Теперь он работает на промзоне за еду.',
+  anya:          'Аня была Сливщицей. «Это не моя тачка» — это было её прикрытие.',
+  vova:          'Вова был Сливщиком. Его USDT конфисковали.',
+  uncle_seryozha:'Серёжа был Сливщиком. Талоны были отвлечением. (Опечатка? Нет.)',
+  petrovich:     'Петрович был Сливщиком. Это было очевидно с самого начала.',
+  marina:        'Марина была Сливщицей. Контент «реакция на слив» зашёл слишком далеко.',
+  akhmet:        'Ахмет был Сливщиком. Он молчал, потому что ему было стыдно.',
+  oleg:          'Олег был Сливщиком. «У меня травматик» — это был bluff.',
+  lena:          'Лена была Сливщицей. Велосипед был для отвода глаз.',
+  barsik:        'Барсик был Сливщиком. (Это невозможно по правилам, но вот мы тут.)',
+};
+
+// Maps character key to their specific ejection suffix when they are NOT a slivshchik
+const EJECTED_AS_INNOCENT: Partial<Record<string, string>> = {
+  denis:         'Денис не был Сливщиком. Но его выкинули, потому что он сказал «Смена горит» в третий раз.',
+  anya:          'Аня не была Сливщицей. Она просто любила каршеринг.',
+  vova:          'Вова не был Сливщиком. Он просто хотел внимания.',
+  uncle_seryozha:'Дядя Серёжа не был Сливщиком. У него и так талоны. Зачем ему сливать?',
+  petrovich:     'Петрович не был Сливщиком. Он чинил всем машины. Бесплатно. Подозрительно.',
+  marina:        'Марина не была Сливщицей. Она снимала контент, а не сливала.',
+  akhmet:        'Ахмет не был Сливщиком. Он просто мёл двор. И молчал.',
+  oleg:          'Олег не был Сливщиком. Но он и не был не Сливщиком. (Это баг, простите.)',
+  lena:          'Лена не была Сливщицей. Она на велосипеде.',
+  barsik:        'Барсик не был Сливщиком. Барсик — кот. Барсик пошёл спать.',
+};
+
+function getEjectionText(charKey: string, isSlivshchik: boolean): string {
+  if (isSlivshchik) {
+    return EJECTED_AS_SLIVSHCHIK[charKey] ?? `${charKey} был Сливщиком. Это было очевидно.`;
+  }
+  return EJECTED_AS_INNOCENT[charKey] ?? `${charKey} не был Сливщиком. Двор скорбит.`;
+}
 
 // ─── Main tick ────────────────────────────────────────────────────────────────
 
@@ -125,8 +135,9 @@ function updateHumanPlayer(dt: number, input: InputState): void {
     }
   }
 
-  // Update ambush cooldown
+  // Update cooldowns
   if (player.ambushCooldown > 0) player.ambushCooldown -= dt;
+  if (player.siphonCooldown > 0) player.siphonCooldown -= dt;
 
   // Update suspected timer
   if (player.suspectedTimer > 0) player.suspectedTimer -= dt;
@@ -161,14 +172,27 @@ function updateInteractions(dt: number, input: InputState): void {
       if (input.interact) {
         player.ambushTarget = target.id;
         player.ambushChargeTimer += dt;
+
+        // §2.4: Re-check lone condition mid-charge — interrupt if someone walks in
+        if (player.ambushChargeTimer > 0.05) {
+          const stillLone = findAmbushTarget(player);
+          if (!stillLone || stillLone.id !== target.id) {
+            // A third player entered — abort, mark slivshchik as suspicious
+            player.suspectedTimer = 5;
+            player.ambushTarget = null;
+            player.ambushChargeTimer = 0;
+            setPrompt('⚠️ Засада сорвана! Свидетель.', 2);
+            return;
+          }
+        }
+
         if (player.ambushChargeTimer >= AMBUSH_CHARGE_TIME) {
           executeAmbush(player, target);
           return;
         }
       } else {
-        // Released early — check if we were charging
+        // Released early
         if (player.ambushChargeTimer > 0.1 && player.ambushChargeTimer < AMBUSH_CHARGE_TIME) {
-          // Interrupted! Someone might have walked in
           player.suspectedTimer = 5;
         }
         player.ambushTarget = null;
@@ -272,6 +296,11 @@ function updateInteractions(dt: number, input: InputState): void {
 
   // ── 6. Siphon (slivshchik only, car nearby) ────────────────────────────────
   if (player.role === 'slivshchik') {
+    // Show cooldown if active
+    if (player.siphonCooldown > 0) {
+      setPrompt(`⏱ Перезарядка слива: ${Math.ceil(player.siphonCooldown)}с`, 0.2);
+    }
+
     let nearCar = null;
     let nearCarDist = Infinity;
     for (const car of gs.cars) {
@@ -285,30 +314,36 @@ function updateInteractions(dt: number, input: InputState): void {
     if (nearCar) {
       const phase = nearCar.siphonPhase;
       if (phase === 0) {
-        setPrompt('🪣 [удерживай E] Слить бензин', 0.2);
-        if (input.interact) {
-          // Start setup phase
-          nearCar.siphoner = player.id;
-          nearCar.siphonPhase = 1;
-          nearCar.siphonTimer = 0;
+        if (player.siphonCooldown > 0) {
+          // Still on cooldown — already shown above, no action
+        } else {
+          setPrompt('🪣 [удерживай E] Слить бензин', 0.2);
+          if (input.interact) {
+            // Start setup phase
+            nearCar.siphoner = player.id;
+            nearCar.siphonPhase = 1;
+            nearCar.siphonTimer = 0;
+          }
         }
       } else if (nearCar.siphoner === player.id && phase === 1) {
         setPrompt('⏳ Готовим шланг... [удерживай E]', 0.2);
         if (!input.interact) {
-          // Released before active — cancel, no evidence
+          // Released before active — cancel, apply cooldown
           nearCar.siphoner = null;
           nearCar.siphonPhase = 0;
           nearCar.siphonTimer = 0;
+          player.siphonCooldown = 15; // §2.4: 15s cooldown
           setPrompt('Слив отменён.', 1.5);
         }
       } else if (nearCar.siphoner === player.id && phase === 2) {
         setPrompt('🪣 Активный слив! [отпусти → улика]', 0.2);
         if (!input.interact) {
-          // Released during active — drop canister (evidence!)
+          // Released during active — drop canister (evidence!) + cooldown
           dropCanister(player, nearCar, false);
           nearCar.siphoner = null;
           nearCar.siphonPhase = 0;
           nearCar.siphonTimer = 0;
+          player.siphonCooldown = 15; // §2.4: 15s cooldown
         }
       }
       return;
@@ -392,6 +427,7 @@ function executeAmbush(killer: Player, victim: Player): void {
   };
   gs.bodies.push(body);
   setPrompt(`💀 ${victim.name} устранён(а). Действуй быстро.`, 4);
+  checkWinConditions(); // §2.5: check win immediately after ambush kill
 }
 
 function clearTaskDoer(playerId: string): void {
@@ -405,6 +441,11 @@ function clearTaskDoer(playerId: string): void {
 function stopSiphon(car: typeof gs.cars[number], siphoner: Player | undefined, reason: 'cancel' | 'interrupt' | 'complete'): void {
   if (siphoner?.isHuman && car.siphonPhase === 2) {
     audio.stopGurgle();
+  }
+  // §2.4: 15s cooldown for ALL end paths (cancel/interrupt/complete).
+  // 'complete' callers set it before invoking stopSiphon; we set it here for the rest.
+  if (siphoner && reason !== 'complete') {
+    siphoner.siphonCooldown = 15;
   }
   car.siphoner = null;
   car.siphonPhase = 0;
@@ -446,6 +487,7 @@ function updateSiphoning(dt: number): void {
       if (car.fuel <= 0) {
         if (siphoner.isHuman) audio.play('siphon_complete');
         dropCanister(siphoner, car, true);
+        siphoner.siphonCooldown = 15; // §2.4: 15s cooldown after completing
         stopSiphon(car, siphoner, 'complete');
       }
     }
@@ -466,6 +508,10 @@ function dropCanister(siphoner: Player, car: { id: string; pos: { x: number; y: 
   gs.canisters.push(canister);
   if (siphoner.isHuman && !isFull) {
     setPrompt('⚠️ Канистра брошена! Улика на месте.', 3);
+  }
+  // Bots immediately "hold" the canister they just produced so disposal AI triggers
+  if (!siphoner.isHuman) {
+    siphoner.isCarryingCanister = true;
   }
 }
 
@@ -626,9 +672,7 @@ function resolveMeeting(): void {
     if (ejected) {
       ejected.isAlive = false;
       const isSlivshchik = ejected.role === 'slivshchik';
-      const texts = isSlivshchik ? SIPHONER_EJECTED : INNOCENT_EJECTED;
-      const rndText = texts[Math.floor(Math.random() * texts.length)];
-      m.ejectionText = `${ejected.name} ${rndText}`;
+      m.ejectionText = getEjectionText(ejected.character, isSlivshchik);
       audio.play('ejection');
     }
   } else {

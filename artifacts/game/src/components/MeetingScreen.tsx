@@ -9,21 +9,21 @@ interface MeetingScreenProps {
   state: GameState;
 }
 
-// ── Quick-chat phrases (§2.7.5 — 12 phrases) ──────────────────────────────
+// ── Quick-chat phrases (§2.7.5 — 12 phrases, clock positions 12→11) ────────
 
 const QUICK_CHAT = [
-  { text: 'Я был у шавермы!', emoji: '🌯' },
-  { text: 'Это не я!', emoji: '🙅' },
-  { text: 'Я выполнял задачу.', emoji: '✅' },
-  { text: 'Видел его у машин.', emoji: '🚗' },
-  { text: 'Почему молчишь?', emoji: '🤔' },
-  { text: 'Я видел канистру!', emoji: '🪣' },
-  { text: 'Алиби есть!', emoji: '📜' },
-  { text: 'Давайте пропустим.', emoji: '⏭️' },
-  { text: 'Это точно Сливщик!', emoji: '⚡' },
-  { text: 'Кто-то от меня ушёл.', emoji: '🏃' },
-  { text: 'Я в это не верю.', emoji: '🙄' },
-  { text: 'Подождём улик.', emoji: '🔍' },
+  { text: 'Я был у шавермы!', emoji: '🌯' },             // 12
+  { text: 'Вова смотрел на мой бак!', emoji: '🚗' },      // 1
+  { text: 'Слива! Слива!', emoji: '⚡' },                  // 2
+  { text: 'Я видел Серёжу у мусорок.', emoji: '🗑️' },     // 3
+  { text: 'Где ты был последние 30 секунд?', emoji: '🤔' },// 4
+  { text: 'Это не я, честно!', emoji: '🙅' },              // 5
+  { text: 'Давайте пропустим и сыграем.', emoji: '⏭️' },   // 6
+  { text: 'У меня есть алиби.', emoji: '📜' },             // 7
+  { text: 'Кто-то только что ушёл от меня.', emoji: '🏃' },// 8
+  { text: 'Я выполнял задачу.', emoji: '✅' },             // 9
+  { text: 'Почему ты молчал?', emoji: '🙄' },              // 10
+  { text: 'Я видел канистру!', emoji: '🪣' },              // 11
 ];
 
 const MEETING_REASON_TEXT: Record<string, string> = {
@@ -173,7 +173,8 @@ export default function MeetingScreen({ state }: MeetingScreenProps) {
                   }}>
                     {p.name} {isMine && '(ты)'}
                   </div>
-                  {meeting.phase === 'reveal' && (
+                  {/* Only reveal the ejected player's role per §2.7.4 */}
+                  {meeting.phase === 'reveal' && meeting.ejectedId === p.id && (
                     <div style={{
                       fontSize: 10,
                       color: p.role === 'slivshchik' ? '#FF5252' : '#4CAF50',
@@ -183,8 +184,8 @@ export default function MeetingScreen({ state }: MeetingScreenProps) {
                   )}
                 </div>
 
-                {/* Vote count chips */}
-                {votes > 0 && (
+                {/* Vote count chips — hidden during voting, shown only at reveal (§2.7.4) */}
+                {meeting.phase === 'reveal' && votes > 0 && (
                   <div style={{
                     background: 'rgba(229,57,53,0.6)', color: '#fff',
                     borderRadius: 10, padding: '2px 8px', fontSize: 11, fontWeight: 'bold',

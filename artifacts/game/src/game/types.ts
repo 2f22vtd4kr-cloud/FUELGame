@@ -87,6 +87,7 @@ export interface Player {
   ambushTarget: string | null;
   ambushChargeTimer: number;  // charge up to AMBUSH_CHARGE_TIME
   ambushCooldown: number;
+  siphonCooldown: number;     // 15s cooldown after completing/canceling a siphon (§2.4)
   // Items
   isCarryingCanister: boolean;
   // Visual
@@ -159,7 +160,7 @@ export const BODY_RADIUS        = 75;
 export const CANISTER_RADIUS    = 60;
 export const AMBUSH_RADIUS      = 55;        // tight range to trigger ambush
 export const AMBUSH_LONE_RADIUS = 480;       // no other player within this
-export const SIPHON_RATE        = 4;         // fuel % per second active drain
+export const SIPHON_RATE        = 14.3;      // fuel % per second active drain (100% in 7s per §2.4)
 export const SIPHON_SETUP_TIME  = 3;         // seconds for setup phase
 export const AMBUSH_CHARGE_TIME = 1.5;       // hold time to kill
 export const AMBUSH_COOLDOWN    = 25;
