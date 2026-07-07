@@ -1,152 +1,84 @@
-# 95-Й БАКСТАБ — HANDOFF DOCUMENT
+# 95-Й Бакстаб — Session Handoff
 
-> **For any new session:** Read this file FIRST. It tells you exactly what was built, what's in progress, and what to do next. Update this file continuously as you work. The game design bible is in `attached_assets/1_Game_DOC_1783414439610.md`.
+## What was done in the last session
 
----
+### §2.3 Vision System (raycasting fog-of-war) — IMPLEMENTED
 
-## GAME OVERVIEW
+**New file:** `artifacts/game/src/game/vision.ts`
+- Raycasting visibility polygon: 72 uniform rays + extra corner rays (angle±ε) for sharp shadows
+- `computeVisionPolygon(origin, facingAngle, fovDeg, maxRadius, obstacles)` → `Vec2[]`
+- `pointInPolygon(px, py, poly)` — point-in-polygon test for visibility checks
+- `buildVisionObstacles(visionBuildings, cars, dumpsters)` — assembles obstacle rect list
+- Constants: `VISION_RADIUS=420px`, `VISION_FOV_KHOZAIN=140°`, `VISION_FOV_SLIVSHCHIK=160°`
 
-**"95-Й" (Ninety-Fifth / Bakstab)** — social deduction mobile-first game set in 2026 Russian residential complex (ЖК "Цветочные Поляны").
+**Updated:** `artifacts/game/src/data/map.ts`
+- Added `VISION_BUILDINGS` — bottom wall split at entrance arch gap (x 450–750) so rays pass through the gate opening
 
-- **Хозяева (Owners):** protect car fuel, complete tasks to fill Unity Meter (0→100%)
-- **Сливщики (Siphoners):** drain fuel with siphon hoses, call sabotages
-- **Сходка (Meeting):** climax — players vote out suspects
-- **Win (Хозяева):** Unity Meter = 100% OR all Сливщики ejected
-- **Win (Сливщики):** all cars at 0% fuel OR equal/fewer хозяева than сливщики
-
----
-
-## CURRENT STATE — WHAT IS BUILT (Session 2)
-
-### ✅ Completed
-- [x] `HANDOFF.md` (this file)
-- [x] DB schema: `lib/db/src/schema/index.ts` (users, inventory, match_history, daily_leaderboard, achievements, rooms, room_events)
-- [x] Game artifact: `artifacts/game/` (react-vite, preview path `/`)
-- [x] `src/game/types.ts` — all TypeScript types for the game
-- [x] `src/data/characters.ts` — 10 character definitions (Денис, Аня, Вова, etc.)
-- [x] `src/data/tasks.ts` — 5 task definitions (шаурма, домофон, мусор, окно, бабушка)
-- [x] `src/data/map.ts` — map layout (buildings, cars, tasks, decorations, collision)
-- [x] `src/data/ticker.ts` — 50 satirical news headlines (from design doc §1.5)
-- [x] `src/game/state.ts` — mutable singleton game state + `startGame()` initializer
-- [x] `src/game/logic.ts` — full game update: movement, task gating (FIXED), meeting timer (FIXED), win conditions, prompt system
-- [x] `src/game/botAI.ts` — bot AI state machine (FIXED: distance gating, flee logic)
-- [x] `src/game/renderer.ts` — Canvas 2D renderer (buildings, grass, parking, cars, players, tasks, siphon animation, decorations)
-- [x] `src/components/Lobby.tsx` — character select (10 chars), player count slider, siphoner count slider, how-to-play
-- [x] `src/components/GameCanvas.tsx` — canvas element + 60fps game loop + keyboard input (WASD/arrows/E)
-- [x] `src/components/VirtualJoystick.tsx` — mobile touch joystick (dynamic position, interact button)
-- [x] `src/components/HUD.tsx` — unity meter, car fuel bars, news ticker, role badge, interact prompt, player list
-- [x] `src/components/MeetingScreen.tsx` — full meeting UI (discussion timer, voting grid, reveal, chat messages)
-- [x] `src/components/GameResults.tsx` — win/lose screen with stats, role reveal, fuel bot CTA
-- [x] `src/App.tsx` — phase router (lobby → play → meeting → results)
-- [x] `src/index.css` — game theme CSS (dark UI, bright game)
-- [x] Game workflow running at `/` — lobby confirmed working in preview
+**Updated:** `artifacts/game/src/game/renderer.ts`
+- `renderGame` computes vision polygon once per frame for local player
+- New `drawFogOfWar(ctx, poly)` — evenodd fill rule: outer rect filled dark, vision polygon punched as hole
+- `drawPlayers` now takes `visionPoly: Vec2[] | null` param; gates the ⚠️ siphon-setup warning on visibility
+- Dead local player → `visionPoly = null` → ghost vision (no fog)
+- Siphon active-drain stream (green line) intentionally visible even if siphoner is in fog — you see "something happening" at the car
+- Fellow-slivshchik red outline intentionally pierces fog (team awareness, same as Among Us)
 
 ---
 
-## FILE STRUCTURE
+## Implementation Status (updated)
 
-```
-artifacts/game/src/
-  game/
-    types.ts        ← All TypeScript types + game constants
-    state.ts        ← Mutable singleton `gs` + startGame()
-    logic.ts        ← Main tick: movement, tasks, siphoning, meeting, wins
-    botAI.ts        ← Bot state machine (idle→moving→interacting→fleeing)
-    renderer.ts     ← Canvas 2D renderer (2D top-down courtyard)
-  data/
-    characters.ts   ← 10 character defs (name, emoji, color, voice lines)
-    tasks.ts        ← 5 task defs (label, emoji, duration, unityReward)
-    map.ts          ← Map layout (buildings, cars, tasks, decorations, collision)
-    ticker.ts       ← 50 satirical news headlines
-  components/
-    Lobby.tsx           ← Pre-game lobby + character select
-    GameCanvas.tsx      ← Canvas + 60fps loop + keyboard input
-    VirtualJoystick.tsx ← Mobile joystick (dynamic position)
-    HUD.tsx             ← In-game HUD overlay
-    MeetingScreen.tsx   ← Сходка: discussion + voting + reveal
-    GameResults.tsx     ← Win/lose screen + @fuel_fuel_fuel_bot CTA
-  App.tsx           ← Phase router
-  main.tsx          ← Entry point
-  index.css         ← Theme CSS (dark game aesthetic)
+### Done ✅
+- Core phases (lobby → play → meeting → results)
+- Movement (sprint/stamina, crouch, base speed)
+- Siphoning (all 4 phases, gurgle audio, canister drop/pickup/disposal, 15s cooldown)
+- Ambush (1.5s charge, body left, 25s cooldown)
+- Сходка (3 triggers, teleport, 60+30s timer, 12-phrase chat, plurality vote, 20 ejection texts, role reveal)
+- Win conditions (unity 100% / all Сливщики ejected / all cars 0% / count parity)
+- Bot AI (behavior trees for both roles, suspicion, voice-line chat)
+- 10 characters × 10 voice lines
+- 50 news headlines, news ticker
+- 8/30 SFX (Web Audio API)
+- Minimap
+- **§2.3 Vision system** (raycasting fog-of-war) ← JUST COMPLETED
 
-lib/db/src/schema/index.ts  ← DB schema (ready for push when DATABASE_URL set)
-```
+### Next: §2.5 Task mini-games (highest remaining gameplay value)
+Tasks currently use hold-timer only. 20 task definitions exist in `data/tasks.ts`. 
+The doc specifies actual mini-game logic per task type. Recommend implementing 3-4 task mini-games:
+1. **Шаурма** — tap rhythm (repeated button press)
+2. **Домофон** — number sequence input
+3. **Мусор** — direction sequence (mash buttons in order)
+4. **Окно** — hold + release at correct time (timing)
 
----
-
-## KEY ARCHITECTURE DECISIONS
-
-1. **No Zustand/Redux** — game state is a mutable singleton (`gs` in `state.ts`). Canvas reads it directly at 60fps. React HUD reads a snapshot at 10Hz via `setInterval` + `useState`.
-2. **Canvas 2D** (not WebGL) — simpler, mobile-friendly, no dependencies.
-3. **gameStateRef pattern** — `gs` is mutated every frame. React components get `{ ...gs }` snapshots at 10Hz.
-4. **Bot AI is a state machine** — `idle → moving → interacting → fleeing → at_meeting`. Each state has clear entry/exit conditions.
-5. **Task gating** — bots check `dist < INTERACT_RADIUS * 0.7` BEFORE claiming interaction. Human player also checked each frame (not just on press).
-6. **Meeting timer** — ticked by the game loop (`tickGame` → `tickMeeting`), NOT `setInterval`. This was the bug in the previous session.
-7. **Phase architecture** — `gs.phase` drives app state. `GameCanvas.onSnapshot` notifies `App.tsx` at 10Hz.
+### After tasks: §2.9 Sabotage system
+None of the 4 sabotages exist yet:
+- Reactor (gas leak): periodic event, players must fix
+- Lights off: vision reduced further
+- Comms: minimap/task list disabled
+- Doors: sections locked off
 
 ---
 
-## WHAT TO DO NEXT (in priority order)
+## Key files
+- `artifacts/game/src/game/vision.ts` — §2.3 vision system (NEW)
+- `artifacts/game/src/game/types.ts` — all game types; `MAP_W=1200, MAP_H=900`
+- `artifacts/game/src/game/state.ts` — singleton `gs`; `startGame()` initializes
+- `artifacts/game/src/game/logic.ts` — `tickGame`, all interactions, win-condition
+- `artifacts/game/src/game/renderer.ts` — Canvas 2D draw loop + fog-of-war
+- `artifacts/game/src/game/botAI.ts` — bot behavior trees
+- `artifacts/game/src/game/audio.ts` — Web Audio API SFX (8 sounds)
+- `artifacts/game/src/data/map.ts` — zones, cars, tasks, decorations, `VISION_BUILDINGS`
+- `artifacts/game/src/data/tasks.ts` — 20 task definitions (hold-timer only, no mini-games yet)
+- `artifacts/game/src/data/characters.ts` — 10 characters with voice lines
+- `artifacts/game/src/data/ticker.ts` — 50 satirical news headlines
+- `artifacts/game/src/components/HUD.tsx` — React HUD overlay (10Hz snapshots)
+- `artifacts/game/src/components/MeetingScreen.tsx` — vote UI
+- `artifacts/game/src/components/Lobby.tsx` — character select + game settings
+- `artifacts/game/src/components/GameCanvas.tsx` — mounts canvas, drives RAF loop
 
-### Session 3 — Immediate issues to fix
-1. **Check for TypeScript errors** — run `pnpm run typecheck` from `artifacts/game/`. Fix any type errors.
-2. **Test gameplay** — open the game, click "Играть", verify:
-   - Player can move with WASD/arrows
-   - Task markers visible, progress bar fills when pressing E
-   - Meeting can be called at the entrance arch
-   - Bots are moving and interacting
-   - Win screen appears when unity meter hits 100%
-3. **Verify bot siphoning is visible** — should see green animated line from bot to car, car fuel bars decreasing.
-
-### Session 3 — Missing features (Phase 1 scope)
-4. **Minimap** — small map in corner showing player positions (optional but nice)
-5. **Sound effects** — siphon gurgle, task complete chime, meeting horn (optional)
-6. **Sabotage menu** — radial menu on long press right side (from design doc §2.9):
-   - Бабушка-Цербер (60s cooldown): NPC blocks alarm button
-   - ЖК Чат Офлайн (50s cooldown): disables alarm for 20s
-   - Сигнализация хаос (45s cooldown): masks siphon sound for 15s
-7. **Immunity ticket** — golden ticket found near dumpsters (5% spawn chance), locks car for 60s
-
-### Session 4 — Multiplayer (Phase 2)
-8. **WebSocket server** — `artifacts/api-server/src/ws/` for real-time multiplayer
-9. **Room system** — lobby codes, 4-8 player rooms
-10. **Telegram Mini App** — wrap in TMA (telegram-apps SDK), connect to @bakstab_bot
-
----
-
-## KNOWN ISSUES / WATCH OUT FOR
-
-- **Unused `dist` function** in `renderer.ts` — TypeScript may warn but Vite ignores it at runtime.
-- **Unused `VoteRecord`, `MeetingState` type imports** in `logic.ts` — harmless with `import type`.
-- **Database not set up** — `lib/db` schema is written but not pushed. Requires `DATABASE_URL` secret. Game works without DB (Phase 1 is fully client-side).
-- **api-server and mockup-sandbox workflows failing** — expected since node_modules aren't installed for those. Run `pnpm install` at workspace root to fix.
-
----
-
-## HOW TO RESUME IN A NEW SESSION
-
-1. **Read this file** top to bottom.
-2. **Check what's running:** `pnpm --filter @workspace/game run dev` should be live at `/`.
-3. **Look for recent errors:** check browser console + workflow logs.
-4. **Continue from first unchecked item** in the "What to do next" section above.
-5. **Update this file** as you complete each item.
-
----
-
-## DESIGN DOC REFERENCE
-
-Full bible: `attached_assets/1_Game_DOC_1783414439610.md` (1992 lines)
-
-Quick reference:
-- §2.1–2.5: Phase architecture (lobby, play, meeting)
-- §2.7: Сходка — 60s discussion + 30s voting, 12-phrase chat wheel
-- §2.8: Win conditions
-- §2.9: Sabotage system (4 types)
-- §3.1: Role system (Хозяева, Сливщики, Neutrals, Cat)
-- §6.3: SQL schema (reference for our Drizzle schema)
-- §6.6: Frontend-Canvas bridge (the architecture we implemented)
-- §10.2: Fuel ticket integration (@fuel_fuel_fuel_bot CTA — implemented in GameResults.tsx)
-
----
-
-*Last updated: Session 2 — game built from scratch, lobby confirmed working in preview*
+## Critical context for next session
+- Coordinate system: 1200×900 canvas pixels (not doc's meter-based spec)
+  - VISION_RADIUS=420px ≈ 12m; INTERACT_RADIUS=65px ≈ 1.5m
+- `gs` singleton, NOT Zustand. React HUD reads shallow snapshot at 10Hz
+- Vision polygon: `computeVisionPolygon` lives in `vision.ts`
+- TypeCheck: `pnpm --filter @workspace/game run typecheck` — must pass before marking work done
+- Workflow: `artifacts/game: web` (managed, do not create duplicate)
+- Design bible: `attached_assets/1_Game_DOC_1783421374443.md` (1992 lines, source of truth)

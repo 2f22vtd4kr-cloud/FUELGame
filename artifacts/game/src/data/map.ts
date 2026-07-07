@@ -120,6 +120,19 @@ export const MEETING_SPAWNS: Vec2[] = [
   { x: 510, y: 810 }, { x: 480, y: 785 },
 ];
 
+// ─── Vision buildings (entrance arch gap split into left + right segments) ────
+// Use this list for vision raycasting, NOT the standard BUILDINGS array.
+// The standard BUILDINGS has one solid bottom rect; here we split it at the
+// arch opening (x 450–750) so rays can pass through the gate.
+
+export const VISION_BUILDINGS: Rect[] = [
+  { x: 0,    y: 0,   w: 1200, h: 90  },  // top wall
+  { x: 0,    y: 90,  w: 90,   h: 720 },  // left wall
+  { x: 1110, y: 90,  w: 90,   h: 720 },  // right wall
+  { x: 0,    y: 810, w: 450,  h: 90  },  // bottom-left  (arch gap at 450–750)
+  { x: 750,  y: 810, w: 450,  h: 90  },  // bottom-right
+];
+
 // ─── Collision helpers ────────────────────────────────────────────────────────
 
 export function isInsideBuilding(pos: Vec2, radius = 12): boolean {

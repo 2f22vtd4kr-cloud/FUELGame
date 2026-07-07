@@ -1,23 +1,31 @@
-import type { GameState } from './types';
-import { ALARM_RADIUS } from './types';
+import type { GameState, Vec2 } from './types';
+import { ALARM_RADIUS, MAP_W, MAP_H } from './types';
 import { TASK_DEFS } from '../data/tasks';
-import { DECORATIONS, ENTRANCE_POS } from '../data/map';
+import { DECORATIONS, ENTRANCE_POS, DUMPSTER_POSITIONS, VISION_BUILDINGS } from '../data/map';
 import { CHARACTERS } from '../data/characters';
+import {
+  computeVisionPolygon,
+  buildVisionObstacles,
+  pointInPolygon,
+  VISION_RADIUS,
+  VISION_FOV_KHOZAIN,
+  VISION_FOV_SLIVSHCHIK,
+} from './vision';
 
 // ─── Color palette ────────────────────────────────────────────────────────────
 
 const COLORS = {
-  sky:        '#87CEEB',
-  grass:      '#6DB56D',
-  asphalt:    '#4A4A4A',
-  parking:    '#555555',
-  building:   '#D0B49F',
+  sky:          '#87CEEB',
+  grass:        '#6DB56D',
+  asphalt:      '#4A4A4A',
+  parking:      '#555555',
+  building:     '#D0B49F',
   buildingEdge: '#B09070',
-  archGray:   '#999',
-  road:       '#666',
-  canister:   '#F5A623',
-  body:       '#B0BEC5',
-  bodyOutline:'#78909C',
+  archGray:     '#999',
+  road:         '#666',
+  canister:     '#F5A623',
+  body:         '#B0BEC5',
+  bodyOutline:  '#78909C',
 };
 
 // ─── Main render ──────────────────────────────────────────────────────────────
@@ -31,14 +39,31 @@ export function renderGame(
   const localPlayer = state.players.find(p => p.id === state.localPlayerId);
   if (!localPlayer) return;
 
-  // ── Camera: center on local player ──
+  // ── Camera: centre on local player ──────────────────────────────────────────
   const camX = Math.round(localPlayer.pos.x - cw / 2);
   const camY = Math.round(localPlayer.pos.y - ch / 2);
 
   ctx.save();
   ctx.translate(-camX, -camY);
 
-  // ── World layers ──
+  // ── §2.3 Vision polygon (computed once per frame) ────────────────────────────
+  // Dead local player gets ghost vision (no fog) so they can watch the game.
+  let visionPoly: Vec2[] | null = null;
+  if (localPlayer.isAlive) {
+    const fovDeg = localPlayer.role === 'slivshchik'
+      ? VISION_FOV_SLIVSHCHIK
+      : VISION_FOV_KHOZAIN;
+    const obstacles = buildVisionObstacles(VISION_BUILDINGS, state.cars, DUMPSTER_POSITIONS);
+    visionPoly = computeVisionPolygon(
+      localPlayer.pos,
+      localPlayer.facingAngle,
+      fovDeg,
+      VISION_RADIUS,
+      obstacles,
+    );
+  }
+
+  // ── World layers (drawn before fog overlay) ──────────────────────────────────
   drawBackground(ctx);
   drawParkingLot(ctx);
   drawDecorations(ctx);
@@ -46,12 +71,96 @@ export function renderGame(
   drawCars(ctx, state);
   drawBodies(ctx, state);
   drawCanisters(ctx, state);
-  drawPlayers(ctx, state);
+  drawPlayers(ctx, state, visionPoly);
   drawAlarmButton(ctx, state);
   drawEntrance(ctx);
   drawUI(ctx, state, localPlayer);
 
+  // ── §2.3 Fog-of-war overlay (on top of world, under camera restore) ──────────
+  // Uses the evenodd fill rule: outer rect filled dark, vision polygon cuts a
+  // transparent hole. Entities drawn outside the hole are hidden by the fog.
+  if (visionPoly) drawFogOfWar(ctx, visionPoly);
+
+  // ── Post-fog pass: slivshchik teammate outlines pierce fog (§3.1.2) ──────────
+  // Must be drawn AFTER the fog so it is always visible to local slivshchik
+  // regardless of walls or darkness. Same design intent as Among Us impostor glow.
+  drawTeammateOutlines(ctx, state);
+
   ctx.restore();
+}
+
+// ─── §2.3 Fog-of-war overlay ─────────────────────────────────────────────────
+
+function drawFogOfWar(ctx: CanvasRenderingContext2D, poly: Vec2[]): void {
+  if (poly.length < 3) return;
+
+  ctx.save();
+
+  // Soft gradient ring at the vision boundary (gives a slight glow at the edge)
+  // The flat fog fill below covers everywhere beyond the gradient.
+  ctx.fillStyle = 'rgba(0, 0, 10, 0.88)';
+  ctx.beginPath();
+  // Outer frame — entire map plus bleed
+  ctx.rect(-120, -120, MAP_W + 240, MAP_H + 240);
+  // Inner cutout — the visible polygon (evenodd punches a hole)
+  ctx.moveTo(poly[0].x, poly[0].y);
+  for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i].x, poly[i].y);
+  ctx.closePath();
+  ctx.fill('evenodd');
+
+  // Soft inner vignette ring around the vision polygon edge (aesthetic)
+  // Replicated as a second semi-transparent path with a slightly larger fog area
+  ctx.globalAlpha = 0.28;
+  ctx.fillStyle = 'rgba(0, 0, 10, 1)';
+  ctx.beginPath();
+  ctx.rect(-120, -120, MAP_W + 240, MAP_H + 240);
+  // Vision polygon shrunk by 18 px so the vignette bleeds inward slightly
+  const cx = poly[0].x;
+  const cy = poly[0].y;
+  ctx.moveTo(cx, cy);
+  for (let i = 1; i < poly.length; i++) {
+    const nx = cx + (poly[i].x - cx) * 0.96;
+    const ny = cy + (poly[i].y - cy) * 0.96;
+    ctx.lineTo(nx, ny);
+  }
+  ctx.closePath();
+  ctx.fill('evenodd');
+  ctx.globalAlpha = 1;
+
+  ctx.restore();
+}
+
+// ─── Post-fog: teammate outlines (pierce the fog for local slivshchik) ────────
+// This pass runs AFTER drawFogOfWar so outlines are always on top of the fog.
+
+function drawTeammateOutlines(ctx: CanvasRenderingContext2D, state: GameState): void {
+  const localPlayer = state.players.find(p => p.id === state.localPlayerId);
+  if (!localPlayer || localPlayer.role !== 'slivshchik') return;
+
+  for (const player of state.players) {
+    if (!player.isAlive) continue;
+    if (player.id === state.localPlayerId) continue;
+    if (player.role !== 'slivshchik') continue;
+
+    const { x, y } = player.pos;
+    ctx.strokeStyle = '#FF1744';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([4, 4]);
+    ctx.globalAlpha = 0.85;
+    ctx.beginPath();
+    ctx.arc(x, y, 26, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+
+    // Small "S" label so it's unambiguous even at distance
+    ctx.font = 'bold 9px sans-serif';
+    ctx.fillStyle = '#FF1744';
+    ctx.textAlign = 'center';
+    ctx.globalAlpha = 0.9;
+    ctx.fillText('СЛ', x, y - 30);
+    ctx.globalAlpha = 1;
+  }
 }
 
 // ─── Background ───────────────────────────────────────────────────────────────
@@ -76,7 +185,7 @@ function drawBackground(ctx: CanvasRenderingContext2D): void {
   ctx.strokeRect(0, 90, 90, 720);
   ctx.strokeRect(1110, 90, 90, 720);
 
-  // Entrance arch gap (bottom center)
+  // Entrance arch gap (bottom centre)
   ctx.fillStyle = '#3A3A4A';
   ctx.fillRect(450, 810, 300, 90);
   ctx.fillStyle = '#555';
@@ -281,7 +390,8 @@ function drawCars(ctx: CanvasRenderingContext2D, state: GameState): void {
       ctx.setLineDash([]);
       ctx.globalAlpha = 1;
     } else if (car.siphonPhase === 2) {
-      // Active drain — animated green stream
+      // Active drain — animated green stream (visible even if siphoner is in fog;
+      // the stream going into darkness is an intentional tension cue)
       const siphoner = state.players.find(p => p.id === car.siphoner);
       if (siphoner) {
         ctx.strokeStyle = '#00E676';
@@ -321,7 +431,6 @@ function drawCars(ctx: CanvasRenderingContext2D, state: GameState): void {
 
 function drawBodies(ctx: CanvasRenderingContext2D, state: GameState): void {
   for (const body of state.bodies) {
-    // Bodies remain visible after being reported (they stay as evidence)
     const { x, y } = body.pos;
 
     // Shadow
@@ -338,9 +447,7 @@ function drawBodies(ctx: CanvasRenderingContext2D, state: GameState): void {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(Math.PI / 2);
-    // Torso
     ctx.fillRect(-10, -20, 20, 35);
-    // Head
     ctx.beginPath();
     ctx.arc(0, -25, 12, 0, Math.PI * 2);
     ctx.fill();
@@ -409,8 +516,16 @@ function drawCanisters(ctx: CanvasRenderingContext2D, state: GameState): void {
 }
 
 // ─── Players ─────────────────────────────────────────────────────────────────
+// §2.3: visionPoly is null when local player is dead (ghost vision = see all).
+// The fog overlay drawn after this function naturally hides players outside the
+// visible polygon. We only need explicit visibility checks for HUD annotations
+// that would reveal tactical info (the ⚠️ siphon-setup warning).
 
-function drawPlayers(ctx: CanvasRenderingContext2D, state: GameState): void {
+function drawPlayers(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  visionPoly: Vec2[] | null,
+): void {
   const localPlayer = state.players.find(p => p.id === state.localPlayerId);
   const isLocalSlivshchik = localPlayer?.role === 'slivshchik';
 
@@ -418,6 +533,13 @@ function drawPlayers(ctx: CanvasRenderingContext2D, state: GameState): void {
     if (!player.isAlive) continue;
     const { x, y } = player.pos;
     const charDef = CHARACTERS[player.character];
+    const isLocal = player.id === state.localPlayerId;
+
+    // §2.3 — check visibility for HUD annotation gating (not for rendering,
+    // which is handled by the fog overlay drawn afterwards)
+    const playerVisible = isLocal || visionPoly === null
+      ? true
+      : pointInPolygon(x, y, visionPoly);
 
     // Suspected outline
     if (player.suspectedTimer > 0) {
@@ -430,18 +552,8 @@ function drawPlayers(ctx: CanvasRenderingContext2D, state: GameState): void {
       ctx.globalAlpha = 1;
     }
 
-    // Fellow slivshchik outline (red, only visible to local slivshchik)
-    if (isLocalSlivshchik && player.role === 'slivshchik' && player.id !== state.localPlayerId) {
-      ctx.strokeStyle = '#FF1744';
-      ctx.lineWidth = 3;
-      ctx.setLineDash([4, 4]);
-      ctx.globalAlpha = 0.7;
-      ctx.beginPath();
-      ctx.arc(x, y, 24, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.globalAlpha = 1;
-    }
+    // Note: fellow-slivshchik teammate outline is drawn in drawTeammateOutlines()
+    // AFTER the fog overlay so it pierces the fog (§3.1.2 team awareness).
 
     // Shadow
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
@@ -456,8 +568,8 @@ function drawPlayers(ctx: CanvasRenderingContext2D, state: GameState): void {
     ctx.fill();
 
     // Outline
-    ctx.strokeStyle = player.id === state.localPlayerId ? '#FFD700' : '#fff';
-    ctx.lineWidth = player.id === state.localPlayerId ? 2.5 : 1.5;
+    ctx.strokeStyle = isLocal ? '#FFD700' : '#fff';
+    ctx.lineWidth = isLocal ? 2.5 : 1.5;
     ctx.stroke();
 
     // Facing direction indicator
@@ -511,8 +623,8 @@ function drawPlayers(ctx: CanvasRenderingContext2D, state: GameState): void {
     }
 
     // Name tag
-    ctx.font = `${player.id === state.localPlayerId ? 'bold ' : ''}10px sans-serif`;
-    ctx.fillStyle = player.id === state.localPlayerId ? '#FFD700' : '#fff';
+    ctx.font = `${isLocal ? 'bold ' : ''}10px sans-serif`;
+    ctx.fillStyle = isLocal ? '#FFD700' : '#fff';
     ctx.textAlign = 'center';
     ctx.fillText(player.name, x, y + 28);
 
@@ -526,17 +638,21 @@ function drawPlayers(ctx: CanvasRenderingContext2D, state: GameState): void {
       ctx.stroke();
     }
 
-    // §2.4 setup-phase warning: show ⚠️ above any siphoner in setup (phase 1)
-    // This is visible to ALL players who can see this player
-    const isInSetup = state.cars.some(c => c.siphoner === player.id && c.siphonPhase === 1);
-    if (isInSetup) {
-      ctx.font = '14px serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.globalAlpha = 0.5 + 0.5 * Math.sin(Date.now() / 180);
-      ctx.fillText('⚠️', x, y - 32);
-      ctx.globalAlpha = 1;
-      ctx.textBaseline = 'alphabetic';
+    // §2.3 / §2.4 — ⚠️ siphon-setup warning only shown if the siphoner is
+    // visible to the local player (otherwise it would reveal hidden activity).
+    // Full siphon stream (phase 2) is visible from the car even through fog,
+    // which is intentional — you see "something happening" at the car.
+    if (playerVisible) {
+      const isInSetup = state.cars.some(c => c.siphoner === player.id && c.siphonPhase === 1);
+      if (isInSetup) {
+        ctx.font = '14px serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.globalAlpha = 0.5 + 0.5 * Math.sin(Date.now() / 180);
+        ctx.fillText('⚠️', x, y - 32);
+        ctx.globalAlpha = 1;
+        ctx.textBaseline = 'alphabetic';
+      }
     }
   }
 }
@@ -573,7 +689,11 @@ function drawEntrance(ctx: CanvasRenderingContext2D): void {
 
 // ─── World UI ─────────────────────────────────────────────────────────────────
 
-function drawUI(ctx: CanvasRenderingContext2D, state: GameState, local: typeof state.players[number]): void {
+function drawUI(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  local: typeof state.players[number],
+): void {
   // Stamina bar near local player (only when not full or sprinting)
   const showStamina = local.isSprinting || local.stamina < 4.9;
   if (showStamina) {
