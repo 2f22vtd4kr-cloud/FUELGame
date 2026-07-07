@@ -1,5 +1,6 @@
 import type { GameState, Vec2 } from './types';
 import { ALARM_RADIUS, MAP_W, MAP_H, CROUCH_VISIBILITY_MULT, VENT_FLASH_DURATION } from './types';
+import { getSprite, CAR_SPRITE_MAP } from './sprites';
 import { TASK_DEFS } from '../data/tasks';
 import { DECORATIONS, ENTRANCE_POS, DUMPSTER_POSITIONS, VISION_BUILDINGS, VALVE_POSITIONS, BABUSHKA_CERBERUS_POS, BABUSHKA_NPC_POS } from '../data/map';
 import { CHARACTERS } from '../data/characters';
@@ -621,19 +622,23 @@ function drawCars(ctx: CanvasRenderingContext2D, state: GameState): void {
     const { x, y } = car.pos;
     const fuel = car.fuel;
 
-    // Body
-    ctx.fillStyle = car.color;
-    ctx.fillRect(x - 35, y - 18, 70, 36);
-
-    // Windshields
-    ctx.fillStyle = 'rgba(135,206,235,0.55)';
-    ctx.fillRect(x - 28, y - 14, 22, 28);
-    ctx.fillRect(x + 6, y - 14, 22, 28);
-
-    // Wheels
-    ctx.fillStyle = '#222';
-    [{ dx: -28, dy: -18 }, { dx: 18, dy: -18 }, { dx: -28, dy: 12 }, { dx: 18, dy: 12 }]
-      .forEach(({ dx, dy }) => ctx.fillRect(x + dx - 2, y + dy - 2, 14, 8));
+    // §7.3 Car sprite (generated PNG) or primitive-rect fallback
+    const carSpriteKey = CAR_SPRITE_MAP[car.id];
+    const carSprite = carSpriteKey ? getSprite(carSpriteKey) : null;
+    if (carSprite) {
+      // Drawn horizontally (all cars face right in the parking lot).
+      ctx.drawImage(carSprite, x - 42, y - 24, 84, 48);
+    } else {
+      // Fallback primitive rendering
+      ctx.fillStyle = car.color;
+      ctx.fillRect(x - 35, y - 18, 70, 36);
+      ctx.fillStyle = 'rgba(135,206,235,0.55)';
+      ctx.fillRect(x - 28, y - 14, 22, 28);
+      ctx.fillRect(x + 6, y - 14, 22, 28);
+      ctx.fillStyle = '#222';
+      [{ dx: -28, dy: -18 }, { dx: 18, dy: -18 }, { dx: -28, dy: 12 }, { dx: 18, dy: 12 }]
+        .forEach(({ dx, dy }) => ctx.fillRect(x + dx - 2, y + dy - 2, 14, 8));
+    }
 
     // Fuel indicator above car
     const barW = 50; const barH = 5;
@@ -1140,19 +1145,35 @@ function drawPlayers(
     // §3.1.3 Барсик character is slightly smaller
     const playerRadius = player.character === 'barsik' ? 10 : 14;
 
-    // Body
-    ctx.fillStyle = charDef.color;
-    ctx.beginPath();
-    ctx.arc(x, y, playerRadius, 0, Math.PI * 2);
-    ctx.fill();
+    // §7.3 Character sprite (generated PNG) or primitive-circle fallback
+    const charSprite = getSprite(`char_${player.character}`);
+    if (charSprite) {
+      const spriteSize = player.character === 'barsik' ? 24 : 42;
+      ctx.save();
+      ctx.translate(x, y);
+      // Rotate sprite so the character's "front" matches their facing direction.
+      // Sprites are authored facing "up" (north = -PI/2 in canvas).
+      // Game angle 0 = east (right). To map north→east we add PI/2.
+      // General formula: rotate by facingAngle + PI/2.
+      ctx.rotate(player.facingAngle + Math.PI / 2);
+      ctx.drawImage(charSprite, -spriteSize / 2, -spriteSize / 2, spriteSize, spriteSize);
+      ctx.restore();
+    } else {
+      // Fallback primitive rendering
+      ctx.fillStyle = charDef.color;
+      ctx.beginPath();
+      ctx.arc(x, y, playerRadius, 0, Math.PI * 2);
+      ctx.fill();
+      drawCharacterDetails(ctx, x, y, player.character, playerRadius);
+    }
 
-    // Outline
-    ctx.strokeStyle = isLocal ? '#FFD700' : '#fff';
+    // Identification ring — gold for local player, translucent white for others.
+    // Drawn over sprite so it's always visible.
+    ctx.strokeStyle = isLocal ? '#FFD700' : 'rgba(255,255,255,0.75)';
     ctx.lineWidth = isLocal ? 2.5 : 1.5;
+    ctx.beginPath();
+    ctx.arc(x, y, playerRadius + (charSprite ? 4 : 0), 0, Math.PI * 2);
     ctx.stroke();
-
-    // §7.3 Character-specific top-down silhouette details
-    drawCharacterDetails(ctx, x, y, player.character, playerRadius);
 
     // Facing direction indicator
     ctx.fillStyle = '#fff';

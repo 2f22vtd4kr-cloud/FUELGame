@@ -6,6 +6,7 @@ import { triggerEmote } from '../game/gameActions';
 import { renderGame } from '../game/renderer';
 import { audio } from '../game/audio';
 import { captureMoment } from '../game/replayBuffer';
+import { loadSprites } from '../game/sprites';
 import type { GameNetwork } from '../game/network';
 import VirtualJoystick from './VirtualJoystick';
 
@@ -40,6 +41,9 @@ export default function GameCanvas({ onStateSnapshot, network, myPlayerId }: Gam
   const prevBackstabMomentRef = useRef<string | null>(null); // §9.2 frame capture
 
   const [showEmoteWheel, setShowEmoteWheel] = useState(false);
+
+  // ── §7.3 Pre-load character and car sprites ────────────────────────────────
+  useEffect(() => { loadSprites(); }, []);
 
   // ── Keyboard handler ───────────────────────────────────────────────────────
   useEffect(() => {

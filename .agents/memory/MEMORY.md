@@ -18,3 +18,4 @@
 - [95-Y viral mechanics and tutorial](game-viral-tutorial.md) — §9.4 share prompts + friend invite deep link (+ startapp consumption); §12.4 4-step Tutorial.tsx; §3.5 daily-exclusive hats; isFirstWin detection in rewards.ts
 - [95-Y session 9 gaps](game-session9-gaps.md) — interpolation ring buffer, Stars backend invoice, camera lerp, api-server +30s task extension, low-fuel warning
 - [95-Y session 10 cosmetics/visuals](game-session10-cosmetics-visuals.md) — character silhouettes, pets/car skins shop, report button §5.6, neutral-role ejection text
+- [95-Y sprite art system](game-sprite-art.md) — 10 char + 6 car PNGs in public/sprites/; sprites.ts loader; renderer falls back to circles if not loaded; rotation = facingAngle + PI/2
