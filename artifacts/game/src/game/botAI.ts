@@ -167,7 +167,8 @@ function updateKhozainBot(bot: Player, dt: number): void {
     );
     if (nearTerminal) {
       // Human is loitering near a task terminal without doing it — raise suspicion slowly
-      raiseSuspicion(bot, humanPlayer.id, 0.04 * dt);
+      // §4.3 spec: +0.05 per second for task-skip
+      raiseSuspicion(bot, humanPlayer.id, 0.05 * dt);
     }
   }
 

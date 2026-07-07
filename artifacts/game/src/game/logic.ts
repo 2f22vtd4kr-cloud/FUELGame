@@ -1164,11 +1164,12 @@ function updateInteractions(dt: number, input: InputState): void {
     }
   }
 
-  // ── 4b. Dumpster vent (§3.1.2 — Сливщик fast-travel between dumpsters) ───
+  // ── 4b. Dumpster vent (§3.1.2 — Сливщик fast-travel, Hard/Nightmare only) ──
   // On cooldown: show an informational note but fall through so other nearby
   // interactions (tasks, canisters, etc.) are still reachable.
   // Only block + consume the E press when the vent is actually ready to use.
-  if (player.role === 'slivshchik' && !player.isCarryingCanister) {
+  if (player.role === 'slivshchik' && !player.isCarryingCanister &&
+      BOT_DIFFICULTY_SETTINGS[gs.botDifficulty].useVents) {
     const nearDumpIdx = DUMPSTER_POSITIONS.findIndex(d => dist(player.pos, d) < 80);
     if (nearDumpIdx >= 0) {
       if (player.ventCooldown > 0) {
@@ -1176,10 +1177,22 @@ function updateInteractions(dt: number, input: InputState): void {
         setPrompt(`🕳️ Вентиляция: ${Math.ceil(player.ventCooldown)}с`, 0.2);
         // intentionally no `return` — lower-priority blocks still run
       } else {
-        setPrompt('🕳️ [E] Вентиляция → другая мусорка', 0.2);
+        setPrompt('🕳️ [удерживай E] Нырнуть в мусорку → другая мусорка', 0.2);
         if (input.interact && !input.prevInteract) {
-          const otherIdx = (nearDumpIdx + 1) % DUMPSTER_POSITIONS.length;
-          player.pos = { ...DUMPSTER_POSITIONS[otherIdx] };
+          // Pick the dumpster furthest from all watchers (same logic as bot vent)
+          const watchers = gs.players.filter(p =>
+            p.id !== player.id && p.isAlive && p.role === 'khozain'
+          );
+          let bestIdx = (nearDumpIdx + 1) % DUMPSTER_POSITIONS.length;
+          if (watchers.length > 0) {
+            let bestDist = -Infinity;
+            for (let i = 0; i < DUMPSTER_POSITIONS.length; i++) {
+              if (i === nearDumpIdx) continue;
+              const minD = Math.min(...watchers.map(w => dist(DUMPSTER_POSITIONS[i], w.pos)));
+              if (minD > bestDist) { bestDist = minD; bestIdx = i; }
+            }
+          }
+          player.pos = { ...DUMPSTER_POSITIONS[bestIdx] };
           player.ventCooldown = VENT_COOLDOWN;
           audio.play('ui_click');
           setPrompt('💨 Нырнул в мусорку! Вынырнул с другой стороны.', 2);
@@ -1545,6 +1558,18 @@ function updateSiphoning(dt: number): void {
       if (car.siphonTimer >= SIPHON_SETUP_TIME) {
         car.siphonPhase = 2;
         car.siphonTimer = 0;
+        // §8.2 Engine noise + electric zap as siphon line is breached.
+        // Guard: only play when the siphoner is the local human player, OR
+        // a bot siphon is within SIPHON_AUDIO_RADIUS of the local player —
+        // same proximity model as the gurgle. Prevents off-screen bots from
+        // spamming full-volume transition SFX.
+        const localPlayer = gs.players.find(p => p.id === gs.localPlayerId);
+        const siphonAudible = siphoner.isHuman ||
+          (localPlayer && dist(siphoner.pos, localPlayer.pos) < SIPHON_AUDIO_RADIUS);
+        if (siphonAudible) {
+          audio.play('engine_start');
+          audio.play('tesla_zap');
+        }
         // Alarm chaos masks the gurgle sound
         if (siphoner.isHuman && !isSabotageActive('alarm_chaos')) {
           audio.startGurgle();
