@@ -552,11 +552,107 @@ export default function GameResults({ gs, onPlayAgain }: Props) {
           fontSize: 16, fontWeight: 'bold', color: '#FFF',
           cursor: 'pointer', letterSpacing: 1,
           boxShadow: '0 4px 20px rgba(255,87,34,0.4)',
+          marginBottom: 12,
         }}
       >
         🎮 СЫГРАТЬ ЕЩЁ
       </button>
+
+      {/* §5.6 Anti-cheat: report suspicious player */}
+      <ReportButton gs={gs} />
     </div>
+  );
+}
+
+// ─── §5.6 Report suspicious player ───────────────────────────────────────────
+
+function ReportButton({ gs }: { gs: GameState }) {
+  const [open, setOpen] = React.useState(false);
+  const [selected, setSelected] = React.useState<string | null>(null);
+  const [sent, setSent] = React.useState(false);
+
+  const others = gs.players.filter(p => p.id !== gs.localPlayerId);
+  if (others.length === 0) return null;
+
+  function sendReport() {
+    if (!selected) return;
+    const target = others.find(p => p.id === selected);
+    if (!target) return;
+    // Fire-and-forget; server logs the report for manual review
+    const apiBase = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
+    fetch(`${apiBase}/api/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reportedName: target.name, reportedCharacter: target.character }),
+    }).catch(() => {/* no-op */});
+    setSent(true);
+    setTimeout(() => setOpen(false), 2000);
+  }
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', maxWidth: 340, marginBottom: 8,
+          padding: '10px',
+          background: 'rgba(255,255,255,0.05)',
+          border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: 10, fontSize: 12, color: '#9E9E9E',
+          cursor: 'pointer',
+        }}
+      >
+        🚩 Пожаловаться на игрока
+      </button>
+      {open && !sent && (
+        <div style={{
+          width: '100%', maxWidth: 340, marginBottom: 8,
+          background: '#17212B', border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: 10, padding: 12,
+        }}>
+          <div style={{ fontSize: 11, color: '#9E9E9E', marginBottom: 8 }}>
+            Выбери игрока для жалобы:
+          </div>
+          {others.map(p => (
+            <button
+              key={p.id}
+              onClick={() => setSelected(p.id)}
+              style={{
+                display: 'block', width: '100%', padding: '7px 10px',
+                marginBottom: 4, borderRadius: 7,
+                background: selected === p.id ? 'rgba(255,87,34,0.2)' : 'rgba(255,255,255,0.05)',
+                border: selected === p.id ? '1px solid #FF5722' : '1px solid rgba(255,255,255,0.08)',
+                color: '#fff', fontSize: 12, cursor: 'pointer', textAlign: 'left',
+              }}
+            >
+              {CHARACTERS[p.character]?.emoji ?? '👤'} {p.name}
+            </button>
+          ))}
+          <button
+            onClick={sendReport}
+            disabled={!selected}
+            style={{
+              marginTop: 8, width: '100%', padding: '8px',
+              background: selected ? 'rgba(255,87,34,0.3)' : 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(255,87,34,0.4)',
+              borderRadius: 7, fontSize: 12, color: selected ? '#FF8A65' : '#555',
+              cursor: selected ? 'pointer' : 'default', fontWeight: 600,
+            }}
+          >
+            Отправить жалобу
+          </button>
+        </div>
+      )}
+      {open && sent && (
+        <div style={{
+          width: '100%', maxWidth: 340, marginBottom: 8, padding: 10, textAlign: 'center',
+          background: 'rgba(76,175,80,0.1)', border: '1px solid rgba(76,175,80,0.3)',
+          borderRadius: 10, fontSize: 12, color: '#A5D6A7',
+        }}>
+          ✅ Жалоба отправлена. Спасибо за помощь!
+        </div>
+      )}
+    </>
   );
 }
 

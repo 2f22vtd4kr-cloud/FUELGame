@@ -24,9 +24,15 @@ export interface PlayerProfile {
   totalCorrectVotes: number;
   totalCanistersCollected: number;
   survivalStreak: number;         // consecutive matches survived (for survivor achievement)
-  // §3.4 Cosmetics
+  // §3.4 Cosmetics — hats
   purchasedHats: string[];        // hat IDs owned
   equippedHat: string;            // currently equipped hat ID ('none' = bare head, 'ushanka' = default)
+  // §3.4 Cosmetics — pets
+  purchasedPets: string[];        // pet IDs owned
+  equippedPet: string;            // currently active pet ('none' = no pet)
+  // §3.4 Cosmetics — car skins
+  purchasedCarSkins: string[];    // car skin IDs owned
+  equippedCarSkin: string;        // active car skin ('moskvich_default')
   // §9.3 Leaderboard / device identity
   playerName: string;             // display name for leaderboard
   deviceId: string;               // stable UUID for leaderboard upsert
@@ -50,6 +56,10 @@ const DEFAULTS: PlayerProfile = {
   survivalStreak: 0,
   purchasedHats: ['none', 'ushanka'],
   equippedHat: 'ushanka',
+  purchasedPets: ['none'],
+  equippedPet: 'none',
+  purchasedCarSkins: ['moskvich_default'],
+  equippedCarSkin: 'moskvich_default',
   playerName: '',
   deviceId: '',
   seenTutorial: false,
@@ -69,6 +79,13 @@ export function loadProfile(): PlayerProfile {
     // Ensure free starter hats are always present
     if (!base.purchasedHats.includes('none')) base.purchasedHats.push('none');
     if (!base.purchasedHats.includes('ushanka')) base.purchasedHats.push('ushanka');
+    // Ensure free starter pets/skins are always present (handles old profiles missing these fields)
+    if (!base.purchasedPets) base.purchasedPets = ['none'];
+    if (!base.equippedPet) base.equippedPet = 'none';
+    if (!base.purchasedCarSkins) base.purchasedCarSkins = ['moskvich_default'];
+    if (!base.equippedCarSkin) base.equippedCarSkin = 'moskvich_default';
+    if (!base.purchasedPets.includes('none')) base.purchasedPets.push('none');
+    if (!base.purchasedCarSkins.includes('moskvich_default')) base.purchasedCarSkins.push('moskvich_default');
     // Ensure deviceId is set
     if (!base.deviceId) {
       base.deviceId = genDeviceId();

@@ -56,6 +56,142 @@ export const HATS: HatDef[] = [
 
 export const HAT_MAP: Record<string, HatDef> = Object.fromEntries(HATS.map(h => [h.id, h]));
 
+// ─── §3.4 Pets ────────────────────────────────────────────────────────────────
+
+export interface PetDef {
+  id: string;
+  name: string;
+  emoji: string;
+  description: string;
+  cost: number;
+  currency: CurrencyType;
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+  battlePassTier?: number;
+  animation: string; // flavour text describing the pet's idle animation
+}
+
+export const PETS: PetDef[] = [
+  {
+    id: 'none',
+    name: 'Без питомца',
+    emoji: '🚫',
+    description: 'Одинокий, но свободный.',
+    cost: 0, currency: 'free', rarity: 'common',
+    animation: 'ничего не происходит',
+  },
+  {
+    id: 'p5_scooter',
+    name: 'P5-Самокат',
+    emoji: '🛴',
+    description: 'Катается вокруг тебя кругами. Притормаживает на парковке.',
+    cost: 800, currency: 'babki', rarity: 'rare',
+    animation: 'ездит кружками',
+  },
+  {
+    id: 'raccoon_drunk',
+    name: 'Пьяный Енот',
+    emoji: '🦝',
+    description: 'Ходит зигзагами. Откуда он взялся — неизвестно.',
+    cost: 50, currency: 'stars', rarity: 'epic',
+    animation: 'шатается',
+  },
+  {
+    id: 'mcmuffin',
+    name: 'МакМаффин',
+    emoji: '🐥',
+    description: 'Прыгает рядом. Жёлтый. Счастливый.',
+    cost: 0, currency: 'free', rarity: 'rare',
+    animation: 'прыгает',
+    battlePassTier: 5,
+  },
+  {
+    id: 'barsik_pet',
+    name: 'Барсик-кот',
+    emoji: '🐱',
+    description: 'Настоящий дворовый кот. Виден на миникарте.',
+    cost: 0, currency: 'fuel_linked', rarity: 'legendary',
+    animation: 'мяукает',
+  },
+  {
+    id: 'pigeon_drunk',
+    name: 'Пьяный Голубь',
+    emoji: '🕊️',
+    description: 'Ежедневный эксклюзив. Приземляется и засыпает.',
+    cost: 0, currency: 'daily', rarity: 'rare',
+    animation: 'засыпает',
+  },
+  {
+    id: 'cat_bag',
+    name: 'Кот с Пакетом',
+    emoji: '🛍️',
+    description: 'Несёт пакет. Куда — не говорит.',
+    cost: 70, currency: 'stars', rarity: 'rare',
+    animation: 'тащит пакет',
+  },
+  {
+    id: 'old_dog',
+    name: 'Старый Пёс',
+    emoji: '🐕',
+    description: 'В бандане. Медленный, но верный.',
+    cost: 1200, currency: 'babki', rarity: 'epic',
+    animation: 'плетётся',
+  },
+  {
+    id: 'toy_truck',
+    name: 'Мусоровоз-Игрушка',
+    emoji: '🚛',
+    description: 'Ездит по пятам. Бибикает. Иногда.',
+    cost: 1500, currency: 'babki', rarity: 'epic',
+    animation: 'бибикает',
+  },
+  {
+    id: 'drone',
+    name: 'Дрон Доставки',
+    emoji: '🚁',
+    description: 'Летает над головой. Ждёт заказа, который никогда не придёт.',
+    cost: 100, currency: 'stars', rarity: 'legendary',
+    animation: 'зависает',
+  },
+  {
+    id: 'vasya_ghost',
+    name: 'Вася-Призрак',
+    emoji: '👻',
+    description: 'Прозрачный. Немного пугает. Боевой Пропуск, ур. 15.',
+    cost: 0, currency: 'free', rarity: 'legendary',
+    animation: 'проходит сквозь стены',
+    battlePassTier: 15,
+  },
+];
+
+export const PET_MAP: Record<string, PetDef> = Object.fromEntries(PETS.map(p => [p.id, p]));
+
+// ─── §7.2 Car Skins ───────────────────────────────────────────────────────────
+
+export interface CarSkinDef {
+  id: string;
+  name: string;
+  emoji: string;
+  description: string;
+  cost: number;
+  currency: CurrencyType;
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+  color: string; // top-down car color shown in renderer
+}
+
+export const CAR_SKINS: CarSkinDef[] = [
+  { id: 'moskvich_default', name: 'Москвич-3',      emoji: '🚗', description: 'Базовый. Отечественный. Надёжный.', cost: 0, currency: 'free', rarity: 'common', color: '#8B9DC3' },
+  { id: 'lada_vesta',      name: 'Lada Vesta',       emoji: '🚙', description: 'Классика двора. Поставил — и порядок.', cost: 600, currency: 'babki', rarity: 'common', color: '#78909C' },
+  { id: 'uaz_patriot',     name: 'UAZ Patriot',      emoji: '🛻', description: 'Проходимость 100%. Стиль 10%.', cost: 700, currency: 'babki', rarity: 'common', color: '#5D7A5D' },
+  { id: 'haval',           name: 'Haval H6',         emoji: '🚗', description: 'Привезли из Китая. Не спрашивай цену.', cost: 800, currency: 'babki', rarity: 'rare', color: '#4A5568' },
+  { id: 'zeekr',           name: 'Zeekr 001',        emoji: '🚘', description: 'Электро. Тихий. Подозрительный.', cost: 1000, currency: 'babki', rarity: 'rare', color: '#2D3748' },
+  { id: 'yandex_lada',     name: 'Яндекс.Такси',     emoji: '🟡', description: 'Смена горит. Машина в деле.', cost: 50, currency: 'stars', rarity: 'rare', color: '#ECC94B' },
+  { id: 'tesla_model_y',   name: 'Tesla Model Y',    emoji: '⚡', description: 'Маск разрешил. Сосед — нет.', cost: 80, currency: 'stars', rarity: 'epic', color: '#E2E8F0' },
+  { id: 'cybertruck',      name: 'Кибертрак-Пародия',emoji: '🔺', description: 'Угловатый. Громкий. Не влезает.', cost: 120, currency: 'stars', rarity: 'legendary', color: '#C0C0C0' },
+  { id: 'golden_moskvich', name: 'Золотой Москвич',  emoji: '🥇', description: 'За привязку @fuel_fuel_fuel_bot.', cost: 0, currency: 'fuel_linked', rarity: 'legendary', color: '#D4AF37' },
+];
+
+export const CAR_SKIN_MAP: Record<string, CarSkinDef> = Object.fromEntries(CAR_SKINS.map(s => [s.id, s]));
+
 export const RARITY_COLORS: Record<HatDef['rarity'], string> = {
   common: '#9E9E9E',
   rare: '#2196F3',

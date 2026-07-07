@@ -852,6 +852,238 @@ function drawCanisters(ctx: CanvasRenderingContext2D, state: GameState): void {
   }
 }
 
+// ─── §7.3 Character-specific top-down silhouettes ────────────────────────────
+// Each character has a defined visual identity readable at 64×64px from top-down.
+// We draw these AFTER the base circle so details sit on top of the body color.
+
+function drawCharacterDetails(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  character: string,
+  r: number,
+): void {
+  ctx.save();
+  switch (character) {
+    case 'denis': {
+      // Yellow Yandex cap (arc on top half)
+      ctx.fillStyle = '#FFD700';
+      ctx.beginPath();
+      ctx.arc(x, y, r * 0.8, Math.PI, 0);
+      ctx.fill();
+      // Cap brim line
+      ctx.strokeStyle = '#FFA000';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x - r * 0.8, y);
+      ctx.lineTo(x + r * 0.8, y);
+      ctx.stroke();
+      // Phone glint (dark rect offset to side)
+      ctx.fillStyle = '#111';
+      ctx.fillRect(x + r * 0.45, y + 1, 4, 6);
+      ctx.fillStyle = '#4FC3F7';
+      ctx.fillRect(x + r * 0.46, y + 2, 2.5, 4);
+      break;
+    }
+    case 'anya': {
+      // AirPods — two tiny white dots on the sides
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.arc(x - r * 0.75, y - 2, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x + r * 0.75, y - 2, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      // Ponytail (small arc at back)
+      ctx.fillStyle = '#CE93D8';
+      ctx.beginPath();
+      ctx.arc(x, y + r * 0.6, 4, 0, Math.PI);
+      ctx.fill();
+      break;
+    }
+    case 'vova': {
+      // Gold chain across chest
+      ctx.strokeStyle = '#FFD700';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x, y + 2, r * 0.45, -0.4, Math.PI + 0.4);
+      ctx.stroke();
+      // Sunglasses strip
+      ctx.fillStyle = '#111827';
+      ctx.beginPath();
+      ctx.roundRect(x - r * 0.6, y - r * 0.35, r * 1.2, 3, 1);
+      ctx.fill();
+      // Gold lens glint
+      ctx.fillStyle = 'rgba(255,215,0,0.5)';
+      ctx.fillRect(x - r * 0.55, y - r * 0.33, 4, 2);
+      ctx.fillRect(x + r * 0.15, y - r * 0.33, 4, 2);
+      break;
+    }
+    case 'uncle_seryozha': {
+      // Gray mustache
+      ctx.fillStyle = '#9E9E9E';
+      ctx.beginPath();
+      ctx.ellipse(x, y + r * 0.15, r * 0.45, r * 0.22, 0, 0, Math.PI);
+      ctx.fill();
+      // Reading glasses on forehead (two tiny rings)
+      ctx.strokeStyle = '#BDBDBD';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(x - r * 0.3, y - r * 0.55, r * 0.2, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x + r * 0.3, y - r * 0.55, r * 0.2, 0, Math.PI * 2);
+      ctx.stroke();
+      // Bridge between glasses
+      ctx.beginPath();
+      ctx.moveTo(x - r * 0.1, y - r * 0.55);
+      ctx.lineTo(x + r * 0.1, y - r * 0.55);
+      ctx.stroke();
+      break;
+    }
+    case 'petrovich': {
+      // Wrench (silver, rotated 45°)
+      ctx.fillStyle = '#B0BEC5';
+      ctx.save();
+      ctx.translate(x + r * 0.55, y - r * 0.55);
+      ctx.rotate(Math.PI / 4);
+      ctx.fillRect(-2, -r * 0.45, 4, r * 0.9);
+      // Wrench head (open end)
+      ctx.fillRect(-4, -r * 0.45, 8, 4);
+      ctx.restore();
+      // Oil stain on body
+      ctx.fillStyle = 'rgba(60,40,20,0.55)';
+      ctx.beginPath();
+      ctx.ellipse(x - 2, y + 3, 4, 2.5, 0.4, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'marina': {
+      // Ring light aura (dashed pink circle slightly outside body)
+      ctx.strokeStyle = '#FF80AB';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.arc(x, y, r + 4, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // Selfie stick (thin line from body upward-right)
+      ctx.strokeStyle = '#EEEEEE';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x + r * 0.5, y + r * 0.5);
+      ctx.lineTo(x + r + 4, y - r - 4);
+      ctx.stroke();
+      // Phone at tip
+      ctx.fillStyle = '#111';
+      ctx.fillRect(x + r + 2, y - r - 7, 5, 7);
+      break;
+    }
+    case 'akhmet': {
+      // Broom handle (diagonal line)
+      ctx.strokeStyle = '#8D6E63';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(x - r * 0.6, y + r * 0.6);
+      ctx.lineTo(x + r * 0.6, y - r * 0.6);
+      ctx.stroke();
+      // Broom bristles at top-right end
+      ctx.fillStyle = '#DEB887';
+      ctx.save();
+      ctx.translate(x + r * 0.6, y - r * 0.6);
+      ctx.rotate(-Math.PI / 4);
+      ctx.fillRect(-5, -2, 10, 4);
+      ctx.restore();
+      break;
+    }
+    case 'oleg': {
+      // Earpiece wire on right side
+      ctx.strokeStyle = '#ECEFF1';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x + r * 0.7, y - r * 0.3);
+      ctx.lineTo(x + r * 0.9, y - r * 0.6);
+      ctx.stroke();
+      ctx.fillStyle = '#F5F5F5';
+      ctx.beginPath();
+      ctx.arc(x + r * 0.9, y - r * 0.6, 2, 0, Math.PI * 2);
+      ctx.fill();
+      // Dark sunglasses visor strip
+      ctx.fillStyle = 'rgba(10,10,20,0.7)';
+      ctx.beginPath();
+      ctx.roundRect(x - r * 0.55, y - r * 0.3, r * 1.1, 4, 2);
+      ctx.fill();
+      break;
+    }
+    case 'lena': {
+      // Bicycle helmet arc (top half)
+      ctx.fillStyle = '#81C784';
+      ctx.beginPath();
+      ctx.arc(x, y - r * 0.15, r * 0.75, Math.PI, 0);
+      ctx.fill();
+      // Helmet strap lines
+      ctx.strokeStyle = '#388E3C';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x - r * 0.6, y - r * 0.05);
+      ctx.lineTo(x - r * 0.4, y + r * 0.35);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x + r * 0.6, y - r * 0.05);
+      ctx.lineTo(x + r * 0.4, y + r * 0.35);
+      ctx.stroke();
+      // Green tote bag to the side
+      ctx.fillStyle = '#4CAF50';
+      ctx.strokeStyle = '#2E7D32';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(x + r * 0.6, y - r * 0.1, 7, 10, 2);
+      ctx.fill();
+      ctx.stroke();
+      break;
+    }
+    case 'barsik': {
+      // Cat ears (two small triangles on top)
+      ctx.fillStyle = '#FF7043';
+      ctx.beginPath();
+      ctx.moveTo(x - r * 0.4, y - r * 0.55);
+      ctx.lineTo(x - r * 0.7, y - r * 1.05);
+      ctx.lineTo(x - r * 0.05, y - r * 0.75);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(x + r * 0.4, y - r * 0.55);
+      ctx.lineTo(x + r * 0.7, y - r * 1.05);
+      ctx.lineTo(x + r * 0.05, y - r * 0.75);
+      ctx.closePath();
+      ctx.fill();
+      // Inner ear pink
+      ctx.fillStyle = '#FFCCBC';
+      ctx.beginPath();
+      ctx.moveTo(x - r * 0.38, y - r * 0.6);
+      ctx.lineTo(x - r * 0.6, y - r * 0.95);
+      ctx.lineTo(x - r * 0.1, y - r * 0.75);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(x + r * 0.38, y - r * 0.6);
+      ctx.lineTo(x + r * 0.6, y - r * 0.95);
+      ctx.lineTo(x + r * 0.1, y - r * 0.75);
+      ctx.closePath();
+      ctx.fill();
+      // Tail (curved line to the right)
+      ctx.strokeStyle = '#FF7043';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x + r * 0.7, y + r * 0.3);
+      ctx.quadraticCurveTo(x + r * 1.5, y + r * 0.1, x + r * 1.2, y - r * 0.5);
+      ctx.stroke();
+      break;
+    }
+  }
+  ctx.restore();
+}
+
 // ─── Players ─────────────────────────────────────────────────────────────────
 // §2.3: visionPoly is null when local player is dead (ghost vision = see all).
 // The fog overlay drawn after this function naturally hides players outside the
@@ -918,6 +1150,9 @@ function drawPlayers(
     ctx.strokeStyle = isLocal ? '#FFD700' : '#fff';
     ctx.lineWidth = isLocal ? 2.5 : 1.5;
     ctx.stroke();
+
+    // §7.3 Character-specific top-down silhouette details
+    drawCharacterDetails(ctx, x, y, player.character, playerRadius);
 
     // Facing direction indicator
     ctx.fillStyle = '#fff';

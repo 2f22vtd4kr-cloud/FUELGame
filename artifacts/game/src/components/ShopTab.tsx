@@ -1,6 +1,6 @@
 // §3.4 Cosmetics Shop Tab + §10.3 Telegram Stars purchase flow
 import React, { useState } from 'react';
-import { HATS, RARITY_COLORS, type HatDef } from '../data/cosmetics';
+import { HATS, PETS, CAR_SKINS, RARITY_COLORS, type HatDef, type PetDef, type CarSkinDef } from '../data/cosmetics';
 import { loadProfile, saveProfile } from '../game/profile';
 
 interface Props {
@@ -18,9 +18,12 @@ declare global {
   }
 }
 
+type ShopSection = 'hats' | 'pets' | 'cars';
+
 export default function ShopTab({ onProfileChange }: Props) {
   const [profile, setProfile] = useState(() => loadProfile());
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [section, setSection] = useState<ShopSection>('hats');
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'owned' | 'babki' | 'stars'>('all');
 
   function showToast(msg: string, ok: boolean) {
@@ -34,6 +37,8 @@ export default function ShopTab({ onProfileChange }: Props) {
     onProfileChange();
   }
 
+  // ── Hats ─────────────────────────────────────────────────────────────────────
+
   function equipHat(hatId: string) {
     const p = loadProfile();
     p.equippedHat = hatId;
@@ -43,10 +48,7 @@ export default function ShopTab({ onProfileChange }: Props) {
   }
 
   function buyWithBabki(hat: HatDef) {
-    if (hat.cost > profile.babki) {
-      showToast('Недостаточно бабок 💸', false);
-      return;
-    }
+    if (hat.cost > profile.babki) { showToast('Недостаточно бабок 💸', false); return; }
     const p = loadProfile();
     p.babki -= hat.cost;
     if (!p.purchasedHats.includes(hat.id)) p.purchasedHats.push(hat.id);
@@ -56,29 +58,32 @@ export default function ShopTab({ onProfileChange }: Props) {
     showToast(`Куплено: ${hat.name}!`, true);
   }
 
-  async function buyWithStars(hat: HatDef) {
-    // §10.3 Telegram Stars flow
+  async function buyWithStars(itemType: 'hat' | 'pet' | 'car', item: HatDef | PetDef | CarSkinDef) {
     const tg = window.Telegram?.WebApp;
-    if (!tg?.openInvoice) {
-      showToast('Открой игру через Telegram для покупки ⭐', false);
-      return;
-    }
+    if (!tg?.openInvoice) { showToast('Открой игру через Telegram для покупки ⭐', false); return; }
 
     const onPaid = () => {
       const p = loadProfile();
-      if (!p.purchasedHats.includes(hat.id)) p.purchasedHats.push(hat.id);
-      p.equippedHat = hat.id;
+      if (itemType === 'hat') {
+        if (!p.purchasedHats.includes(item.id)) p.purchasedHats.push(item.id);
+        p.equippedHat = item.id;
+      } else if (itemType === 'pet') {
+        if (!p.purchasedPets.includes(item.id)) p.purchasedPets.push(item.id);
+        p.equippedPet = item.id;
+      } else {
+        if (!p.purchasedCarSkins.includes(item.id)) p.purchasedCarSkins.push(item.id);
+        p.equippedCarSkin = item.id;
+      }
       saveProfile(p);
       refresh();
-      showToast(`${hat.name} куплена за ⭐!`, true);
+      showToast(`${item.name} куплена за ⭐!`, true);
     };
 
-    // Try to get a proper invoice link from the backend (§10.3)
     try {
       const res = await fetch('/api/stars/invoice', {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itemType: 'hat', itemId: hat.id, stars: hat.cost, name: hat.name }),
+        body: JSON.stringify({ itemType, itemId: item.id, stars: item.cost, name: item.name }),
       });
       if (res.ok) {
         const { invoiceLink } = await res.json() as { invoiceLink: string };
@@ -88,30 +93,137 @@ export default function ShopTab({ onProfileChange }: Props) {
         });
         return;
       }
-    } catch {
-      // Backend unavailable — fall through to slug path
-    }
+    } catch { /* fall through */ }
 
-    // Fallback: client-side slug (works only if Telegram resolves it)
-    const slug = `hat_${hat.id}_${hat.cost}`;
-    tg.openInvoice(slug, (status: string) => {
+    tg.openInvoice(`${itemType}_${item.id}_${item.cost}`, (status: string) => {
       if (status === 'paid') onPaid();
       else if (status === 'cancelled') showToast('Покупка отменена', false);
     });
   }
 
+  // ── Pets ─────────────────────────────────────────────────────────────────────
+
+  function equipPet(petId: string) {
+    const p = loadProfile();
+    p.equippedPet = petId;
+    saveProfile(p);
+    refresh();
+    showToast(`Питомец: ${PETS.find(pt => pt.id === petId)?.name ?? petId}`, true);
+  }
+
+  function buyPetWithBabki(pet: PetDef) {
+    if (pet.cost > profile.babki) { showToast('Недостаточно бабок 💸', false); return; }
+    const p = loadProfile();
+    p.babki -= pet.cost;
+    if (!p.purchasedPets.includes(pet.id)) p.purchasedPets.push(pet.id);
+    p.equippedPet = pet.id;
+    saveProfile(p);
+    refresh();
+    showToast(`Питомец «${pet.name}» куплен!`, true);
+  }
+
+  // ── Car Skins ─────────────────────────────────────────────────────────────────
+
+  function equipCarSkin(skinId: string) {
+    const p = loadProfile();
+    p.equippedCarSkin = skinId;
+    saveProfile(p);
+    refresh();
+    showToast(`Скин: ${CAR_SKINS.find(s => s.id === skinId)?.name ?? skinId}`, true);
+  }
+
+  function buyCarSkinWithBabki(skin: CarSkinDef) {
+    if (skin.cost > profile.babki) { showToast('Недостаточно бабок 💸', false); return; }
+    const p = loadProfile();
+    p.babki -= skin.cost;
+    if (!p.purchasedCarSkins.includes(skin.id)) p.purchasedCarSkins.push(skin.id);
+    p.equippedCarSkin = skin.id;
+    saveProfile(p);
+    refresh();
+    showToast(`Скин «${skin.name}» куплен!`, true);
+  }
+
+  // ── Filtering ─────────────────────────────────────────────────────────────────
+
   const filteredHats = HATS.filter(hat => {
     if (selectedFilter === 'owned') return profile.purchasedHats.includes(hat.id);
     if (selectedFilter === 'babki') return hat.currency === 'babki';
     if (selectedFilter === 'stars') return hat.currency === 'stars';
-    // hide battle pass hats unless unlocked (keep UI clean)
     if (hat.currency === 'free' && hat.battlePassTier !== undefined) {
       return profile.battlePassTier >= (hat.battlePassTier ?? 0) || profile.purchasedHats.includes(hat.id);
     }
-    // §3.5 daily hats: only show if owned (they're earned via daily challenge, not purchasable)
     if (hat.currency === 'daily') return profile.purchasedHats.includes(hat.id);
     return true;
   });
+
+  const filteredPets = PETS.filter(pet => {
+    if (selectedFilter === 'owned') return profile.purchasedPets.includes(pet.id);
+    if (selectedFilter === 'babki') return pet.currency === 'babki';
+    if (selectedFilter === 'stars') return pet.currency === 'stars';
+    if (pet.currency === 'free' && pet.battlePassTier !== undefined) {
+      return profile.battlePassTier >= (pet.battlePassTier ?? 0) || profile.purchasedPets.includes(pet.id);
+    }
+    if (pet.currency === 'daily') return profile.purchasedPets.includes(pet.id);
+    return true;
+  });
+
+  const filteredCars = CAR_SKINS.filter(skin => {
+    if (selectedFilter === 'owned') return profile.purchasedCarSkins.includes(skin.id);
+    if (selectedFilter === 'babki') return skin.currency === 'babki';
+    if (selectedFilter === 'stars') return skin.currency === 'stars';
+    return true;
+  });
+
+  // ── Shared action button renderer ─────────────────────────────────────────────
+
+  function ActionButton({
+    owned, equipped, currency, cost, onEquip, onBuyBabki, onBuyStars, babelKi,
+  }: {
+    owned: boolean; equipped: boolean; currency: string; cost: number;
+    onEquip: () => void; onBuyBabki?: () => void; onBuyStars?: () => void; babelKi: number;
+  }) {
+    if (equipped) return (
+      <div style={{
+        marginTop: 4, padding: '4px 10px',
+        background: 'rgba(255,87,34,0.3)', border: '1px solid rgba(255,87,34,0.5)',
+        borderRadius: 6, fontSize: 9, color: '#FF5722', fontWeight: 'bold',
+      }}>✓ Выбрано</div>
+    );
+    if (owned) return (
+      <button onClick={onEquip} style={{
+        marginTop: 4, padding: '4px 10px',
+        background: 'rgba(76,175,80,0.2)', border: '1px solid rgba(76,175,80,0.4)',
+        borderRadius: 6, fontSize: 9, color: '#81C784', cursor: 'pointer', fontWeight: 'bold',
+      }}>Выбрать</button>
+    );
+    if (currency === 'babki') return (
+      <button onClick={onBuyBabki} disabled={cost > babelKi} style={{
+        marginTop: 4, padding: '4px 10px',
+        background: cost > babelKi ? 'rgba(255,255,255,0.04)' : 'rgba(255,215,0,0.15)',
+        border: `1px solid ${cost > babelKi ? 'rgba(255,255,255,0.1)' : 'rgba(255,215,0,0.4)'}`,
+        borderRadius: 6, fontSize: 9,
+        color: cost > babelKi ? '#616161' : '#FFD700',
+        cursor: cost > babelKi ? 'not-allowed' : 'pointer', fontWeight: 'bold',
+      }}>💰 {cost}</button>
+    );
+    if (currency === 'stars') return (
+      <button onClick={onBuyStars} style={{
+        marginTop: 4, padding: '4px 10px',
+        background: 'rgba(100,181,246,0.12)', border: '1px solid rgba(100,181,246,0.35)',
+        borderRadius: 6, fontSize: 9, color: '#64B5F6', cursor: 'pointer', fontWeight: 'bold',
+      }}>⭐ {cost}</button>
+    );
+    if (currency === 'fuel_linked') return (
+      <div style={{ fontSize: 8, color: '#FF9800', marginTop: 4, textAlign: 'center' }}>
+        🔗 @fuel_fuel_fuel_bot
+      </div>
+    );
+    return null;
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────────
+
+  const SECTION_LABELS: Record<ShopSection, string> = { hats: '🧢 Шапки', pets: '🐾 Питомцы', cars: '🚗 Авто' };
 
   return (
     <div style={{ width: '100%', maxWidth: 380 }}>
@@ -122,8 +234,7 @@ export default function ShopTab({ onProfileChange }: Props) {
           background: toast.ok ? 'rgba(76,175,80,0.92)' : 'rgba(244,67,54,0.92)',
           color: '#FFF', borderRadius: 10, padding: '8px 18px',
           fontSize: 13, fontWeight: 'bold', zIndex: 200,
-          boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-          whiteSpace: 'nowrap',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.4)', whiteSpace: 'nowrap',
         }}>
           {toast.msg}
         </div>
@@ -132,18 +243,32 @@ export default function ShopTab({ onProfileChange }: Props) {
       {/* Balance */}
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        padding: '8px 12px', marginBottom: 12,
-        background: 'rgba(255,215,0,0.08)',
-        border: '1px solid rgba(255,215,0,0.2)',
-        borderRadius: 10,
+        padding: '8px 12px', marginBottom: 10,
+        background: 'rgba(255,215,0,0.08)', border: '1px solid rgba(255,215,0,0.2)', borderRadius: 10,
       }}>
         <span style={{ fontSize: 13, color: '#FFD700', fontWeight: 'bold' }}>
           💰 {profile.babki} бабок
         </span>
-        <span style={{ fontSize: 11, color: '#9E9E9E' }}>
-          Надет: {HATS.find(h => h.id === profile.equippedHat)?.emoji ?? '😶'}{' '}
-          {HATS.find(h => h.id === profile.equippedHat)?.name ?? 'Без шапки'}
+        <span style={{ fontSize: 10, color: '#9E9E9E' }}>
+          🧢 {HATS.find(h => h.id === profile.equippedHat)?.emoji ?? '😶'}{' '}
+          🐾 {PETS.find(p => p.id === profile.equippedPet)?.emoji ?? '🚫'}{' '}
+          🚗 {CAR_SKINS.find(s => s.id === profile.equippedCarSkin)?.emoji ?? '🚗'}
         </span>
+      </div>
+
+      {/* Section tabs */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+        {(['hats', 'pets', 'cars'] as ShopSection[]).map(s => (
+          <button key={s} onClick={() => setSection(s)} style={{
+            flex: 1, padding: '7px 4px', fontSize: 11, borderRadius: 9,
+            background: section === s ? 'rgba(255,87,34,0.2)' : 'rgba(255,255,255,0.04)',
+            border: `1px solid ${section === s ? 'rgba(255,87,34,0.5)' : 'rgba(255,255,255,0.1)'}`,
+            color: section === s ? '#FF5722' : '#9E9E9E',
+            cursor: 'pointer', fontWeight: section === s ? 'bold' : 'normal',
+          }}>
+            {SECTION_LABELS[s]}
+          </button>
+        ))}
       </div>
 
       {/* Filter tabs */}
@@ -153,9 +278,9 @@ export default function ShopTab({ onProfileChange }: Props) {
           return (
             <button key={f} onClick={() => setSelectedFilter(f)} style={{
               flex: 1, padding: '5px 4px', fontSize: 10, borderRadius: 8,
-              background: selectedFilter === f ? 'rgba(255,87,34,0.2)' : 'rgba(255,255,255,0.04)',
-              border: `1px solid ${selectedFilter === f ? 'rgba(255,87,34,0.5)' : 'rgba(255,255,255,0.1)'}`,
-              color: selectedFilter === f ? '#FF5722' : '#9E9E9E',
+              background: selectedFilter === f ? 'rgba(30,100,180,0.2)' : 'rgba(255,255,255,0.04)',
+              border: `1px solid ${selectedFilter === f ? 'rgba(30,100,180,0.5)' : 'rgba(255,255,255,0.1)'}`,
+              color: selectedFilter === f ? '#64B5F6' : '#9E9E9E',
               cursor: 'pointer', fontWeight: selectedFilter === f ? 'bold' : 'normal',
             }}>
               {labels[f]}
@@ -164,103 +289,142 @@ export default function ShopTab({ onProfileChange }: Props) {
         })}
       </div>
 
-      {/* Hat grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-        {filteredHats.map(hat => {
-          const owned = profile.purchasedHats.includes(hat.id);
-          const equipped = profile.equippedHat === hat.id;
-          const rarityColor = RARITY_COLORS[hat.rarity];
-
-          return (
-            <div key={hat.id} style={{
-              background: equipped
-                ? 'rgba(255,87,34,0.15)'
-                : owned
-                  ? 'rgba(255,255,255,0.07)'
-                  : 'rgba(255,255,255,0.03)',
-              border: `1.5px solid ${equipped ? '#FF5722' : rarityColor + '66'}`,
-              borderRadius: 12, padding: '10px 10px 8px',
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-              transition: 'all 0.15s',
-            }}>
-              <div style={{ fontSize: 32 }}>{hat.emoji}</div>
-              <div style={{
-                fontSize: 11, color: '#FFF', fontWeight: 'bold',
-                textAlign: 'center', lineHeight: 1.2,
+      {/* ── Hats grid ── */}
+      {section === 'hats' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+          {filteredHats.map(hat => {
+            const owned = profile.purchasedHats.includes(hat.id);
+            const equipped = profile.equippedHat === hat.id;
+            const rarityColor = RARITY_COLORS[hat.rarity];
+            return (
+              <div key={hat.id} style={{
+                background: equipped ? 'rgba(255,87,34,0.15)' : owned ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.03)',
+                border: `1.5px solid ${equipped ? '#FF5722' : rarityColor + '66'}`,
+                borderRadius: 12, padding: '10px 10px 8px',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
               }}>
-                {hat.name}
+                <div style={{ fontSize: 32 }}>{hat.emoji}</div>
+                <div style={{ fontSize: 11, color: '#FFF', fontWeight: 'bold', textAlign: 'center', lineHeight: 1.2 }}>
+                  {hat.name}
+                </div>
+                <div style={{ fontSize: 9, color: rarityColor, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  {hat.rarity === 'common' ? 'обычная' : hat.rarity === 'rare' ? 'редкая' : hat.rarity === 'epic' ? 'эпичная' : 'легенд.'}
+                </div>
+                <div style={{ fontSize: 9, color: '#757575', textAlign: 'center', lineHeight: 1.3 }}>
+                  {hat.description}
+                </div>
+                <ActionButton
+                  owned={owned} equipped={equipped} currency={hat.currency} cost={hat.cost}
+                  babelKi={profile.babki}
+                  onEquip={() => equipHat(hat.id)}
+                  onBuyBabki={() => buyWithBabki(hat)}
+                  onBuyStars={() => buyWithStars('hat', hat)}
+                />
               </div>
-              <div style={{ fontSize: 9, color: rarityColor, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                {hat.rarity === 'common' ? 'обычная' : hat.rarity === 'rare' ? 'редкая' : hat.rarity === 'epic' ? 'эпичная' : 'легенд.'}
-              </div>
-              <div style={{ fontSize: 9, color: '#757575', textAlign: 'center', lineHeight: 1.3 }}>
-                {hat.description}
-              </div>
+            );
+          })}
+        </div>
+      )}
 
-              {equipped ? (
-                <div style={{
-                  marginTop: 4, padding: '4px 10px',
-                  background: 'rgba(255,87,34,0.3)',
-                  border: '1px solid rgba(255,87,34,0.5)',
-                  borderRadius: 6, fontSize: 9, color: '#FF5722', fontWeight: 'bold',
+      {/* ── Pets grid ── */}
+      {section === 'pets' && (
+        <>
+          <div style={{ fontSize: 10, color: '#607D8B', marginBottom: 8, lineHeight: 1.4 }}>
+            🐾 Питомцы бегают рядом с тобой во дворе. Видны только тебе и твоей команде.
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+            {filteredPets.map(pet => {
+              const owned = profile.purchasedPets.includes(pet.id);
+              const equipped = profile.equippedPet === pet.id;
+              const rarityColor = RARITY_COLORS[pet.rarity];
+              return (
+                <div key={pet.id} style={{
+                  background: equipped ? 'rgba(255,87,34,0.15)' : owned ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.03)',
+                  border: `1.5px solid ${equipped ? '#FF5722' : rarityColor + '66'}`,
+                  borderRadius: 12, padding: '10px 10px 8px',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                 }}>
-                  ✓ Надета
+                  <div style={{ fontSize: 32 }}>{pet.emoji}</div>
+                  <div style={{ fontSize: 11, color: '#FFF', fontWeight: 'bold', textAlign: 'center', lineHeight: 1.2 }}>
+                    {pet.name}
+                  </div>
+                  <div style={{ fontSize: 9, color: rarityColor, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    {pet.rarity === 'common' ? 'обычная' : pet.rarity === 'rare' ? 'редкая' : pet.rarity === 'epic' ? 'эпичная' : 'легенд.'}
+                  </div>
+                  <div style={{ fontSize: 9, color: '#757575', textAlign: 'center', lineHeight: 1.3, fontStyle: 'italic' }}>
+                    «{pet.animation}»
+                  </div>
+                  <div style={{ fontSize: 9, color: '#616161', textAlign: 'center', lineHeight: 1.3 }}>
+                    {pet.description}
+                  </div>
+                  <ActionButton
+                    owned={owned} equipped={equipped} currency={pet.currency} cost={pet.cost}
+                    babelKi={profile.babki}
+                    onEquip={() => equipPet(pet.id)}
+                    onBuyBabki={() => buyPetWithBabki(pet)}
+                    onBuyStars={() => buyWithStars('pet', pet)}
+                  />
                 </div>
-              ) : owned ? (
-                <button
-                  onClick={() => equipHat(hat.id)}
-                  style={{
-                    marginTop: 4, padding: '4px 10px',
-                    background: 'rgba(76,175,80,0.2)',
-                    border: '1px solid rgba(76,175,80,0.4)',
-                    borderRadius: 6, fontSize: 9, color: '#81C784', cursor: 'pointer', fontWeight: 'bold',
-                  }}
-                >
-                  Надеть
-                </button>
-              ) : hat.currency === 'babki' ? (
-                <button
-                  onClick={() => buyWithBabki(hat)}
-                  disabled={hat.cost > profile.babki}
-                  style={{
-                    marginTop: 4, padding: '4px 10px',
-                    background: hat.cost > profile.babki ? 'rgba(255,255,255,0.04)' : 'rgba(255,215,0,0.15)',
-                    border: `1px solid ${hat.cost > profile.babki ? 'rgba(255,255,255,0.1)' : 'rgba(255,215,0,0.4)'}`,
-                    borderRadius: 6, fontSize: 9,
-                    color: hat.cost > profile.babki ? '#616161' : '#FFD700',
-                    cursor: hat.cost > profile.babki ? 'not-allowed' : 'pointer',
-                    fontWeight: 'bold',
-                  }}
-                >
-                  💰 {hat.cost}
-                </button>
-              ) : hat.currency === 'stars' ? (
-                <button
-                  onClick={() => buyWithStars(hat)}
-                  style={{
-                    marginTop: 4, padding: '4px 10px',
-                    background: 'rgba(100,181,246,0.12)',
-                    border: '1px solid rgba(100,181,246,0.35)',
-                    borderRadius: 6, fontSize: 9, color: '#64B5F6', cursor: 'pointer', fontWeight: 'bold',
-                  }}
-                >
-                  ⭐ {hat.cost}
-                </button>
-              ) : hat.currency === 'fuel_linked' ? (
-                <div style={{ fontSize: 8, color: '#FF9800', marginTop: 4, textAlign: 'center' }}>
-                  🔗 @fuel_fuel_bot
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {/* ── Car Skins grid ── */}
+      {section === 'cars' && (
+        <>
+          <div style={{ fontSize: 10, color: '#607D8B', marginBottom: 8, lineHeight: 1.4 }}>
+            🚗 Скины применяются к твоей машине в следующем матче.
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+            {filteredCars.map(skin => {
+              const owned = profile.purchasedCarSkins.includes(skin.id);
+              const equipped = profile.equippedCarSkin === skin.id;
+              const rarityColor = RARITY_COLORS[skin.rarity];
+              return (
+                <div key={skin.id} style={{
+                  background: equipped ? 'rgba(255,87,34,0.15)' : owned ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.03)',
+                  border: `1.5px solid ${equipped ? '#FF5722' : rarityColor + '66'}`,
+                  borderRadius: 12, padding: '10px 10px 8px',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                }}>
+                  {/* Color preview swatch */}
+                  <div style={{
+                    width: 40, height: 24, borderRadius: 5,
+                    background: skin.color, border: '2px solid rgba(255,255,255,0.2)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 16,
+                  }}>
+                    {skin.emoji}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#FFF', fontWeight: 'bold', textAlign: 'center', lineHeight: 1.2 }}>
+                    {skin.name}
+                  </div>
+                  <div style={{ fontSize: 9, color: rarityColor, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    {skin.rarity === 'common' ? 'обычная' : skin.rarity === 'rare' ? 'редкая' : skin.rarity === 'epic' ? 'эпичная' : 'легенд.'}
+                  </div>
+                  <div style={{ fontSize: 9, color: '#757575', textAlign: 'center', lineHeight: 1.3 }}>
+                    {skin.description}
+                  </div>
+                  <ActionButton
+                    owned={owned} equipped={equipped} currency={skin.currency} cost={skin.cost}
+                    babelKi={profile.babki}
+                    onEquip={() => equipCarSkin(skin.id)}
+                    onBuyBabki={() => buyCarSkinWithBabki(skin)}
+                    onBuyStars={() => buyWithStars('car', skin)}
+                  />
                 </div>
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
+              );
+            })}
+          </div>
+        </>
+      )}
 
       {/* §10.3 Stars info */}
       <div style={{
         marginTop: 14, padding: '8px 12px',
-        background: 'rgba(100,181,246,0.06)',
-        border: '1px solid rgba(100,181,246,0.15)',
+        background: 'rgba(100,181,246,0.06)', border: '1px solid rgba(100,181,246,0.15)',
         borderRadius: 10, fontSize: 10, color: '#607D8B', lineHeight: 1.5,
       }}>
         ⭐ Покупки за Telegram Stars доступны в приложении Telegram.

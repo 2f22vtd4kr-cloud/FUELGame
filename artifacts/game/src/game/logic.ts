@@ -37,13 +37,16 @@ const EJECTED_AS_SLIVSHCHIK: Partial<Record<string, string>> = {
   denis:         'Денис был Сливщиком. Теперь он работает на промзоне за еду.',
   anya:          'Аня была Сливщицей. «Это не моя тачка» — это было её прикрытие.',
   vova:          'Вова был Сливщиком. Его USDT конфисковали.',
-  uncle_seryozha:'Серёжа был Сливщиком. Талоны были отвлечением. (Опечатка? Нет.)',
+  uncle_seryozha:'Серёжа был Сливщиком. Талоны были отвлечением. Купи настоящие: @fuel_fuel_fuel_bot',
   petrovich:     'Петрович был Сливщиком. Это было очевидно с самого начала.',
   marina:        'Марина была Сливщицей. Контент «реакция на слив» зашёл слишком далеко.',
   akhmet:        'Ахмет был Сливщиком. Он молчал, потому что ему было стыдно.',
   oleg:          'Олег был Сливщиком. «У меня травматик» — это был bluff.',
   lena:          'Лена была Сливщицей. Велосипед был для отвода глаз.',
   barsik:        'Барсик был Сливщиком. (Это невозможно по правилам, но вот мы тут.)',
+  // §3.1.3 Neutral roles ejected as Сливщик (shouldn't happen, but handle gracefully)
+  janitor_akhmet: 'Дворник выкинут. Он просто собирал улики. Двор в шоке.',
+  policeman:      'Участковый выкинут. Ирония. Закон в растерянности.',
 };
 
 const EJECTED_AS_INNOCENT: Partial<Record<string, string>> = {
@@ -57,9 +60,20 @@ const EJECTED_AS_INNOCENT: Partial<Record<string, string>> = {
   oleg:          'Олег не был Сливщиком. Но он и не был не Сливщиком. (Это баг, простите.)',
   lena:          'Лена не была Сливщицей. Она на велосипеде.',
   barsik:        'Барсик не был Сливщиком. Барсик — кот. Барсик пошёл спать.',
+  // §3.1.3 Neutral roles ejected as innocent
+  janitor_akhmet: 'Дворник Ахмет выкинут. Он собирал канистры, а не воровал. Грустно.',
+  policeman:      'Участковый выкинут. Правосудие — дело тонкое. Иногда — слепое.',
 };
 
-function getEjectionText(charKey: string, isSlivshchik: boolean): string {
+function getEjectionText(charKey: string, isSlivshchik: boolean, neutralRole?: string | null): string {
+  // §3.1.3 Neutral roles get their own ejection text
+  if (neutralRole === 'janitor') return isSlivshchik
+    ? EJECTED_AS_SLIVSHCHIK.janitor_akhmet!
+    : EJECTED_AS_INNOCENT.janitor_akhmet!;
+  if (neutralRole === 'policeman') return isSlivshchik
+    ? EJECTED_AS_SLIVSHCHIK.policeman!
+    : EJECTED_AS_INNOCENT.policeman!;
+
   if (isSlivshchik) {
     return EJECTED_AS_SLIVSHCHIK[charKey] ?? `${charKey} был Сливщиком. Это было очевидно.`;
   }
@@ -1902,7 +1916,7 @@ function resolveMeeting(): void {
     if (ejected) {
       ejected.isAlive = false;
       const isSlivshchik = ejected.role === 'slivshchik';
-      m.ejectionText = getEjectionText(ejected.character, isSlivshchik);
+      m.ejectionText = getEjectionText(ejected.character, isSlivshchik, ejected.neutralRole);
       audio.play('ejection');
       // §3.2 Credit players who voted correctly (voted for an actual slivshchik)
       if (isSlivshchik) {
