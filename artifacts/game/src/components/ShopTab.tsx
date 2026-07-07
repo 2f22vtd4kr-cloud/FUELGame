@@ -88,6 +88,8 @@ export default function ShopTab({ onProfileChange }: Props) {
     if (hat.currency === 'free' && hat.battlePassTier !== undefined) {
       return profile.battlePassTier >= (hat.battlePassTier ?? 0) || profile.purchasedHats.includes(hat.id);
     }
+    // §3.5 daily hats: only show if owned (they're earned via daily challenge, not purchasable)
+    if (hat.currency === 'daily') return profile.purchasedHats.includes(hat.id);
     return true;
   });
 

@@ -14,3 +14,4 @@
 - [95-Y Quick Play matchmaking](game-quickplay.md) — §5.5 server-side queue in wsHandler.ts; QUICK_MATCH_SIZE=4; GameRoom.isQuickPlay triggers server countdown; room_joined carries isQuickPlay flag; MultiplayerLobby has queueing screen
 - [95-Y Economy & Progression](game-economy-progression.md) — §3.2/§3.3/§3.5/§3.6 Бабки+XP+daily+achievements; localStorage profile; update stats BEFORE checkAchievements to avoid double-count; correctVotes tracked in resolveMeeting()
 - [95-Y Leaderboard & Shop](game-leaderboard-shop.md) — §3.4/§9.3/§10.3 done; leaderboard_entries table (no FK); POST /api/leaderboard upserts by deviceId; ShopTab has Stars flow via window.Telegram.WebApp.openInvoice; Lobby has 3 tabs (game/shop/leaderboard)
+- [95-Y viral mechanics and tutorial](game-viral-tutorial.md) — §9.4 share prompts + friend invite deep link (+ startapp consumption); §12.4 4-step Tutorial.tsx; §3.5 daily-exclusive hats; isFirstWin detection in rewards.ts

@@ -9,13 +9,15 @@ type Screen = 'menu' | 'queueing' | 'waiting';
 interface Props {
   onGameStarted: (network: GameNetwork, myPlayerId: string) => void;
   onBack: () => void;
+  /** Pre-filled room code from Telegram startapp deep link (e.g. "ROOM_XXXX" → "XXXX") */
+  initialJoinCode?: string;
 }
 
-export default function MultiplayerLobby({ onGameStarted, onBack }: Props) {
+export default function MultiplayerLobby({ onGameStarted, onBack, initialJoinCode }: Props) {
   const [screen, setScreen] = useState<Screen>('menu');
   const [character, setCharacter] = useState<CharacterKey>('denis');
   const [playerName, setPlayerName] = useState('');
-  const [joinCode, setJoinCode] = useState('');
+  const [joinCode, setJoinCode] = useState(initialJoinCode ?? '');
   const [numPlayers, setNumPlayers] = useState(6);
   const [numSlivshchiki, setNumSlivshchiki] = useState(2);
 
@@ -279,6 +281,39 @@ export default function MultiplayerLobby({ onGameStarted, onBack }: Props) {
               <div style={{ fontSize: 11, color: '#607D8B', marginTop: 6 }}>
                 Поделись кодом с друзьями
               </div>
+              {/* §9.4 Friend invite deep link */}
+              <button
+                onClick={async () => {
+                  const link = `https://t.me/bakstab_bot?startapp=ROOM_${roomCode}`;
+                  const shareText = `Играем в 95-Й! Код: ${roomCode}`;
+                  const tg = (window as any).Telegram?.WebApp;
+                  if (tg?.openTelegramLink) {
+                    tg.openTelegramLink(
+                      `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(shareText)}`
+                    );
+                  } else {
+                    const full = `🏠 ${shareText}\n→ ${link}`;
+                    const copied = navigator.clipboard
+                      ? await navigator.clipboard.writeText(full).then(() => true).catch(() => false)
+                      : false;
+                    alert(copied
+                      ? `Ссылка скопирована!\n${link}`
+                      : `Код комнаты: ${roomCode}\nСсылка: ${link}`
+                    );
+                  }
+                }}
+                style={{
+                  marginTop: 10, padding: '8px 20px',
+                  background: 'linear-gradient(135deg, #FF5722, #FF8A65)',
+                  border: 'none', borderRadius: 20,
+                  fontSize: 12, fontWeight: 700, color: '#FFF',
+                  cursor: 'pointer', letterSpacing: 0.5,
+                  boxShadow: '0 3px 12px rgba(255,87,34,0.4)',
+                  display: 'inline-block',
+                }}
+              >
+                🔗 Пригласить друзей
+              </button>
             </>
           )}
           {isQP && (

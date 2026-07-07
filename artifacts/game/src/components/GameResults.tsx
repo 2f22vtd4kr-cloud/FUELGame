@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import type { GameState, Player } from '../game/types';
 import { CHARACTERS } from '../data/characters';
+import { HAT_MAP } from '../data/cosmetics';
 import { applyMatchRewards, type MatchRewards } from '../game/rewards';
 import { loadProfile } from '../game/profile';
 
@@ -419,6 +420,96 @@ export default function GameResults({ gs, onPlayAgain }: Props) {
           → @fuel_fuel_fuel_bot
         </div>
       </div>
+
+      {/* ── §9.4 First-win share prompt ── */}
+      {rewards?.isFirstWin && (
+        <div style={{
+          width: '100%', maxWidth: 340,
+          background: 'rgba(255,215,0,0.12)',
+          border: '2px solid rgba(255,215,0,0.5)',
+          borderRadius: 14, padding: '14px 16px', marginBottom: 16,
+          textAlign: 'center',
+          boxShadow: '0 0 30px rgba(255,215,0,0.15)',
+        }}>
+          <div style={{ fontSize: 28, marginBottom: 6 }}>🏆</div>
+          <div style={{ fontSize: 15, fontWeight: 900, color: '#FFD700', marginBottom: 6 }}>
+            Твоя первая победа!
+          </div>
+          <div style={{ fontSize: 12, color: '#ccc', marginBottom: 12 }}>
+            Расскажи друзьям — пусть тоже попробуют!
+          </div>
+          <button
+            onClick={() => {
+              const text = `🏆 Я победил в 95-Й Бакстаб! Это игра про соседей, которые сливают бензин 😂 Попробуй: t.me/bakstab_bot`;
+              const tg = (window as any).Telegram?.WebApp;
+              if (tg?.openTelegramLink) {
+                tg.openTelegramLink(
+                  `https://t.me/share/url?url=https://t.me/bakstab_bot&text=${encodeURIComponent(text)}`
+                );
+              } else {
+                window.open(`https://t.me/share/url?url=https://t.me/bakstab_bot&text=${encodeURIComponent(text)}`, '_blank');
+              }
+            }}
+            style={{
+              width: '100%', padding: '10px',
+              background: 'linear-gradient(135deg, #FFD700, #FFC107)',
+              border: 'none', borderRadius: 10,
+              fontSize: 13, fontWeight: 700, color: '#000',
+              cursor: 'pointer',
+            }}
+          >
+            📢 Поделиться в Telegram
+          </button>
+        </div>
+      )}
+
+      {/* ── §9.4 Daily challenge share + hat unlock ── */}
+      {rewards?.dailyCompleted && (
+        <div style={{
+          width: '100%', maxWidth: 340,
+          background: 'rgba(76,175,80,0.12)',
+          border: '1.5px solid rgba(76,175,80,0.4)',
+          borderRadius: 14, padding: '14px 16px', marginBottom: 16,
+          textAlign: 'center',
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 900, color: '#4CAF50', marginBottom: 6 }}>
+            ☀️ Ежедневное задание выполнено!
+          </div>
+          {rewards.dailyHatUnlocked && (
+            <div style={{ fontSize: 12, color: '#A5D6A7', marginBottom: 8 }}>
+              🎩 Новая шапка разблокирована!<br/>
+              <span style={{ fontSize: 20 }}>
+                {(() => {
+                  const hat = HAT_MAP[rewards.dailyHatUnlocked!];
+                  return hat ? `${hat.emoji} ${hat.name}` : rewards.dailyHatUnlocked;
+                })()}
+              </span>
+            </div>
+          )}
+          <button
+            onClick={() => {
+              const text = `☀️ Выполнил ежедневное задание в 95-Й Бакстаб! АИ-95 уже 87₽ 😂 Попробуй: t.me/bakstab_bot`;
+              const tg = (window as any).Telegram?.WebApp;
+              if (tg?.openTelegramLink) {
+                tg.openTelegramLink(
+                  `https://t.me/share/url?url=https://t.me/bakstab_bot&text=${encodeURIComponent(text)}`
+                );
+              } else {
+                window.open(`https://t.me/share/url?url=https://t.me/bakstab_bot&text=${encodeURIComponent(text)}`, '_blank');
+              }
+            }}
+            style={{
+              width: '100%', padding: '8px',
+              background: 'rgba(76,175,80,0.2)',
+              border: '1px solid rgba(76,175,80,0.4)',
+              borderRadius: 8, fontSize: 12, color: '#A5D6A7',
+              cursor: 'pointer', fontWeight: 600,
+            }}
+          >
+            📢 Поделиться результатом
+          </button>
+        </div>
+      )}
 
       {/* §9.1 Share card button */}
       <button

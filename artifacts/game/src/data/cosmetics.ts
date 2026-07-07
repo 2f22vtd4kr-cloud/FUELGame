@@ -1,6 +1,6 @@
 // ─── §3.4 Inventory & Cosmetics Catalog ──────────────────────────────────────
 
-export type CurrencyType = 'babki' | 'stars' | 'free' | 'fuel_linked';
+export type CurrencyType = 'babki' | 'stars' | 'free' | 'fuel_linked' | 'daily';
 
 export interface HatDef {
   id: string;
@@ -43,6 +43,15 @@ export const HATS: HatDef[] = [
 
   // ── Special (fuel_linked) ──────────────────────────────────────────────────
   { id: 'golden_talono', name: 'Золотой Москвич', emoji: '🥇', description: 'За привязку @fuel_fuel_fuel_bot.', cost: 0, currency: 'fuel_linked', rarity: 'legendary' },
+
+  // ── §3.5 Daily exclusive hats — one per day-of-week, only via daily challenge ─
+  { id: 'daily_mon', name: 'Синяя кепка',      emoji: '🔵', description: 'Эксклюзив понедельника. Тяжело, но ты справился.', cost: 0, currency: 'daily', rarity: 'rare' },
+  { id: 'daily_tue', name: 'Красная беретка',  emoji: '🔴', description: 'Эксклюзив вторника. Вторник — день храбрых.',        cost: 0, currency: 'daily', rarity: 'rare' },
+  { id: 'daily_wed', name: 'Зелёный картуз',   emoji: '🟢', description: 'Эксклюзив среды. Экватор недели пройден.',            cost: 0, currency: 'daily', rarity: 'rare' },
+  { id: 'daily_thu', name: 'Жёлтая каска',     emoji: '🟡', description: 'Эксклюзив четверга. Предпятничный энтузиазм.',        cost: 0, currency: 'daily', rarity: 'rare' },
+  { id: 'daily_fri', name: 'Пятничный венец',  emoji: '🎊', description: 'Эксклюзив пятницы. Ты заслужил.',                    cost: 0, currency: 'daily', rarity: 'epic' },
+  { id: 'daily_sat', name: 'Субботний цилиндр',emoji: '🎩', description: 'Эксклюзив субботы. Ленивый шик.',                    cost: 0, currency: 'daily', rarity: 'epic' },
+  { id: 'daily_sun', name: 'Воскресный нимб',  emoji: '😇', description: 'Эксклюзив воскресенья. Ты почти святой.',            cost: 0, currency: 'daily', rarity: 'epic' },
 ];
 
 export const HAT_MAP: Record<string, HatDef> = Object.fromEntries(HATS.map(h => [h.id, h]));

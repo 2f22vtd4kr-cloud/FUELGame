@@ -30,6 +30,8 @@ export interface PlayerProfile {
   // §9.3 Leaderboard / device identity
   playerName: string;             // display name for leaderboard
   deviceId: string;               // stable UUID for leaderboard upsert
+  // §12.4 Tutorial
+  seenTutorial: boolean;          // true after first-time tutorial is dismissed
 }
 
 const DEFAULTS: PlayerProfile = {
@@ -50,6 +52,7 @@ const DEFAULTS: PlayerProfile = {
   equippedHat: 'ushanka',
   playerName: '',
   deviceId: '',
+  seenTutorial: false,
 };
 
 function genDeviceId(): string {

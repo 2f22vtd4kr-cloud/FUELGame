@@ -9,15 +9,30 @@ import { GameNetwork } from './game/network';
 import { audio } from './game/audio';
 import Lobby from './components/Lobby';
 import MultiplayerLobby from './components/MultiplayerLobby';
+import Tutorial from './components/Tutorial';
 import GameCanvas from './components/GameCanvas';
 import HUD from './components/HUD';
 import MeetingScreen from './components/MeetingScreen';
 import GameResults from './components/GameResults';
+import { loadProfile } from './game/profile';
 
-type AppPhase = 'lobby' | 'multiplayer' | 'briefing' | 'play' | 'meeting' | 'results';
+type AppPhase = 'lobby' | 'multiplayer' | 'tutorial' | 'briefing' | 'play' | 'meeting' | 'results';
+
+/** Extract room code from Telegram startapp param "ROOM_XXXX" → "XXXX" */
+function getTelegramStartRoomCode(): string | null {
+  try {
+    const param = (window as any).Telegram?.WebApp?.initDataUnsafe?.start_param as string | undefined;
+    if (param?.startsWith('ROOM_')) return param.slice(5);
+  } catch { /* not in Telegram */ }
+  return null;
+}
 
 export default function App() {
-  const [appPhase, setAppPhase] = useState<AppPhase>('lobby');
+  const [appPhase, setAppPhase] = useState<AppPhase>(() => {
+    // Deep-linked via Telegram invite → go straight to multiplayer
+    if (getTelegramStartRoomCode()) return 'multiplayer';
+    return 'lobby';
+  });
   const [snapshot, setSnapshot] = useState<GameState>(() => ({
     ...gs, players: [], cars: [], tasks: [], meeting: null, briefingTimer: 0,
   }));
@@ -40,11 +55,16 @@ export default function App() {
     });
   }, []);
 
-  // ── Single-player start ────────────────────────────────────────────────────
+  // ── Single-player start (shows tutorial first for new players) ───────────
   const handleGameStart = useCallback(() => {
     setMyPlayerId(null);
     setActiveNetwork(null);
-    setAppPhase('briefing');
+    const profile = loadProfile();
+    if (!profile.seenTutorial) {
+      setAppPhase('tutorial');
+    } else {
+      setAppPhase('briefing');
+    }
   }, []);
 
   // ── Multiplayer: game started (server tells us) ───────────────────────────
@@ -110,11 +130,17 @@ export default function App() {
         />
       )}
 
+      {/* ── §12.4 First-time tutorial ── */}
+      {appPhase === 'tutorial' && (
+        <Tutorial onComplete={() => setAppPhase('briefing')} />
+      )}
+
       {/* ── Multiplayer lobby ── */}
       {appPhase === 'multiplayer' && (
         <MultiplayerLobby
           onGameStarted={handleMultiGameStarted}
           onBack={() => setAppPhase('lobby')}
+          initialJoinCode={getTelegramStartRoomCode() ?? undefined}
         />
       )}
 

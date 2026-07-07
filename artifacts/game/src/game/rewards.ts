@@ -15,6 +15,10 @@ export interface MatchRewards {
   dailyDef: (ChallengeDef & { id: string }) | null;
   dailyProgress: number;
   dailyTarget: number;
+  /** §3.5 Daily-exclusive hat unlocked today (null if not completed or already owned) */
+  dailyHatUnlocked: string | null;
+  /** True if this was the player's very first win (for §9.4 first-win share prompt) */
+  isFirstWin: boolean;
 }
 
 /** Determine whether the local player won this match */
@@ -97,6 +101,20 @@ export function applyMatchRewards(gs: GameState): MatchRewards {
     }
   }
 
+  // ── §3.5 Daily-exclusive hat ─────────────────────────────────────────────────
+  // One hat per day-of-week, unlocked only on completion of that day's challenge.
+  const DAY_HATS = ['daily_sun', 'daily_mon', 'daily_tue', 'daily_wed', 'daily_thu', 'daily_fri', 'daily_sat'];
+  let dailyHatUnlocked: string | null = null;
+  if (dailyCompleted) {
+    const now = new Date();
+    const moscowDay = new Date(now.getTime() + 3 * 60 * 60 * 1000).getUTCDay();
+    const hatId = DAY_HATS[moscowDay];
+    if (!profile.purchasedHats.includes(hatId)) {
+      profile.purchasedHats.push(hatId);
+      dailyHatUnlocked = hatId;
+    }
+  }
+
   const dailyProgress = profile.daily.progress;
   const dailyTarget = dailyDef.target;
 
@@ -116,6 +134,9 @@ export function applyMatchRewards(gs: GameState): MatchRewards {
 
   const tiersAfter = profile.battlePassTier;
 
+  // ── §9.4 First-win detection (after totalMatchesWon was incremented above) ─
+  const isFirstWin = iWon && profile.totalMatchesWon === 1;
+
   saveProfile(profile);
 
   // ── §9.3 Submit score to leaderboard (fire-and-forget, no await) ────────────
@@ -131,6 +152,8 @@ export function applyMatchRewards(gs: GameState): MatchRewards {
     dailyDef,
     dailyProgress,
     dailyTarget,
+    dailyHatUnlocked,
+    isFirstWin,
   };
 }
 
