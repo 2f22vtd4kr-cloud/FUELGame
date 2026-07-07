@@ -186,6 +186,12 @@ export interface Player {
   emote: string | null;
   emoteTimer: number;
   suspectedTimer: number;     // red outline when ambush interrupted
+  // §2.4 Shawarma speed boost
+  speedBoostTimer: number;        // remaining seconds of speed boost
+  // §10.2 Immunity Ticket
+  hasImmunityTicket: boolean;     // player is holding a ticket
+  // §4.3 Bot suspicion vector (khozain bots only)
+  suspicion: Record<string, number>;
   // Bot AI
   botState: BotBehavior;
   botTarget: Vec2 | null;
@@ -272,6 +278,35 @@ export const FLOWERBED_SLOW_MULT = 0.6;      // §1.2 flower beds reduce speed b
 export const SIPHON_AUDIO_RADIUS = 280;      // §13.1 siphon gurgle audible within 8m (~280px)
 export const VENT_COOLDOWN       = 15;       // §3.1.2 dumpster vent cooldown (seconds)
 export const CROUCH_VISIBILITY_MULT = 0.7;  // §2.2 crouching: others see you with 30% narrower FOV
+export const SHAWARMA_SPEED_BOOST_MULT     = 1.35; // §2.4 shawarma speed boost multiplier
+export const SHAWARMA_SPEED_BOOST_DURATION = 10;   // seconds
+export const IMMUNITY_TICKET_DURATION = 60; // §10.2 immunity ticket locks car for 60s
+
+// ─── Bot Difficulty (§4.2) ────────────────────────────────────────────────────
+
+export type BotDifficulty = 'easy' | 'medium' | 'hard' | 'nightmare';
+
+export interface BotDifficultySettings {
+  ambushChance: number;           // probability of attempting ambush when eligible
+  sabotageChancePerFrame: number; // per-frame probability of triggering sabotage
+  useVents: boolean;              // slivshchik bots use dumpster vents
+  fleeRadius: number;             // how far khozain bots run from nearby slivshchik
+  skipVoteChance: number;         // probability bot skips vote instead of using suspicion
+}
+
+export const BOT_DIFFICULTY_SETTINGS: Record<BotDifficulty, BotDifficultySettings> = {
+  easy:      { ambushChance: 0.10, sabotageChancePerFrame: 0.000, useVents: false, fleeRadius: 180, skipVoteChance: 0.35 },
+  medium:    { ambushChance: 0.25, sabotageChancePerFrame: 0.002, useVents: false, fleeRadius: 220, skipVoteChance: 0.20 },
+  hard:      { ambushChance: 0.40, sabotageChancePerFrame: 0.004, useVents: true,  fleeRadius: 260, skipVoteChance: 0.10 },
+  nightmare: { ambushChance: 0.60, sabotageChancePerFrame: 0.008, useVents: true,  fleeRadius: 300, skipVoteChance: 0.05 },
+};
+
+// ─── Immunity Ticket (§10.2) ──────────────────────────────────────────────────
+
+export interface ImmunityTicket {
+  id: string;
+  pos: Vec2;
+}
 
 // ─── Top-level Game State ─────────────────────────────────────────────────────
 
@@ -301,6 +336,10 @@ export interface GameState {
   activeSabotages: SabotageInstance[];
   // §2.1 Briefing phase
   briefingTimer: number;
+  // §4.2 Bot difficulty
+  botDifficulty: BotDifficulty;
+  // §10.2 Immunity tickets on the ground
+  immunityTickets: ImmunityTicket[];
 }
 
 // ─── Input ────────────────────────────────────────────────────────────────────

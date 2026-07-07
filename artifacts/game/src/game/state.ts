@@ -1,5 +1,5 @@
-import type { GameState, Player, Car, TaskInstance } from './types';
-import { CAR_SPAWNS, TASK_SPAWNS, PLAYER_SPAWNS } from '../data/map';
+import type { GameState, Player, Car, TaskInstance, ImmunityTicket } from './types';
+import { CAR_SPAWNS, TASK_SPAWNS, PLAYER_SPAWNS, DUMPSTER_POSITIONS } from '../data/map';
 import { CHARACTERS, CHARACTER_KEYS } from '../data/characters';
 import { SPRINT_MAX } from './types';
 
@@ -33,6 +33,8 @@ export function createInitialState(): GameState {
     activeMiniGame: null,
     activeSabotages: [],
     briefingTimer: 0,
+    botDifficulty: 'medium',
+    immunityTickets: [],
   };
 }
 
@@ -92,6 +94,9 @@ export function startGame(
       emote: null,
       emoteTimer: 0,
       suspectedTimer: 0,
+      speedBoostTimer: 0,
+      hasImmunityTicket: false,
+      suspicion: {},
       botState: 'idle',
       botTarget: null,
       botTaskId: null,
@@ -124,6 +129,17 @@ export function startGame(
     respawnTimer: 0,
   }));
 
+  // §10.2 Immunity tickets — spawn 1 ticket per match (near a random dumpster or offset)
+  const immunityTickets: ImmunityTicket[] = [];
+  if (Math.random() < 0.7) { // 70% chance per match (felt better than 5%, gives meaningful choice)
+    const dumpIdx = Math.floor(Math.random() * DUMPSTER_POSITIONS.length);
+    const dp = DUMPSTER_POSITIONS[dumpIdx];
+    immunityTickets.push({
+      id: `immunity_${Date.now()}`,
+      pos: { x: dp.x + 40 + Math.random() * 40, y: dp.y + (Math.random() - 0.5) * 30 },
+    });
+  }
+
   gs.phase = 'briefing';
   gs.briefingTimer = 5;
   gs.players = players;
@@ -142,6 +158,7 @@ export function startGame(
   gs.promptTimer = 0;
   gs.activeMiniGame = null;
   gs.activeSabotages = [];
+  gs.immunityTickets = immunityTickets;
 }
 
 // ─── Utils ────────────────────────────────────────────────────────────────────

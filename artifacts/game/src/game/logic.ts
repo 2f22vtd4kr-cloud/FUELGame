@@ -11,6 +11,9 @@ import {
   SABOTAGE_COOLDOWNS, SABOTAGE_DURATIONS,
   VALVE_FIX_TIME, VALVE_INTERACT_RADIUS,
   FLOWERBED_SLOW_MULT, VENT_COOLDOWN,
+  SHAWARMA_SPEED_BOOST_MULT, SHAWARMA_SPEED_BOOST_DURATION,
+  IMMUNITY_TICKET_DURATION,
+  BOT_DIFFICULTY_SETTINGS,
 } from './types';
 import { TASK_DEFS } from '../data/tasks';
 import {
@@ -134,6 +137,11 @@ function updateHumanPlayer(dt: number, input: InputState): void {
   if (player.isCarryingCanister) speedMult *= CANISTER_SLOW_MULT;
   // §1.2 Flower-bed slow zone (0.6× speed, can't sprint out faster)
   if (isInFlowerBed(player.pos)) speedMult *= FLOWERBED_SLOW_MULT;
+  // §2.4 Shawarma speed boost
+  if (player.speedBoostTimer > 0) {
+    speedMult *= SHAWARMA_SPEED_BOOST_MULT;
+    player.speedBoostTimer = Math.max(0, player.speedBoostTimer - dt);
+  }
 
   // §3.1.2 Vent cooldown decay
   if (player.ventCooldown > 0) player.ventCooldown -= dt;
@@ -392,9 +400,20 @@ function completeTask(task: TaskInstance, player: Player): void {
 
   if (player.role === 'khozain') {
     gs.unityMeter = Math.min(100, gs.unityMeter + taskDef.unityReward);
-    setPrompt(`✅ ${taskDef.label} — +${taskDef.unityReward}% единства!`, 3);
+    // §2.4 Shawarma speed boost — buying shawarma gives 10s speed boost
+    if (task.defKey === 'shawarma') {
+      player.speedBoostTimer = SHAWARMA_SPEED_BOOST_DURATION;
+      setPrompt(`🌯 Шаверма куплена! +${taskDef.unityReward}% единства. Скорость ×1.35 на 10с! 🏃`, 3);
+    } else {
+      setPrompt(`✅ ${taskDef.label} — +${taskDef.unityReward}% единства!`, 3);
+    }
   } else {
-    setPrompt(`🎭 ${taskDef.label} — выглядело убедительно.`, 3);
+    // Slivshchik faking tasks
+    if (task.defKey === 'shawarma') {
+      setPrompt(`🌯 Хорошая шаверма. Жаль, не помогла двору.`, 3);
+    } else {
+      setPrompt(`🎭 ${taskDef.label} — выглядело убедительно.`, 3);
+    }
   }
 }
 
@@ -655,6 +674,44 @@ function updateInteractions(dt: number, input: InputState): void {
         clearTaskDoer(player.id);
         return;
       }
+    }
+  }
+
+  // ── 4c-i. Immunity Ticket pickup (§10.2) ─────────────────────────────────
+  if (!player.hasImmunityTicket) {
+    const nearTicket = gs.immunityTickets.find(t => dist(player.pos, t.pos) < CANISTER_RADIUS);
+    if (nearTicket) {
+      setPrompt('🎟️ [E] Подобрать Талон Иммунитета! (защита бака 60с)', 0.2);
+      if (input.interact && !input.prevInteract) {
+        const idx = gs.immunityTickets.indexOf(nearTicket);
+        gs.immunityTickets.splice(idx, 1);
+        player.hasImmunityTicket = true;
+        audio.play('task_complete');
+        setPrompt('🎟️ Талон в руках! Подойди к своей машине и нажми E.', 4);
+        clearTaskDoer(player.id);
+        return;
+      }
+      clearTaskDoer(player.id);
+      return;
+    }
+  }
+
+  // ── 4c-ii. Immunity Ticket use on car (§10.2) ─────────────────────────────
+  if (player.hasImmunityTicket) {
+    const nearCar = gs.cars.find(c => dist(player.pos, c.pos) < INTERACT_RADIUS && !c.hasImmunity && c.fuel > 0);
+    if (nearCar) {
+      setPrompt('🎟️ [E] Применить Талон → зафиксировать цену бака на 60с!', 0.2);
+      if (input.interact && !input.prevInteract) {
+        nearCar.hasImmunity = true;
+        nearCar.immunityTimer = IMMUNITY_TICKET_DURATION;
+        player.hasImmunityTicket = false;
+        audio.play('task_complete');
+        setPrompt('🛡️ Цена зафиксирована! Сливщики в панике. В жизни тоже можно: @fuel_fuel_fuel_bot', 5);
+        clearTaskDoer(player.id);
+        return;
+      }
+      clearTaskDoer(player.id);
+      return;
     }
   }
 
@@ -1045,6 +1102,7 @@ function castBotVotes(): void {
   const m = gs.meeting!;
   const thisMeetingId = m.meetingId;
   const alivePlayers = gs.players.filter(p => p.isAlive);
+  const skipVoteChance = BOT_DIFFICULTY_SETTINGS[gs.botDifficulty].skipVoteChance;
 
   for (const bot of gs.players) {
     if (bot.isHuman || !bot.isAlive) continue;
@@ -1053,21 +1111,49 @@ function castBotVotes(): void {
     const delay = 2 + Math.random() * 12;
     setTimeout(() => {
       if (!gs.meeting || gs.meeting.phase !== 'voting' || gs.meeting.meetingId !== thisMeetingId) return;
-      const skipChance = bot.role === 'slivshchik' ? 0.1 : 0.2;
-      if (Math.random() < skipChance) {
-        gs.meeting.votes.push({ voterId: bot.id, targetId: null });
-      } else {
-        const candidates = alivePlayers.filter(p => {
-          if (p.id === bot.id) return false;
-          if (bot.role === 'slivshchik' && p.role === 'slivshchik') return false;
-          return true;
-        });
-        if (candidates.length > 0) {
-          const target = candidates[Math.floor(Math.random() * candidates.length)];
-          gs.meeting.votes.push({ voterId: bot.id, targetId: target.id });
-          audio.play('vote_cast');
+
+      let targetId: string | null = null;
+
+      /** Pick the highest-suspicion living candidate from a player list. */
+      const pickBySuspicion = (candidates: typeof alivePlayers, threshold = 0.25): string | null => {
+        let bestId: string | null = null;
+        let bestScore = threshold;
+        for (const p of candidates) {
+          const score = bot.suspicion[p.id] ?? 0;
+          if (score > bestScore) { bestScore = score; bestId = p.id; }
         }
+        return bestId;
+      };
+
+      if (bot.role === 'slivshchik') {
+        // §4.3 Slivshchik deflects: accuse the khozain with highest suspicion score;
+        // if no one is above threshold, pick a random khozain (10% chance to skip).
+        const khozaeva = alivePlayers.filter(p => p.id !== bot.id && p.role === 'khozain');
+        const suspicionTarget = pickBySuspicion(khozaeva);
+        if (suspicionTarget) {
+          targetId = suspicionTarget;
+        } else if (Math.random() > 0.10 && khozaeva.length > 0) {
+          targetId = khozaeva[Math.floor(Math.random() * khozaeva.length)].id;
+        }
+        // else: skip vote (targetId stays null)
+      } else {
+        // §4.3 Khozain bot: use suspicion vector — highest score above threshold wins.
+        // skipVoteChance scales with difficulty (easy bots skip more often).
+        if (Math.random() > skipVoteChance) {
+          const candidates = alivePlayers.filter(p => p.id !== bot.id);
+          const suspicionTarget = pickBySuspicion(candidates);
+          if (suspicionTarget) {
+            targetId = suspicionTarget;
+          } else {
+            // No suspicion data → random fallback (true ignorance, not sloppiness)
+            if (candidates.length > 0) targetId = candidates[Math.floor(Math.random() * candidates.length)].id;
+          }
+        }
+        // else: skip vote (targetId stays null)
       }
+
+      gs.meeting!.votes.push({ voterId: bot.id, targetId });
+      if (targetId) audio.play('vote_cast');
     }, delay * 1000);
   }
 }
@@ -1242,6 +1328,9 @@ export function triggerEmote(playerId: string, emote: string): void {
   const p = gs.players.find(x => x.id === playerId);
   if (p) { p.emote = emote; p.emoteTimer = 3; }
 }
+
+// §2.2 Emote constants (4 quick emotes for the play-phase wheel)
+export const PLAY_EMOTES = ['👋', '🤔', '🚨', '😂'] as const;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

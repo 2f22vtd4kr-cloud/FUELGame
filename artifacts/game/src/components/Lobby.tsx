@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { CharacterKey } from '../game/types';
+import type { CharacterKey, BotDifficulty } from '../game/types';
 import { CHARACTERS, CHARACTER_KEYS } from '../data/characters';
 import { gs, startGame } from '../game/state';
 
@@ -7,14 +7,23 @@ interface Props {
   onStart: () => void;
 }
 
+const DIFFICULTY_LABELS: Record<BotDifficulty, { label: string; emoji: string; desc: string; color: string }> = {
+  easy:      { label: 'Лёгкий',    emoji: '🟢', desc: 'Боты ленятся',         color: '#4CAF50' },
+  medium:    { label: 'Средний',   emoji: '🟡', desc: 'Стандартная игра',      color: '#FF9800' },
+  hard:      { label: 'Сложный',   emoji: '🔴', desc: 'Боты хитрят',           color: '#F44336' },
+  nightmare: { label: 'Кошмар',    emoji: '💀', desc: 'Почти нереально',       color: '#9C27B0' },
+};
+
 export default function Lobby({ onStart }: Props) {
   const [selected, setSelected] = useState<CharacterKey>('denis');
   const [playerCount, setPlayerCount] = useState(6);
   const [siphonersCount, setSiphonersCount] = useState(2);
+  const [difficulty, setDifficulty] = useState<BotDifficulty>('medium');
   const charDef = CHARACTERS[selected];
 
   function handleStart() {
     gs.selectedCharacter = selected;
+    gs.botDifficulty = difficulty;
     startGame(selected, playerCount, siphonersCount);
     onStart();
   }
@@ -153,6 +162,37 @@ export default function Lobby({ onStart }: Props) {
           🏠 {playerCount - siphonersCount} хозяев vs 🪣 {siphonersCount} сливщик{siphonersCount === 1 ? '' : 'а'}
           <br/>
           Задача хозяев: заполни метр единства до 100% или выгони всех сливщиков.
+        </div>
+
+        {/* Difficulty selector */}
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontSize: 11, color: '#9E9E9E', marginBottom: 8, letterSpacing: 1 }}>
+            СЛОЖНОСТЬ БОТОВ
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+            {(Object.keys(DIFFICULTY_LABELS) as BotDifficulty[]).map(key => {
+              const d = DIFFICULTY_LABELS[key];
+              const isSelected = key === difficulty;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setDifficulty(key)}
+                  style={{
+                    background: isSelected ? `${d.color}22` : 'rgba(255,255,255,0.04)',
+                    border: `2px solid ${isSelected ? d.color : 'rgba(255,255,255,0.1)'}`,
+                    borderRadius: 8, padding: '8px 4px', cursor: 'pointer',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                  }}
+                >
+                  <span style={{ fontSize: 18 }}>{d.emoji}</span>
+                  <span style={{ fontSize: 9, color: isSelected ? d.color : '#9E9E9E', fontWeight: isSelected ? 'bold' : 'normal', lineHeight: 1.2 }}>
+                    {d.label}
+                  </span>
+                  <span style={{ fontSize: 8, color: '#616161', lineHeight: 1.1 }}>{d.desc}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 

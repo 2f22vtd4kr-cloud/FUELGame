@@ -4,12 +4,40 @@ import {
   SIPHON_RADIUS, BOT_FLEE_RADIUS,
   CANISTER_RADIUS, TASK_RESPAWN_TIME,
   FLOWERBED_SLOW_MULT,
+  BOT_DIFFICULTY_SETTINGS,
 } from './types';
 import { TASK_DEFS } from '../data/tasks';
 import { isInsideBuilding, clampToMap, dist, DUMPSTER_POSITIONS, isInFlowerBed } from '../data/map';
 import type { SabotageKey } from './types';
 import { callMeeting, triggerBotSabotage, isSabotageActive } from './logic';
 import { audio } from './audio';
+
+// ─── §4.3 Suspicion helpers ────────────────────────────────────────────────────
+
+/** Decay all suspicion scores for a bot by a small amount each tick. */
+function decaySuspicion(bot: Player, dt: number): void {
+  for (const key of Object.keys(bot.suspicion)) {
+    bot.suspicion[key] = Math.max(0, bot.suspicion[key] - 0.01 * dt);
+    if (bot.suspicion[key] === 0) delete bot.suspicion[key];
+  }
+}
+
+/** Raise suspicion on a target player for this bot. Clamped 0–1. */
+function raiseSuspicion(bot: Player, targetId: string, amount: number): void {
+  bot.suspicion[targetId] = Math.min(1, (bot.suspicion[targetId] ?? 0) + amount);
+}
+
+/** Get the most-suspected living player ID above a threshold (or null). */
+export function getMostSuspectedId(bot: Player, threshold = 0.25): string | null {
+  let best: string | null = null;
+  let bestScore = threshold;
+  for (const [id, score] of Object.entries(bot.suspicion)) {
+    const p = gs.players.find(x => x.id === id);
+    if (!p || !p.isAlive || p.id === bot.id) continue;
+    if (score > bestScore) { bestScore = score; best = id; }
+  }
+  return best;
+}
 
 export function updateBots(dt: number): void {
   for (const bot of gs.players) {
@@ -29,12 +57,17 @@ export function updateBots(dt: number): void {
 // ─── Owner bot ────────────────────────────────────────────────────────────────
 
 function updateKhozainBot(bot: Player, dt: number): void {
+  decaySuspicion(bot, dt);
+  const diff = BOT_DIFFICULTY_SETTINGS[gs.botDifficulty];
+
   // 1. Flee if siphoner nearby
   const nearSiphoner = gs.players.find(
-    p => p.id !== bot.id && p.isAlive && p.role === 'slivshchik' && dist(bot.pos, p.pos) < BOT_FLEE_RADIUS
+    p => p.id !== bot.id && p.isAlive && p.role === 'slivshchik' && dist(bot.pos, p.pos) < diff.fleeRadius
   );
   if (nearSiphoner) {
     bot.botState = 'fleeing';
+    // §4.3 Raise suspicion on slivshchik who was seen near the bot
+    raiseSuspicion(bot, nearSiphoner.id, 0.15 * dt);
     const awayX = bot.pos.x - nearSiphoner.pos.x;
     const awayY = bot.pos.y - nearSiphoner.pos.y;
     const len = Math.sqrt(awayX * awayX + awayY * awayY) || 1;
@@ -51,12 +84,27 @@ function updateKhozainBot(bot: Player, dt: number): void {
     return;
   }
 
-  // 3. Report drained car
+  // 3. Report drained car / raise suspicion on nearby slivshchiki caught siphoning
   const drainedCar = gs.cars.find(c => c.fuel < 10 && dist(bot.pos, c.pos) < 80);
   if (drainedCar && gs.meetingCooldown <= 0) {
     audio.play('alarm_button');
     callMeeting(bot.id, 'drained_car');
     return;
+  }
+
+  // §4.3 Observe active siphons within a reasonable radius — raise suspicion
+  for (const car of gs.cars) {
+    if (car.siphonPhase === 2 && car.siphoner && dist(bot.pos, car.pos) < 280) {
+      raiseSuspicion(bot, car.siphoner, 0.25);
+    }
+  }
+  // Raise suspicion if a slivshchik is near a drained car
+  for (const p of gs.players) {
+    if (p.id === bot.id || !p.isAlive || p.role !== 'slivshchik') continue;
+    const nearDrained = gs.cars.some(c => c.fuel < 20 && dist(p.pos, c.pos) < 100);
+    if (nearDrained && dist(bot.pos, p.pos) < 200) {
+      raiseSuspicion(bot, p.id, 0.08 * dt);
+    }
   }
 
   // 4. Pick up a canister (evidence)
@@ -190,7 +238,8 @@ function updateSlivshchikBot(bot: Player, dt: number): void {
     return;
   }
 
-  // 3. Attempt ambush if alone with an owner
+  // 3. Attempt ambush if alone with an owner — uses difficulty-based chance
+  const diffSliv = BOT_DIFFICULTY_SETTINGS[gs.botDifficulty];
   if (bot.ambushCooldown <= 0) {
     const ambushTarget = gs.players.find(p => {
       if (p.id === bot.id || !p.isAlive || p.role !== 'khozain') return false;
@@ -200,7 +249,7 @@ function updateSlivshchikBot(bot: Player, dt: number): void {
       );
       return others.length === 0;
     });
-    if (ambushTarget && Math.random() < 0.3) {
+    if (ambushTarget && Math.random() < diffSliv.ambushChance) {
       // Ambush!
       ambushTarget.isAlive = false;
       bot.ambushCooldown = 25;
@@ -219,8 +268,8 @@ function updateSlivshchikBot(bot: Player, dt: number): void {
     }
   }
 
-  // 3.5. Sabotage attempt (§2.9 — slivshchiki can trigger sabotages)
-  if (bot.sabotageCooldown <= 0 && !isWatched && Math.random() < 0.003) {
+  // 3.5. Sabotage attempt (§2.9 — uses difficulty-based chance)
+  if (bot.sabotageCooldown <= 0 && !isWatched && Math.random() < diffSliv.sabotageChancePerFrame) {
     // ~18% chance per 60s (checked per frame at 0.003 * 60fps)
     const keys: SabotageKey[] = ['alarm_chaos', 'chat_offline', 'babushka_cerberus', 'pipe_burst'];
     const available = keys.filter(k => !gs.activeSabotages.some(s => s.key === k && !s.isResolved));

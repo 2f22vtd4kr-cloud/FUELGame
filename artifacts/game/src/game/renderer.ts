@@ -85,6 +85,7 @@ export function renderGame(
   drawSabotageFlood(ctx, state);   // §2.9 flood effect under entities
   drawTasks(ctx, state);
   drawCars(ctx, state);
+  drawImmunityTickets(ctx, state);
   drawBodies(ctx, state);
   drawCanisters(ctx, state);
   drawValveMarkers(ctx, state);    // §2.9 valve fix markers
@@ -597,6 +598,70 @@ function drawCars(ctx: CanvasRenderingContext2D, state: GameState): void {
       if (pulse) ctx.fillText('⚠️', x, y + 28);
       ctx.textBaseline = 'alphabetic';
     }
+
+    // §10.2 Immunity shield — golden rotating ring
+    if (car.hasImmunity) {
+      const t = Date.now() / 700;
+      ctx.save();
+      ctx.strokeStyle = '#FFD700';
+      ctx.lineWidth = 3;
+      ctx.globalAlpha = 0.8 + 0.2 * Math.sin(Date.now() / 250);
+      ctx.setLineDash([8, 6]);
+      ctx.lineDashOffset = t * 20;
+      ctx.beginPath();
+      ctx.arc(x, y, 40, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+      // Shield icon + timer
+      ctx.font = '11px serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🛡️', x, y - 46);
+      ctx.font = 'bold 8px sans-serif';
+      ctx.fillStyle = '#FFD700';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText(`${Math.ceil(car.immunityTimer)}с`, x, y - 52);
+      ctx.restore();
+    }
+  }
+}
+
+// ─── Immunity Tickets (§10.2) ────────────────────────────────────────────────
+
+function drawImmunityTickets(ctx: CanvasRenderingContext2D, state: GameState): void {
+  const pulse = 0.6 + 0.4 * Math.sin(Date.now() / 400);
+  for (const ticket of state.immunityTickets) {
+    const { x, y } = ticket.pos;
+    // Golden glow
+    ctx.globalAlpha = pulse * 0.45;
+    ctx.fillStyle = '#FFD700';
+    ctx.beginPath();
+    ctx.arc(x, y, 22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Ticket icon background
+    ctx.fillStyle = '#FFC107';
+    ctx.beginPath();
+    ctx.roundRect(x - 14, y - 10, 28, 20, 4);
+    ctx.fill();
+    ctx.strokeStyle = '#FFD700';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Ticket emoji
+    ctx.font = '14px serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🎟️', x, y);
+    ctx.textBaseline = 'alphabetic';
+
+    // Label
+    ctx.font = 'bold 8px sans-serif';
+    ctx.fillStyle = '#FFF9C4';
+    ctx.textAlign = 'center';
+    ctx.fillText('ТАЛОН', x, y + 20);
   }
 }
 

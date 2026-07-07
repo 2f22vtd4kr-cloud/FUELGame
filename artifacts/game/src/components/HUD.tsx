@@ -3,7 +3,8 @@ import type { GameState, SabotageKey } from '../game/types';
 import { SPRINT_MAX, SABOTAGE_LABELS, SABOTAGE_COOLDOWNS, SABOTAGE_DURATIONS, SIPHON_AUDIO_RADIUS } from '../game/types';
 import { NEWS_HEADLINES } from '../data/ticker';
 import { CHARACTERS } from '../data/characters';
-import { triggerSabotage } from '../game/logic';
+import { triggerSabotage, triggerEmote, PLAY_EMOTES } from '../game/logic';
+import { gs } from '../game/state';
 import TaskMiniGame from './TaskMiniGame';
 
 interface HUDProps {
@@ -14,6 +15,7 @@ const SABOTAGE_KEYS: SabotageKey[] = ['alarm_chaos', 'chat_offline', 'babushka_c
 
 export default function HUD({ state }: HUDProps) {
   const [showSabotageMenu, setShowSabotageMenu] = useState(false);
+  const [showEmoteWheel, setShowEmoteWheel] = useState(false);
 
   const localPlayer = state.players.find(p => p.id === state.localPlayerId);
   if (!localPlayer) return null;
@@ -413,6 +415,70 @@ export default function HUD({ state }: HUDProps) {
             </div>
             <div style={{ fontSize: 9, color: '#ffcdd2' }}>где-то рядом...</div>
           </div>
+        </div>
+      )}
+
+      {/* ── §2.2 Emote wheel (4 quick emotes) ── */}
+      {localPlayer.isAlive && (
+        <div style={{ position: 'absolute', bottom: 100, right: 12, pointerEvents: 'all' }}>
+          {showEmoteWheel && (
+            <div style={{
+              position: 'absolute', bottom: 42, right: 0,
+              display: 'grid', gridTemplateColumns: '1fr 1fr',
+              gap: 6, marginBottom: 6,
+            }}>
+              {PLAY_EMOTES.map((emote, i) => (
+                <button
+                  key={i}
+                  onClick={() => {
+                    triggerEmote(gs.localPlayerId, emote);
+                    setShowEmoteWheel(false);
+                  }}
+                  style={{
+                    width: 44, height: 44,
+                    background: 'rgba(0,0,0,0.75)',
+                    border: '1px solid rgba(255,255,255,0.25)',
+                    borderRadius: 10,
+                    fontSize: 22, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}
+                >
+                  {emote}
+                </button>
+              ))}
+            </div>
+          )}
+          <button
+            onClick={() => setShowEmoteWheel(v => !v)}
+            style={{
+              width: 40, height: 40,
+              background: showEmoteWheel ? 'rgba(255,87,34,0.85)' : 'rgba(0,0,0,0.65)',
+              border: '1px solid rgba(255,255,255,0.2)',
+              borderRadius: '50%', fontSize: 18, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+            title="Эмоция (§2.2)"
+          >
+            😊
+          </button>
+        </div>
+      )}
+
+      {/* ── §10.2 Immunity Ticket HUD badge ── */}
+      {localPlayer.hasImmunityTicket && (
+        <div style={{
+          position: 'absolute', top: 80, right: 12,
+          background: 'rgba(255,193,7,0.2)',
+          border: '1px solid #FFD700',
+          borderRadius: 10, padding: '6px 10px',
+          display: 'flex', alignItems: 'center', gap: 6,
+          fontSize: 11, color: '#FFD700', fontWeight: 'bold',
+          pointerEvents: 'none',
+        }}>
+          🎟️ ТАЛОН В РУКАХ
+          <span style={{ fontSize: 9, color: '#FFF9C4', fontWeight: 'normal' }}>
+            Подойди к баку → [E]
+          </span>
         </div>
       )}
 
