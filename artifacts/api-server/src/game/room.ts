@@ -19,9 +19,11 @@ export class GameRoom {
   inputs: Map<string, InputState> = new Map();
   state = createInitialState();
   gameStarted = false;
+  readonly isQuickPlay: boolean;
 
   private tickInterval: ReturnType<typeof setInterval> | null = null;
   private broadcastInterval: ReturnType<typeof setInterval> | null = null;
+  private quickStartTimeout: ReturnType<typeof setTimeout> | null = null;
   private lastTickMs = Date.now();
 
   settings: { numPlayers: number; numSlivshchiki: number };
@@ -30,10 +32,35 @@ export class GameRoom {
     roomCode: string,
     hostPlayerId: string,
     settings: { numPlayers: number; numSlivshchiki: number },
+    isQuickPlay = false,
   ) {
     this.roomCode = roomCode;
     this.hostPlayerId = hostPlayerId;
     this.settings = settings;
+    this.isQuickPlay = isQuickPlay;
+
+    if (isQuickPlay) {
+      this.scheduleQuickStart();
+    }
+  }
+
+  // ── Quick Play auto-start countdown ────────────────────────────────────────
+
+  private scheduleQuickStart(): void {
+    // §5.5 Quick Play: server auto-starts after a 5-second countdown.
+    // Runs entirely server-side so it works regardless of which client is "host".
+    let secs = 5;
+    const tick = () => {
+      if (this.gameStarted) return;
+      this.broadcast({ type: 'quick_countdown', seconds: secs });
+      if (secs === 0) {
+        this.startGame();
+        return;
+      }
+      secs--;
+      this.quickStartTimeout = setTimeout(tick, 1000);
+    };
+    this.quickStartTimeout = setTimeout(tick, 1000);
   }
 
   // ── Client management ──────────────────────────────────────────────────────
@@ -96,6 +123,12 @@ export class GameRoom {
     if (this.gameStarted) return;
     this.gameStarted = true;
 
+    // Cancel any pending quick-start timer (in case of manual start)
+    if (this.quickStartTimeout) {
+      clearTimeout(this.quickStartTimeout);
+      this.quickStartTimeout = null;
+    }
+
     const humanPlayers: HumanPlayerInfo[] = Array.from(this.clients.values()).map(c => ({
       id: c.playerId,
       character: c.character,
@@ -129,6 +162,7 @@ export class GameRoom {
   stop(): void {
     if (this.tickInterval) { clearInterval(this.tickInterval); this.tickInterval = null; }
     if (this.broadcastInterval) { clearInterval(this.broadcastInterval); this.broadcastInterval = null; }
+    if (this.quickStartTimeout) { clearTimeout(this.quickStartTimeout); this.quickStartTimeout = null; }
   }
 
   // ── Tick ──────────────────────────────────────────────────────────────────

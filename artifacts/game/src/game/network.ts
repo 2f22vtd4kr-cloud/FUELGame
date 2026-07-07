@@ -9,13 +9,17 @@ export type { LobbyPlayer } from './network-types';
 
 export interface NetworkCallbacks {
   onRoomCreated?: (roomCode: string, playerId: string) => void;
-  onRoomJoined?: (roomCode: string, playerId: string) => void;
+  onRoomJoined?: (roomCode: string, playerId: string, isQuickPlay?: boolean) => void;
   onLobbyUpdate?: (players: LobbyPlayer[], roomCode: string, hostId: string) => void;
   onGameStarted?: (yourPlayerId: string) => void;
   onPlayerDisconnected?: (playerId: string, playerName: string) => void;
   onHostChanged?: (newHostId: string) => void;
   onError?: (message: string) => void;
   onClose?: () => void;
+  /** §5.5 Quick Play — called while waiting in matchmaking queue. */
+  onQueueUpdate?: (count: number, total: number) => void;
+  /** §5.5 Quick Play — server countdown before auto-start (seconds remaining). */
+  onQuickCountdown?: (seconds: number) => void;
 }
 
 // ─── GameNetwork ──────────────────────────────────────────────────────────────
@@ -77,6 +81,16 @@ export class GameNetwork {
     this.send({ type: 'join', ...opts });
   }
 
+  /** §5.5 Join the Quick Play matchmaking queue. Server auto-creates a room when QUICK_MATCH_SIZE players are waiting. */
+  quickJoin(opts: { character: string; playerName: string }): void {
+    this.send({ type: 'quick_join', ...opts });
+  }
+
+  /** §5.5 Leave the matchmaking queue (cancel Quick Play search). */
+  leaveQueue(): void {
+    this.send({ type: 'leave_queue' });
+  }
+
   startGame(): void {
     this.send({ type: 'start' });
   }
@@ -122,7 +136,11 @@ export class GameNetwork {
       case 'room_joined':
         this.myPlayerId = msg['playerId'] as string;
         this.roomCode = msg['roomCode'] as string;
-        this.callbacks.onRoomJoined?.(msg['roomCode'] as string, msg['playerId'] as string);
+        this.callbacks.onRoomJoined?.(
+          msg['roomCode'] as string,
+          msg['playerId'] as string,
+          Boolean(msg['isQuickPlay']),
+        );
         break;
       case 'lobby_update':
         this.callbacks.onLobbyUpdate?.(
@@ -149,6 +167,12 @@ export class GameNetwork {
         break;
       case 'error':
         this.callbacks.onError?.(msg['message'] as string);
+        break;
+      case 'queue_update':
+        this.callbacks.onQueueUpdate?.(msg['count'] as number, msg['total'] as number);
+        break;
+      case 'quick_countdown':
+        this.callbacks.onQuickCountdown?.(msg['seconds'] as number);
         break;
     }
   }

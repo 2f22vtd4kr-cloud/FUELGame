@@ -4,7 +4,7 @@ import { CHARACTERS, CHARACTER_KEYS } from '../data/characters';
 import { GameNetwork } from '../game/network';
 import type { LobbyPlayer } from '../game/network';
 
-type Screen = 'menu' | 'waiting';
+type Screen = 'menu' | 'queueing' | 'waiting';
 
 interface Props {
   onGameStarted: (network: GameNetwork, myPlayerId: string) => void;
@@ -21,14 +21,20 @@ export default function MultiplayerLobby({ onGameStarted, onBack }: Props) {
 
   // Waiting room state
   const [network, setNetwork] = useState<GameNetwork | null>(null);
-  const networkRef = useRef<GameNetwork | null>(null); // ref for use inside intervals
+  const networkRef = useRef<GameNetwork | null>(null);
   const [roomCode, setRoomCode] = useState('');
   const [lobbyPlayers, setLobbyPlayers] = useState<LobbyPlayer[]>([]);
   const [amHost, setAmHost] = useState(false);
   const [error, setError] = useState('');
   const [connecting, setConnecting] = useState(false);
 
-  // §2.1 Auto-start countdown when lobby fills to 8 players
+  // §5.5 Quick Play queue state
+  const [queueCount, setQueueCount] = useState(0);
+  const [queueTotal, setQueueTotal] = useState(4);
+  const [quickCountdown, setQuickCountdown] = useState<number | null>(null);
+  const isQuickPlayRef = useRef(false);
+
+  // §2.1 Auto-start countdown for custom rooms (host-triggered at 8 players)
   const [autoStartCountdown, setAutoStartCountdown] = useState<number | null>(null);
   const autoStartTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -38,21 +44,18 @@ export default function MultiplayerLobby({ onGameStarted, onBack }: Props) {
   // Track whether the game has started so we don't close the socket on lobby unmount
   const gameStartedRef = useRef(false);
 
-  // Cleanup network on unmount — only close if game never started (lobby was abandoned)
+  // Cleanup network on unmount — only close if game never started
   useEffect(() => {
     return () => {
       if (!gameStartedRef.current) network?.close();
     };
   }, [network]);
 
-  // §2.1 Auto-start: when host and lobby hits 8 players, start 10s countdown.
-  // No return cleanup here — returning cleanup would reset the countdown on every
-  // dependency change (e.g. 8→9 players). Unmount cleanup lives in a separate effect.
+  // §2.1 Auto-start for custom rooms: host + 8 players → 10s countdown
   useEffect(() => {
-    const shouldStart = amHost && lobbyPlayers.length >= 8 && screen === 'waiting';
+    const shouldStart = amHost && lobbyPlayers.length >= 8 && screen === 'waiting' && !isQuickPlayRef.current;
 
     if (shouldStart) {
-      // Only start a fresh countdown if one isn't already running
       if (autoStartTimerRef.current === null) {
         let secs = 10;
         setAutoStartCountdown(secs);
@@ -66,16 +69,13 @@ export default function MultiplayerLobby({ onGameStarted, onBack }: Props) {
           }
         }, 1000);
       }
-      // countdown already running — let it continue without reset
     } else if (autoStartTimerRef.current !== null) {
-      // Conditions no longer met (player left, lost host, etc.) — cancel
       clearInterval(autoStartTimerRef.current);
       autoStartTimerRef.current = null;
       setAutoStartCountdown(null);
     }
-  }, [amHost, lobbyPlayers.length, screen]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [amHost, lobbyPlayers.length, screen]);
 
-  // Unmount-only cleanup for auto-start timer
   useEffect(() => {
     return () => {
       if (autoStartTimerRef.current !== null) {
@@ -85,10 +85,14 @@ export default function MultiplayerLobby({ onGameStarted, onBack }: Props) {
     };
   }, []);
 
-  function buildNetwork(onCreate: (net: GameNetwork) => void): void {
+  // ── Network builders ──────────────────────────────────────────────────────
+
+  function buildNetwork(onCreate: (net: GameNetwork) => void): GameNetwork {
     setConnecting(true);
     setError('');
     gameStartedRef.current = false;
+    isQuickPlayRef.current = false;
+
     const net = new GameNetwork({
       onRoomCreated(code, _id) {
         setRoomCode(code);
@@ -96,35 +100,48 @@ export default function MultiplayerLobby({ onGameStarted, onBack }: Props) {
         setScreen('waiting');
         setConnecting(false);
       },
-      onRoomJoined(code, _id) {
+      onRoomJoined(code, _id, isQuickPlay) {
         setRoomCode(code);
         setAmHost(false);
+        isQuickPlayRef.current = Boolean(isQuickPlay);
         setScreen('waiting');
         setConnecting(false);
+        if (isQuickPlay) setQueueCount(0); // clear queue display
       },
       onLobbyUpdate(players, _code, hostId) {
         setLobbyPlayers(players);
         setAmHost(net.myPlayerId === hostId);
       },
       onGameStarted(yourPlayerId) {
-        // Mark as started so the cleanup effect leaves the socket alive
         gameStartedRef.current = true;
         onGameStarted(net, yourPlayerId);
+      },
+      onQueueUpdate(count, total) {
+        setQueueCount(count);
+        setQueueTotal(total);
+      },
+      onQuickCountdown(seconds) {
+        setQuickCountdown(seconds);
       },
       onError(msg) {
         setError(msg);
         setConnecting(false);
+        setScreen('menu');
       },
       onClose() {
         setError('Соединение с сервером потеряно');
         setScreen('menu');
+        setConnecting(false);
       },
     });
+
     networkRef.current = net;
     setNetwork(net);
-    // Wait for open — buffered send handles it
     onCreate(net);
+    return net;
   }
+
+  // ── Actions ───────────────────────────────────────────────────────────────
 
   function handleCreate(): void {
     buildNetwork(net => {
@@ -140,29 +157,135 @@ export default function MultiplayerLobby({ onGameStarted, onBack }: Props) {
     });
   }
 
+  function handleQuickJoin(): void {
+    setQueueCount(0);
+    setQueueTotal(4);
+    setQuickCountdown(null);
+    buildNetwork(net => {
+      net.quickJoin({ character, playerName: effectiveName });
+    });
+    setScreen('queueing');
+    setConnecting(false);
+  }
+
+  function handleCancelQueue(): void {
+    networkRef.current?.leaveQueue();
+    networkRef.current?.close();
+    networkRef.current = null;
+    setNetwork(null);
+    setScreen('menu');
+    setQueueCount(0);
+    setConnecting(false);
+  }
+
   function handleStart(): void {
     network?.startGame();
   }
 
+  // ── §5.5 Queueing screen ──────────────────────────────────────────────────
+
+  if (screen === 'queueing') {
+    const dots = queueTotal;
+    return (
+      <div style={containerStyle}>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <div style={{ fontSize: 48, marginBottom: 8, animation: 'pulse 1.5s ease-in-out infinite' }}>⚡</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: '#FF5722', letterSpacing: 2, marginBottom: 4 }}>
+            БЫСТРАЯ ИГРА
+          </div>
+          <div style={{ fontSize: 12, color: '#607D8B' }}>
+            Ищем соседей во дворе...
+          </div>
+        </div>
+
+        {/* Queue progress dots */}
+        <div style={{
+          display: 'flex', gap: 14, justifyContent: 'center', marginBottom: 28,
+        }}>
+          {Array.from({ length: dots }).map((_, i) => (
+            <div key={i} style={{
+              width: 44, height: 44, borderRadius: '50%',
+              background: i < queueCount ? '#FF5722' : 'rgba(255,255,255,0.08)',
+              border: `2px solid ${i < queueCount ? '#FF5722' : 'rgba(255,255,255,0.2)'}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 20,
+              transition: 'all 0.3s',
+              boxShadow: i < queueCount ? '0 0 16px rgba(255,87,34,0.5)' : 'none',
+            }}>
+              {i < queueCount ? '👤' : ''}
+            </div>
+          ))}
+        </div>
+
+        <div style={{
+          fontSize: 16, color: '#FFF', fontWeight: 700, marginBottom: 6, textAlign: 'center',
+        }}>
+          {queueCount} / {queueTotal} игрок{queueCount === 1 ? '' : 'а'} готов{queueCount === 1 ? '' : 'о'}
+        </div>
+        <div style={{ fontSize: 11, color: '#607D8B', marginBottom: 32, textAlign: 'center' }}>
+          Игра начнётся автоматически при {queueTotal} игроках
+        </div>
+
+        {/* Animated waiting bar */}
+        <div style={{
+          width: '100%', maxWidth: 380, height: 4,
+          background: 'rgba(255,255,255,0.07)',
+          borderRadius: 2, marginBottom: 32, overflow: 'hidden',
+        }}>
+          <div style={{
+            height: '100%',
+            width: `${(queueCount / queueTotal) * 100}%`,
+            background: 'linear-gradient(90deg, #FF5722, #FF8A65)',
+            borderRadius: 2,
+            transition: 'width 0.4s ease',
+          }} />
+        </div>
+
+        <button onClick={handleCancelQueue} style={{ ...secondaryBtn, maxWidth: 380, width: '100%' }}>
+          ✕ Отмена
+        </button>
+
+        <style>{`
+          @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.15); opacity: 0.8; }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  // ── Waiting room screen ───────────────────────────────────────────────────
+
   if (screen === 'waiting') {
+    const isQP = isQuickPlayRef.current;
     return (
       <div style={containerStyle}>
         <div style={{ textAlign: 'center', marginBottom: 20 }}>
-          <div style={{ fontSize: 28, marginBottom: 4 }}>🎮</div>
+          <div style={{ fontSize: 28, marginBottom: 4 }}>{isQP ? '⚡' : '🎮'}</div>
           <div style={{ fontSize: 22, fontWeight: 900, color: '#FF5722', letterSpacing: 2 }}>
-            КОМНАТА
+            {isQP ? 'БЫСТРАЯ ИГРА' : 'КОМНАТА'}
           </div>
-          <div style={{
-            fontSize: 36, fontWeight: 900, letterSpacing: 8, color: '#FFF',
-            background: 'rgba(255,87,34,0.15)',
-            border: '2px solid rgba(255,87,34,0.4)',
-            borderRadius: 12, padding: '8px 24px', marginTop: 8, display: 'inline-block',
-          }}>
-            {roomCode}
-          </div>
-          <div style={{ fontSize: 11, color: '#607D8B', marginTop: 6 }}>
-            Поделись кодом с друзьями
-          </div>
+          {!isQP && (
+            <>
+              <div style={{
+                fontSize: 36, fontWeight: 900, letterSpacing: 8, color: '#FFF',
+                background: 'rgba(255,87,34,0.15)',
+                border: '2px solid rgba(255,87,34,0.4)',
+                borderRadius: 12, padding: '8px 24px', marginTop: 8, display: 'inline-block',
+              }}>
+                {roomCode}
+              </div>
+              <div style={{ fontSize: 11, color: '#607D8B', marginTop: 6 }}>
+                Поделись кодом с друзьями
+              </div>
+            </>
+          )}
+          {isQP && (
+            <div style={{ fontSize: 12, color: '#607D8B', marginTop: 4 }}>
+              Все игроки подобраны — игра скоро начнётся!
+            </div>
+          )}
         </div>
 
         {/* Player list */}
@@ -183,7 +306,7 @@ export default function MultiplayerLobby({ onGameStarted, onBack }: Props) {
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, color: '#FFF', fontWeight: 'bold' }}>
                     {p.playerName}
-                    {p.isHost && <span style={{ fontSize: 10, color: '#FF5722', marginLeft: 6 }}>👑 хост</span>}
+                    {p.isHost && !isQP && <span style={{ fontSize: 10, color: '#FF5722', marginLeft: 6 }}>👑 хост</span>}
                     {p.playerId === network?.myPlayerId && <span style={{ fontSize: 10, color: '#4CAF50', marginLeft: 6 }}>← ты</span>}
                   </div>
                   <div style={{ fontSize: 11, color: '#9E9E9E' }}>{c?.name}</div>
@@ -204,8 +327,44 @@ export default function MultiplayerLobby({ onGameStarted, onBack }: Props) {
           </div>
         )}
 
-        {/* §2.1 Auto-start countdown banner */}
-        {autoStartCountdown !== null && (
+        {/* §5.5 Quick Play server countdown */}
+        {isQP && quickCountdown !== null && (
+          <div style={{
+            width: '100%', maxWidth: 380, marginBottom: 12,
+            background: quickCountdown <= 2
+              ? 'rgba(244,67,54,0.20)'
+              : 'rgba(255,87,34,0.15)',
+            border: `1px solid ${quickCountdown <= 2 ? '#F44336' : '#FF5722'}`,
+            borderRadius: 10, padding: '14px 16px',
+            textAlign: 'center',
+          }}>
+            <div style={{
+              fontSize: 28, fontWeight: 900,
+              color: quickCountdown <= 2 ? '#F44336' : '#FF8A65',
+              letterSpacing: 1,
+            }}>
+              ⚡ {quickCountdown > 0 ? `Старт через ${quickCountdown}с` : 'Поехали!'}
+            </div>
+            <div style={{ fontSize: 10, color: '#9E9E9E', marginTop: 4 }}>
+              Команда собрана — двор ждёт!
+            </div>
+            <div style={{
+              height: 4, background: 'rgba(255,255,255,0.1)',
+              borderRadius: 2, marginTop: 10, overflow: 'hidden',
+            }}>
+              <div style={{
+                height: '100%',
+                width: quickCountdown > 0 ? `${(quickCountdown / 5) * 100}%` : '0%',
+                background: quickCountdown <= 2 ? '#F44336' : '#FF5722',
+                borderRadius: 2,
+                transition: 'width 1s linear, background 0.3s',
+              }} />
+            </div>
+          </div>
+        )}
+
+        {/* §2.1 Custom room auto-start countdown (host-triggered at 8 players) */}
+        {!isQP && autoStartCountdown !== null && (
           <div style={{
             width: '100%', maxWidth: 380, marginBottom: 12,
             background: autoStartCountdown <= 3
@@ -225,7 +384,6 @@ export default function MultiplayerLobby({ onGameStarted, onBack }: Props) {
             <div style={{ fontSize: 10, color: '#9E9E9E', marginTop: 4 }}>
               Двор полон — все игроки в сборе!
             </div>
-            {/* Countdown progress bar */}
             <div style={{
               height: 4, background: 'rgba(255,255,255,0.1)',
               borderRadius: 2, marginTop: 8, overflow: 'hidden',
@@ -243,7 +401,7 @@ export default function MultiplayerLobby({ onGameStarted, onBack }: Props) {
 
         <div style={{ width: '100%', maxWidth: 380, display: 'flex', gap: 10 }}>
           <button onClick={onBack} style={secondaryBtn}>← Выйти</button>
-          {amHost && (
+          {!isQP && amHost && (
             <button
               onClick={handleStart}
               disabled={lobbyPlayers.length < 1}
@@ -257,11 +415,18 @@ export default function MultiplayerLobby({ onGameStarted, onBack }: Props) {
               {autoStartCountdown !== null ? `⏱ ${autoStartCountdown}с — Начать сейчас` : '🚀 Начать игру'}
             </button>
           )}
-          {!amHost && (
+          {!isQP && !amHost && (
             <div style={{ flex: 2, color: '#666', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {autoStartCountdown !== null
                 ? <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>🚀 Старт через {autoStartCountdown}с...</span>
                 : 'Ожидание хоста...'}
+            </div>
+          )}
+          {isQP && (
+            <div style={{ flex: 2, color: '#FF8A65', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {quickCountdown !== null
+                ? `⚡ Старт через ${quickCountdown}с...`
+                : '⏳ Ожидание начала...'}
             </div>
           )}
         </div>
@@ -279,11 +444,11 @@ export default function MultiplayerLobby({ onGameStarted, onBack }: Props) {
           МУЛЬТИПЛЕЕР
         </div>
         <div style={{ fontSize: 11, color: '#607D8B', marginTop: 2 }}>
-          Играй с друзьями по коду комнаты
+          Быстрый поиск или своя комната
         </div>
       </div>
 
-      {/* Character */}
+      {/* Character + Name (shared for both modes) */}
       <div style={{ width: '100%', maxWidth: 380, marginBottom: 16 }}>
         <div style={{ fontSize: 11, color: '#9E9E9E', marginBottom: 8, letterSpacing: 1 }}>
           ПЕРСОНАЖ
@@ -307,7 +472,6 @@ export default function MultiplayerLobby({ onGameStarted, onBack }: Props) {
           })}
         </div>
 
-        {/* Name */}
         <input
           type="text"
           placeholder={`Имя (по умолч. ${charDef.name})`}
@@ -322,6 +486,41 @@ export default function MultiplayerLobby({ onGameStarted, onBack }: Props) {
             outline: 'none',
           }}
         />
+      </div>
+
+      {/* §5.5 Quick Play — primary CTA */}
+      <div style={{ width: '100%', maxWidth: 380, marginBottom: 20 }}>
+        <button
+          onClick={handleQuickJoin}
+          disabled={connecting}
+          style={{
+            width: '100%', padding: '18px',
+            background: connecting
+              ? 'rgba(255,87,34,0.3)'
+              : 'linear-gradient(135deg, #FF5722 0%, #FF8A65 100%)',
+            border: 'none', borderRadius: 14,
+            fontSize: 18, fontWeight: 900, color: '#FFF',
+            cursor: connecting ? 'not-allowed' : 'pointer',
+            letterSpacing: 2,
+            boxShadow: '0 6px 24px rgba(255,87,34,0.5)',
+            textTransform: 'uppercase' as const,
+            marginBottom: 6,
+          }}
+        >
+          ⚡ Быстрая игра
+        </button>
+        <div style={{ fontSize: 10, color: '#607D8B', textAlign: 'center' }}>
+          Автоподбор 4 игроков · Старт без ожидания хоста
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div style={{
+        width: '100%', maxWidth: 380, display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16,
+      }}>
+        <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.1)' }} />
+        <div style={{ fontSize: 10, color: '#424242', letterSpacing: 1 }}>ИЛИ</div>
+        <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.1)' }} />
       </div>
 
       {/* Create room */}
@@ -351,7 +550,7 @@ export default function MultiplayerLobby({ onGameStarted, onBack }: Props) {
             />
           </div>
         </div>
-        <button onClick={handleCreate} disabled={connecting} style={{ ...primaryBtn, width: '100%' }}>
+        <button onClick={handleCreate} disabled={connecting} style={{ ...secondaryBtn, width: '100%' }}>
           {connecting ? 'Подключение...' : '🏠 Создать комнату'}
         </button>
       </div>
