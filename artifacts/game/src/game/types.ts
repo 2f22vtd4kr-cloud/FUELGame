@@ -134,6 +134,8 @@ export interface MiniGameState {
   feedback: 'none' | 'hit' | 'miss';
   feedbackTimer: number;
   done: boolean;
+  /** §2.5 — true when local player is Сливщик; mini-game plays identically but doesn't complete the task */
+  isFake: boolean;
 }
 
 // ─── Sabotage System (§2.9) ───────────────────────────────────────────────────

@@ -16,6 +16,10 @@ import { audio } from './audio';
 // §4.3 Sprint duration tracking: key = `${botId}:${targetId}`, value = seconds seen sprinting
 const _sprintTimer = new Map<string, number>();
 
+// §4.3 Task-completion suspicion credit tracking: prevent applying -0.1 more than once per completion
+// key = `${botId}:${taskId}:${completedBy}`
+const _taskCompletionCredited = new Set<string>();
+
 // ─── §4.3 Suspicion helpers ────────────────────────────────────────────────────
 
 /** Decay all suspicion scores for a bot by a small amount each tick. */
@@ -172,6 +176,23 @@ function updateKhozainBot(bot: Player, dt: number): void {
     }
   }
 
+  // §4.3 Task-completion suspicion: -0.1 one-shot when a nearby player completes a task
+  for (const task of gs.tasks) {
+    if (!task.isComplete || !task.completedBy) continue;
+    if (dist(bot.pos, task.pos) > 280) continue;
+    const key = `${bot.id}:${task.id}:${task.completedBy}`;
+    if (!_taskCompletionCredited.has(key)) {
+      _taskCompletionCredited.add(key);
+      bot.suspicion[task.completedBy] = Math.max(0, (bot.suspicion[task.completedBy] ?? 0) - 0.1);
+    }
+  }
+  // Clean up stale keys for tasks that have respawned (no longer complete)
+  for (const key of _taskCompletionCredited) {
+    const taskId = key.split(':')[1];
+    const task = gs.tasks.find(t => t.id === taskId);
+    if (!task || !task.isComplete) _taskCompletionCredited.delete(key);
+  }
+
   // §4.3 Дядя Серёжа bias — older man looks harmless (ageism satire)
   for (const p of gs.players) {
     if (p.character === 'uncle_seryozha' && p.isAlive && p.id !== bot.id) {
@@ -322,11 +343,23 @@ function updateSlivshchikBot(bot: Player, dt: number): void {
     if (bot.botState === 'fake_task') {
       const task = gs.tasks.find(t => t.id === bot.botTaskId);
       if (!task || task.isComplete) {
-        bot.botState = 'idle';
+        bot.botState = 'idle'; bot.botTaskId = null;
       } else if (dist(bot.pos, task.pos) > 40) {
         moveBot(bot, task.pos, dt);
+      } else {
+        // §2.5 — Сливщик bot shows a fake progress bar to nearby players.
+        // Claim doer and animate progress to 98%, then reset so Хозяева can still do it.
+        task.doer = bot.id;
+        task.progress = Math.min(0.98, (task.progress || 0) + dt / 8);
+        if (task.progress >= 0.98) {
+          // Fake "complete" — reset without marking isComplete or adding to unityMeter
+          task.doer = null;
+          task.progress = 0;
+          bot.botTaskId = null;
+          bot.botState = 'idle';
+          bot.botCooldown = 1 + Math.random() * 2;
+        }
       }
-      // Just stand near task — looks legit!
     }
     return;
   }

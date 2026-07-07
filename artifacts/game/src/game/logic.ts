@@ -289,7 +289,7 @@ function updateHumanPlayer(dt: number, input: InputState): void {
 
 // ─── §2.5 Task Mini-Games ─────────────────────────────────────────────────────
 
-function startMiniGame(taskId: string, defKey: string, type: MiniGameType): void {
+function startMiniGame(taskId: string, defKey: string, type: MiniGameType, isFake = false): void {
   // ── Type-specific initial data ──
   let choiceOptions: string[] = [];
   let choiceCorrect = 0;
@@ -371,6 +371,7 @@ function startMiniGame(taskId: string, defKey: string, type: MiniGameType): void
     feedback: 'none',
     feedbackTimer: 0,
     done: false,
+    isFake,
   };
 }
 
@@ -399,9 +400,13 @@ function updateMiniGame(dt: number, input: InputState): void {
     if (mg.feedbackTimer <= 0) mg.feedback = 'none';
   }
 
-  // If already done, complete the task
+  // If already done, complete or fake-complete the task
   if (mg.done) {
-    completeTask(task, player);
+    if (mg.isFake) {
+      fakeCompleteTask(task, player);
+    } else {
+      completeTask(task, player);
+    }
     gs.activeMiniGame = null;
     return;
   }
@@ -822,6 +827,38 @@ export function janitorCollectCanister(playerId: string): void {
   player.canistersCollected++;
   // Note: do NOT set isCarryingCanister (that's slivshchik-only mechanics)
   setPrompt(`🧹 Канистра убрана! ${player.canistersCollected}/3`, 3);
+}
+
+/** §2.5 — Сливщик fake-task completion: play the sound, reset task so Хозяева can still do it */
+function fakeCompleteTask(task: TaskInstance, player: Player): void {
+  audio.play('task_complete');
+  task.progress = 0;
+  task.doer = null;
+  // Flavor texts that match the real ones — Сливщик sees them and knows they faked it
+  const FAKE_FLAVOR: Partial<Record<string, string>> = {
+    shawarma:     '🌯 Шаверма заказана. Ешь — и делай вид, что работал.',
+    grandma:      '👵 Проводил бабушку. Она ни о чём не подозревает.',
+    window:       '🔌 Повозился с щитком. Убедительно.',
+    intercom:     '📡 Потыкал кнопки. Главное — выглядело серьёзно.',
+    flowers:      '🌸 Полил цветы. Хозяева умилились.',
+    dog_walk:     '🐕 Погулял с Баксом. Отличное алиби.',
+    flower_match: '💐 Цветы выбраны. Тётя Люба поверила.',
+    drunk_calm:   '🍻 Поговорил с Васей. Теперь он подозревает других.',
+    mailbox:      '📬 Письмо прочитано. Тариф вырастет — не твоя проблема.',
+    taxi_order:   '🚕 Такси «заказано». Никто не заметил.',
+    trash:        '🗑️ Сделал вид, что выносил мусор.',
+    help_bags:    '🛍️ Помог соседке. Идеальное прикрытие.',
+    pigeons:      '🕊️ Покормил голубей. Публично.',
+    find_cat:     '🐱 «Искал» Барсика. Барсик тебя раскусил.',
+    fix_swing:    '🛺 Постучал по качелям. Театр.',
+    sweep:        '🧹 Помахал метлой. Достаточно.',
+    water_lawn:   '💧 Полил газон. Хозяева довольны.',
+    check_meter:  '📊 Изучил счётчик. Подозрений нет.',
+    kvass:        '🍺 Выпил квас. Время потянуто.',
+    close_tap:    '🔧 Покрутил что-то. Похоже на работу.',
+  };
+  const flavor = FAKE_FLAVOR[task.defKey] ?? '🎭 Притворство засчитано.';
+  setPrompt(`🎭 ${flavor}`, 3);
 }
 
 /** Cancel the active mini-game (called by React cancel button or logic) */
@@ -1444,22 +1481,36 @@ function updateInteractions(dt: number, input: InputState): void {
 
   const taskDef = TASK_DEFS[nearTask.defKey];
   const mgType = TASK_MINIGAME_MAP[nearTask.defKey];
+  const isFakingTask = player.role === 'slivshchik';
 
   if (mgType) {
     // Mini-game task: single E press to start
-    setPrompt(`${taskDef.emoji} [E] ${taskDef.label}`, 0.2);
+    if (isFakingTask) {
+      setPrompt(`${taskDef.emoji} [E] Притвориться: ${taskDef.label}`, 0.2);
+    } else {
+      setPrompt(`${taskDef.emoji} [E] ${taskDef.label}`, 0.2);
+    }
     if (triggerInteract) {
       nearTask.doer = player.id;
-      startMiniGame(nearTask.id, nearTask.defKey, mgType);
+      startMiniGame(nearTask.id, nearTask.defKey, mgType, isFakingTask);
     }
   } else {
     // Hold-timer task (trash, grandma, flowers)
-    setPrompt(`${taskDef.emoji} [удерживай E] ${taskDef.label}`, 0.2);
+    if (isFakingTask) {
+      setPrompt(`${taskDef.emoji} [удерживай E] Притвориться: ${taskDef.label}`, 0.2);
+    } else {
+      setPrompt(`${taskDef.emoji} [удерживай E] ${taskDef.label}`, 0.2);
+    }
     if (input.interact) {
       nearTask.doer = player.id;
       nearTask.progress += dt / taskDef.duration;
       if (nearTask.progress >= 1) {
-        completeTask(nearTask, player);
+        if (isFakingTask) {
+          fakeCompleteTask(nearTask, player);
+          nearTask.progress = 0; // reset for real Хозяева
+        } else {
+          completeTask(nearTask, player);
+        }
       }
     } else {
       if (nearTask.doer === player.id) nearTask.doer = null;

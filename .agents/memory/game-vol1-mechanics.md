@@ -18,7 +18,7 @@ description: Design-doc Volume 1 implementation status, patterns, and critical b
 - **Emote wheel** — Q on desktop / button on mobile. 4 emotes (👋🤔🚨😂) shown as bubble above player for 3s.
 - **Web Audio synthesis** — `audio.ts` module, 30 sound names, synthesized via AudioContext. Looping gurgle for active siphon (stopGurgle on all cancel paths).
 - **Character voice lines in meeting** — 60% chance bots use character-specific lines, 40% generic fallback.
-- **Bot fake task** — Slivshchik bots enter 'fake_task' state when watched by an owner, move to nearby task and stand there.
+- **Bot fake task** — Slivshchik bots enter 'fake_task' state when watched by an owner, move to nearby task, claim `task.doer = bot.id`, and animate `task.progress` to 98% (visible progress bar to others), then reset — task stays available for real Хозяева completion.
 - **Dumpster venting** — Сливщики press E near dumpster to teleport to the other dumpster. VENT_COOLDOWN=15s. isCarryingCanister blocks vent.
 - **Shawarma speed boost** — SHAWARMA_SPEED_BOOST_MULT applied when speedBoostTimer > 0. Timer set on shawarma purchase interaction.
 - **Post-immunity CTA** — On immunity ticket use, prompt shows "В жизни тоже можно: @fuel_fuel_fuel_bot" for 5s.
@@ -38,6 +38,12 @@ description: Design-doc Volume 1 implementation status, patterns, and critical b
 ### New data
 - 6 car spawns (was 4), 10 task spawns (was 5), dumpster positions, kvass stand deco.
 - `botState` extended with `'fake_task'`.
+
+## Vol 1 completions (later session)
+
+- **Human Сливщик fake task** — `MiniGameState.isFake: boolean` added. `startMiniGame()` accepts `isFake` param; passed as `true` when `player.role === 'slivshchik'`. On `mg.done`, routes to `fakeCompleteTask()` instead of `completeTask()`. `fakeCompleteTask()`: plays task_complete SFX, resets `task.progress=0` / `task.doer=null`, shows role-flavor prompt — task NOT marked isComplete. Hold-timer tasks also fake-complete. TaskMiniGame.tsx shows purple `🎭 ПРИТВОРЯЕТЕСЬ` badge + purple border; prompt says "Притвориться: [task]". Visible only to local Сливщик.
+- **Bot suspicion task-completion −0.1** — module-level `_taskCompletionCredited: Set<string>` (key `${botId}:${taskId}:${completedBy}`). One-shot −0.1 when a completed task is within 280px of bot. Stale keys cleaned on task respawn.
+- **12-phrase quick-chat wheel** — already implemented as `QUICK_CHAT` in MeetingScreen.tsx; `simplifiedChatWheel` flag slices to first 6 for new players.
 
 ## Critical bugs fixed
 

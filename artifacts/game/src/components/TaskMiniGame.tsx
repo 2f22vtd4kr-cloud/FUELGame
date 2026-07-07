@@ -13,8 +13,8 @@ export default function TaskMiniGame({ mg }: Props) {
     position: 'absolute',
     top: '50%', left: '50%',
     transform: 'translate(-50%, -50%)',
-    background: 'rgba(10,14,24,0.97)',
-    border: '2px solid rgba(255,255,255,0.15)',
+    background: mg.isFake ? 'rgba(14,10,24,0.97)' : 'rgba(10,14,24,0.97)',
+    border: mg.isFake ? '2px solid rgba(160,80,255,0.5)' : '2px solid rgba(255,255,255,0.15)',
     borderRadius: 20,
     padding: '24px 28px',
     minWidth: 320, maxWidth: 400,
@@ -28,9 +28,21 @@ export default function TaskMiniGame({ mg }: Props) {
 
   return (
     <div style={panelStyle}>
+      {/* Fake task badge — only visible to the Сливщик themselves */}
+      {mg.isFake && (
+        <div style={{
+          fontSize: 11, fontWeight: 'bold', letterSpacing: 1,
+          color: '#b060ff', background: 'rgba(160,80,255,0.12)',
+          border: '1px solid rgba(160,80,255,0.3)',
+          borderRadius: 6, padding: '2px 8px',
+          marginBottom: 8, display: 'inline-block',
+        }}>
+          🎭 ПРИТВОРЯЕТЕСЬ
+        </div>
+      )}
       {/* Header */}
       <div style={{ fontSize: 28, marginBottom: 4 }}>{def.emoji}</div>
-      <div style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 18, color: def.color }}>
+      <div style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 18, color: mg.isFake ? '#b060ff' : def.color }}>
         {def.label}
       </div>
 
