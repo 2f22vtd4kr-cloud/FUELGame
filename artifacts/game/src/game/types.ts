@@ -381,6 +381,12 @@ export interface GameState {
   volumeMaster: number;   // 0-1
   volumeMusic: number;    // 0-1
   volumeSfx: number;      // 0-1
+  autoInteract: boolean;
+  autoInteractTimer: number;
+  textSize: 'small' | 'medium' | 'large';
+  simplifiedChatWheel: boolean;
+  // §12.4 Tutorial
+  tutorialStep: number; // 0=off, 1=go_shawarma, 2=near_shawarma, 3=done
 }
 
 // ─── Input ────────────────────────────────────────────────────────────────────

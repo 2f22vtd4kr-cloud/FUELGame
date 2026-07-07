@@ -40,6 +40,11 @@ export function createInitialState(): GameState {
     volumeMaster: 0.55,
     volumeMusic: 1.0,
     volumeSfx: 1.0,
+    autoInteract: false,
+    autoInteractTimer: 0,
+    textSize: 'medium',
+    simplifiedChatWheel: false,
+    tutorialStep: 0,
   };
 }
 

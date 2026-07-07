@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { GameState, SabotageKey } from '../game/types';
 import { SPRINT_MAX, SABOTAGE_LABELS, SABOTAGE_COOLDOWNS, SABOTAGE_DURATIONS, SIPHON_AUDIO_RADIUS } from '../game/types';
 import { NEWS_HEADLINES } from '../data/ticker';
@@ -22,6 +22,29 @@ export default function HUD({ state }: HUDProps) {
 
   const localPlayer = state.players.find(p => p.id === state.localPlayerId);
   if (!localPlayer) return null;
+
+  // §13.1 Text size scale factor
+  const textScale = state.textSize === 'small' ? 0.82 : state.textSize === 'large' ? 1.22 : 1.0;
+
+  // §12.4 Tutorial: show on first-ever play
+  useEffect(() => {
+    if (state.phase === 'play' && gs.tutorialStep === 0) {
+      const done = localStorage.getItem('95Y_tutorial') === 'done';
+      if (!done) gs.tutorialStep = 1;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.phase]);
+
+  // Tutorial step 3: auto-dismiss after 3 s and save to localStorage
+  useEffect(() => {
+    if (state.tutorialStep !== 3) return;
+    const t = window.setTimeout(() => {
+      gs.tutorialStep = 0;
+      localStorage.setItem('95Y_tutorial', 'done');
+    }, 3000);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.tutorialStep]);
 
   const isSlivshchik = localPlayer.role === 'slivshchik';
   const aliveSlivshchiki = state.players.filter(p => p.isAlive && p.role === 'slivshchik').length;
@@ -216,7 +239,7 @@ export default function HUD({ state }: HUDProps) {
             background: 'rgba(0,0,0,0.75)',
             padding: '6px 16px', borderRadius: 20,
             border: '1px solid rgba(255,255,255,0.2)',
-            color: '#fff', fontSize: 13, fontWeight: 500,
+            color: '#fff', fontSize: Math.round(13 * textScale), fontWeight: 500,
             textShadow: '0 1px 3px rgba(0,0,0,0.8)',
           }}>
             {state.promptText}
@@ -467,6 +490,64 @@ export default function HUD({ state }: HUDProps) {
         </div>
       )}
 
+      {/* ── §12.4 Tutorial overlay ── */}
+      {state.tutorialStep >= 1 && state.tutorialStep <= 3 && state.phase === 'play' && (
+        <div style={{
+          position: 'absolute', bottom: 150, left: '50%', transform: 'translateX(-50%)',
+          background: 'rgba(10,20,40,0.96)',
+          border: '2px solid #FFD700',
+          borderRadius: 16, padding: '14px 20px',
+          maxWidth: 290, pointerEvents: 'all', zIndex: 50,
+          textAlign: 'center', boxShadow: '0 6px 28px rgba(0,0,0,0.8)',
+        }}>
+          {state.tutorialStep === 1 && (
+            <>
+              <div style={{ fontSize: 24, marginBottom: 6 }}>🌯</div>
+              <div style={{ fontSize: Math.round(13 * textScale), color: '#FFD700', fontWeight: 'bold', marginBottom: 5 }}>
+                Добро пожаловать!
+              </div>
+              <div style={{ fontSize: Math.round(11 * textScale), color: '#ddd', lineHeight: 1.5 }}>
+                Подойди к ларьку с шавермой ↗<br/>
+                <span style={{ fontSize: Math.round(9 * textScale), color: '#888' }}>Смотри на метки на миникарте</span>
+              </div>
+            </>
+          )}
+          {state.tutorialStep === 2 && (
+            <>
+              <div style={{ fontSize: 24, marginBottom: 6 }}>🌯</div>
+              <div style={{ fontSize: Math.round(13 * textScale), color: '#FFD700', fontWeight: 'bold', marginBottom: 5 }}>
+                Ты у ларька!
+              </div>
+              <div style={{ fontSize: Math.round(11 * textScale), color: '#ddd', lineHeight: 1.5 }}>
+                Нажми [E] чтобы купить шаверму<br/>
+                <span style={{ fontSize: Math.round(9 * textScale), color: '#888' }}>Задачи пополняют метр единства</span>
+              </div>
+            </>
+          )}
+          {state.tutorialStep === 3 && (
+            <>
+              <div style={{ fontSize: 24, marginBottom: 6 }}>✅</div>
+              <div style={{ fontSize: Math.round(13 * textScale), color: '#4CAF50', fontWeight: 'bold', marginBottom: 5 }}>
+                Молодец!
+              </div>
+              <div style={{ fontSize: Math.round(11 * textScale), color: '#ddd', lineHeight: 1.5 }}>
+                Выполняй задачи, следи за баками.<br/>Удачи в ЖК!
+              </div>
+            </>
+          )}
+          <button
+            onClick={() => { gs.tutorialStep = 0; localStorage.setItem('95Y_tutorial', 'done'); }}
+            style={{
+              marginTop: 10, padding: '4px 14px', borderRadius: 8,
+              background: 'transparent', border: '1px solid rgba(255,255,255,0.2)',
+              color: '#888', fontSize: 9, cursor: 'pointer',
+            }}
+          >
+            Пропустить обучение
+          </button>
+        </div>
+      )}
+
       {/* ── §13.1 Siphon audio indicator ── */}
       {nearAudioSiphon && (
         <div style={{
@@ -648,6 +729,46 @@ export default function HUD({ state }: HUDProps) {
                 style={{ accentColor: '#2196F3', width: 14, height: 14 }}
               />
               <span style={{ fontSize: 11, color: '#aaa' }}>🎨 Режим для дальтоников</span>
+            </label>
+
+            {/* §13.1 Text size */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span style={{ fontSize: 10, color: '#aaa' }}>📐 Размер текста</span>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {(['small', 'medium', 'large'] as const).map(sz => (
+                  <button key={sz}
+                    onClick={() => { gs.textSize = sz; }}
+                    style={{
+                      flex: 1, padding: '4px', borderRadius: 6,
+                      fontSize: sz === 'small' ? 9 : sz === 'large' ? 13 : 11,
+                      background: state.textSize === sz ? 'rgba(33,150,243,0.4)' : 'rgba(255,255,255,0.07)',
+                      border: `1px solid ${state.textSize === sz ? '#2196F3' : 'rgba(255,255,255,0.12)'}`,
+                      color: state.textSize === sz ? '#fff' : '#aaa', cursor: 'pointer',
+                    }}>
+                    {sz === 'small' ? 'М' : sz === 'large' ? 'Б' : 'С'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* §13.1 Auto-interact */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <input type="checkbox"
+                checked={state.autoInteract}
+                onChange={e => { gs.autoInteract = e.target.checked; gs.autoInteractTimer = 0; }}
+                style={{ accentColor: '#4CAF50', width: 14, height: 14 }}
+              />
+              <span style={{ fontSize: 11, color: '#aaa' }}>🖐️ Авто-взаимодействие (2 с)</span>
+            </label>
+
+            {/* §13.1 Simplified chat wheel */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <input type="checkbox"
+                checked={state.simplifiedChatWheel}
+                onChange={e => { gs.simplifiedChatWheel = e.target.checked; }}
+                style={{ accentColor: '#FF9800', width: 14, height: 14 }}
+              />
+              <span style={{ fontSize: 11, color: '#aaa' }}>💬 Простой чат-круг (6 фраз)</span>
             </label>
           </div>
         )}

@@ -186,6 +186,7 @@ export function tickGame(dt: number, input: InputState): void {
     updateTicker(dt);
     updateEmotes(dt);
     updateNeutralMechanics(dt);
+    updateTutorial(dt);
     checkWinConditions();
   } else if (gs.phase === 'meeting') {
     if (gs.meeting) tickMeeting(dt);
@@ -947,12 +948,38 @@ function updateSabotages(dt: number, input: InputState): void {
 
 // ─── Interaction priority ──────────────────────────────────────────────────────
 
+/** §13.1 Returns true if player is near an interactable that uses triggerInteract (single-press).
+ *  Excludes hold-to-complete tasks (trash/grandma/flowers), siphon, and ambush. */
+function hasNearNonCombatInteraction(player: Player): boolean {
+  // Only mini-game tasks use single E press; hold-to-complete tasks use input.interact directly
+  if (gs.tasks.some(t => !t.isComplete && TASK_MINIGAME_MAP[t.defKey] && dist(player.pos, t.pos) < INTERACT_RADIUS)) return true;
+  if (gs.canisters.some(c => dist(player.pos, c.pos) < CANISTER_RADIUS)) return true;
+  if (gs.immunityTickets.some(it => dist(player.pos, it.pos) < INTERACT_RADIUS)) return true;
+  if (dist(player.pos, BABUSHKA_NPC_POS) < INTERACT_RADIUS) return true;
+  return false;
+}
+
 function updateInteractions(dt: number, input: InputState): void {
   const player = gs.players.find(p => p.id === gs.localPlayerId);
   if (!player || !player.isAlive) return;
 
   // While mini-game is active the mini-game overlay owns all input
-  if (gs.activeMiniGame) return;
+  if (gs.activeMiniGame) { gs.autoInteractTimer = 0; return; }
+
+  // §13.1 Auto-interact: count up while near a non-combat interactable; fire at 2 s
+  if (gs.autoInteract) {
+    if (hasNearNonCombatInteraction(player)) {
+      gs.autoInteractTimer += dt;
+    } else {
+      gs.autoInteractTimer = 0;
+    }
+  } else {
+    gs.autoInteractTimer = 0;
+  }
+  const autoFireInteract = gs.autoInteract && gs.autoInteractTimer >= 2.0;
+  if (autoFireInteract) gs.autoInteractTimer = 0;
+  // triggerInteract replaces `input.interact && !input.prevInteract` for safe single-press actions
+  const triggerInteract = (input.interact && !input.prevInteract) || autoFireInteract;
 
   const chatOffline = isSabotageActive('chat_offline');
 
@@ -1038,7 +1065,7 @@ function updateInteractions(dt: number, input: InputState): void {
     const nearDump = DUMPSTER_POSITIONS.some(d => dist(player.pos, d) < 80);
     if (nearDump) {
       setPrompt('♻️ [E] Выбросить канистру у мусорки', 0.2);
-      if (input.interact && !input.prevInteract) {
+      if (triggerInteract) {
         player.isCarryingCanister = false;
         setPrompt('✅ Канистра выброшена. Улика уничтожена.', 3);
       }
@@ -1080,7 +1107,7 @@ function updateInteractions(dt: number, input: InputState): void {
     const nearTicket = gs.immunityTickets.find(t => dist(player.pos, t.pos) < CANISTER_RADIUS);
     if (nearTicket) {
       setPrompt('🎟️ [E] Подобрать Талон Иммунитета! (защита бака 60с)', 0.2);
-      if (input.interact && !input.prevInteract) {
+      if (triggerInteract) {
         const idx = gs.immunityTickets.indexOf(nearTicket);
         gs.immunityTickets.splice(idx, 1);
         player.hasImmunityTicket = true;
@@ -1099,7 +1126,7 @@ function updateInteractions(dt: number, input: InputState): void {
     const nearCar = gs.cars.find(c => dist(player.pos, c.pos) < INTERACT_RADIUS && !c.hasImmunity && c.fuel > 0);
     if (nearCar) {
       setPrompt('🎟️ [E] Применить Талон → зафиксировать цену бака на 60с!', 0.2);
-      if (input.interact && !input.prevInteract) {
+      if (triggerInteract) {
         nearCar.hasImmunity = true;
         nearCar.immunityTimer = IMMUNITY_TICKET_DURATION;
         player.hasImmunityTicket = false;
@@ -1119,7 +1146,7 @@ function updateInteractions(dt: number, input: InputState): void {
     if (nearCanister) {
       const label = player.role === 'khozain' ? '(улика!)' : '(спрятать)';
       setPrompt(`🪣 [E] Подобрать канистру ${label}`, 0.2);
-      if (input.interact && !input.prevInteract) {
+      if (triggerInteract) {
         const idx = gs.canisters.indexOf(nearCanister);
         gs.canisters.splice(idx, 1);
         player.isCarryingCanister = true;
@@ -1165,7 +1192,7 @@ function updateInteractions(dt: number, input: InputState): void {
   const npcDist = dist(player.pos, BABUSHKA_NPC_POS);
   if (npcDist < INTERACT_RADIUS) {
     setPrompt('👵 [E] Спросить бабушку (что видела?)', 0.2);
-    if (input.interact && !input.prevInteract) {
+    if (triggerInteract) {
       const hint = getBabushkaHint();
       setPrompt(`👵 Бабушка: ${hint}`, 5);
       audio.play('grandma_escort');
@@ -1206,7 +1233,7 @@ function updateInteractions(dt: number, input: InputState): void {
           ? ` (кд ${Math.ceil(player.khozainLockCooldown)}с)`
           : '';
         setPrompt(`${fuelStatus} Проверить бак: ${Math.round(nearCar.fuel)}%${lockNote}`, 0.2);
-        if (input.interact && !input.prevInteract) {
+        if (triggerInteract) {
           setPrompt(`🚗 Бак: ${Math.round(nearCar.fuel)}%${nearCar.hasImmunity ? ' — заперт, слить нельзя' : ''}`, 3);
           clearTaskDoer(player.id);
           return;
@@ -1318,7 +1345,7 @@ function updateInteractions(dt: number, input: InputState): void {
   if (mgType) {
     // Mini-game task: single E press to start
     setPrompt(`${taskDef.emoji} [E] ${taskDef.label}`, 0.2);
-    if (input.interact && !input.prevInteract) {
+    if (triggerInteract) {
       nearTask.doer = player.id;
       startMiniGame(nearTask.id, nearTask.defKey, mgType);
     }
@@ -1806,6 +1833,30 @@ function checkWinConditions(): void {
       if (player.isHuman) setPrompt('😿 Барсика выгнали... Несправедливость.', 5);
     }
   }
+}
+
+// ─── §12.4 First-time tutorial ────────────────────────────────────────────────
+
+function updateTutorial(_dt: number): void {
+  if (gs.tutorialStep === 0) return;
+  const player = gs.players.find(p => p.id === gs.localPlayerId && p.isAlive);
+  if (!player) return;
+
+  const shawarmaTask = gs.tasks.find(t => t.defKey === 'shawarma');
+  if (!shawarmaTask) return;
+
+  if (gs.tutorialStep === 1) {
+    // Step 1: guide player toward shawarma stand
+    if (dist(player.pos, shawarmaTask.pos) < 120) gs.tutorialStep = 2;
+  } else if (gs.tutorialStep === 2) {
+    // Step 2: player is near — wait for the LOCAL player to complete the task
+    if (shawarmaTask.completedBy === gs.localPlayerId) {
+      gs.tutorialStep = 3;
+    } else if (dist(player.pos, shawarmaTask.pos) > 160) {
+      gs.tutorialStep = 1; // drifted away, go back to step 1
+    }
+  }
+  // Step 3: "Well done!" shown in HUD; cleared by a useEffect after 3 s
 }
 
 // ─── Prompt, ticker, emotes ───────────────────────────────────────────────────

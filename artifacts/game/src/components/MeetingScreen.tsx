@@ -145,6 +145,9 @@ export default function MeetingScreen({ state }: MeetingScreenProps) {
   const meeting = state.meeting;
   if (!meeting) return null;
 
+  // §13.1 Simplified chat wheel — show 6 phrases for new players, 12 for regulars
+  const chatPhrases = state.simplifiedChatWheel ? QUICK_CHAT.slice(0, 6) : QUICK_CHAT;
+
   const [showQuickChat, setShowQuickChat] = useState(false);
   const [myVote, setMyVote] = useState<string | 'skip' | null>(null);
 
@@ -448,7 +451,7 @@ export default function MeetingScreen({ state }: MeetingScreenProps) {
                     display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4,
                     maxHeight: 200, overflowY: 'auto',
                   }}>
-                    {QUICK_CHAT.map((qc, i) => (
+                    {chatPhrases.map((qc, i) => (
                       <button
                         key={i}
                         onClick={() => handleQuickChat(qc.text)}
@@ -490,6 +493,35 @@ export default function MeetingScreen({ state }: MeetingScreenProps) {
           players={state.players}
         />
       )}
+
+      {/* ── §13.1 Subtitle strip — last chat message shown prominently ─────── */}
+      {meeting.phase !== 'reveal' && meeting.chatMessages.length > 0 && (() => {
+        const last = meeting.chatMessages[meeting.chatMessages.length - 1];
+        const sender = state.players.find(p => p.id === last.playerId);
+        const charDef = sender ? CHARACTERS[sender.character] : null;
+        return (
+          <div style={{
+            padding: '6px 20px',
+            background: 'rgba(0,0,0,0.4)',
+            borderTop: '1px solid rgba(255,255,255,0.06)',
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+            <div style={{
+              width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+              background: charDef?.color ?? '#555',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11,
+            }}>
+              {charDef?.emoji ?? '?'}
+            </div>
+            <div style={{ flex: 1 }}>
+              <span style={{ fontSize: 10, color: charDef?.color ?? '#aaa', fontWeight: 'bold' }}>
+                {last.playerName}:{' '}
+              </span>
+              <span style={{ fontSize: 11, color: '#eee' }}>{last.text}</span>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Canisters evidence note ─────────────────────────────────────────── */}
       {state.canisters.length > 0 && meeting.phase !== 'reveal' && (
