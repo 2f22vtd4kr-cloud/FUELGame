@@ -1,10 +1,11 @@
 import type { GameState, Player, Car, TaskInstance } from './types';
 import { CAR_SPAWNS, TASK_SPAWNS, PLAYER_SPAWNS } from '../data/map';
 import { CHARACTERS, CHARACTER_KEYS } from '../data/characters';
+import { SPRINT_MAX } from './types';
 
 // ─── Singleton mutable game state ────────────────────────────────────────────
-// Updated every frame by the game loop. NOT React state.
-// React HUD reads a snapshot via useGameSnapshot hook (10Hz).
+// Mutated at 60fps by the game loop. NOT React state.
+// React HUD reads a shallow snapshot at 10Hz via GameCanvas.
 
 export let gs: GameState = createInitialState();
 
@@ -14,6 +15,8 @@ export function createInitialState(): GameState {
     players: [],
     cars: [],
     tasks: [],
+    bodies: [],
+    canisters: [],
     meeting: null,
     unityMeter: 0,
     winner: null,
@@ -34,7 +37,7 @@ export function resetGameState(): void {
   gs = createInitialState();
 }
 
-// ─── Start game: build players, cars, tasks ──────────────────────────────────
+// ─── Start game ───────────────────────────────────────────────────────────────
 
 export function startGame(
   humanCharacter: string,
@@ -48,14 +51,14 @@ export function startGame(
   shuffle(botCharKeys);
   const allChars = [charKey, ...botCharKeys.slice(0, playerCount - 1)];
 
-  // Assign roles randomly across all players (human included)
+  // Assign roles randomly — human included
   const roleAssign: Array<'khozain' | 'slivshchik'> = Array.from(
     { length: playerCount },
     () => 'khozain' as const,
   );
   const allIndices = Array.from({ length: playerCount }, (_, i) => i);
   shuffle(allIndices);
-  for (let i = 0; i < siphonersCount; i++) {
+  for (let i = 0; i < Math.min(siphonersCount, playerCount - 1); i++) {
     roleAssign[allIndices[i]] = 'slivshchik';
   }
 
@@ -71,7 +74,18 @@ export function startGame(
       isAlive: true,
       pos: { x: spawn.x + (Math.random() - 0.5) * 30, y: spawn.y + (Math.random() - 0.5) * 30 },
       vel: { x: 0, y: 0 },
-      speed: i === 0 ? 160 : 130 + Math.random() * 40,
+      speed: i === 0 ? 165 : 130 + Math.random() * 40,
+      facingAngle: 0,
+      stamina: SPRINT_MAX,
+      isSprinting: false,
+      isCrouching: false,
+      ambushTarget: null,
+      ambushChargeTimer: 0,
+      ambushCooldown: 0,
+      isCarryingCanister: false,
+      emote: null,
+      emoteTimer: 0,
+      suspectedTimer: 0,
       botState: 'idle',
       botTarget: null,
       botTaskId: null,
@@ -80,18 +94,19 @@ export function startGame(
     };
   });
 
-  // Build cars (use first 4 spawns for phase 1)
+  // 4 cars initially
   const cars: Car[] = CAR_SPAWNS.slice(0, 4).map(cs => ({
     id: cs.id,
     pos: { ...cs.pos },
     fuel: 85 + Math.random() * 15,
     color: cs.color,
     siphoner: null,
+    siphonPhase: 0,
+    siphonTimer: 0,
     hasImmunity: false,
     immunityTimer: 0,
   }));
 
-  // Build tasks
   const tasks: TaskInstance[] = TASK_SPAWNS.map(ts => ({
     id: ts.id,
     defKey: ts.defKey,
@@ -107,13 +122,15 @@ export function startGame(
   gs.players = players;
   gs.cars = cars;
   gs.tasks = tasks;
+  gs.bodies = [];
+  gs.canisters = [];
   gs.meeting = null;
   gs.unityMeter = 0;
   gs.winner = null;
   gs.winReason = '';
   gs.localPlayerId = 'player_human';
   gs.time = 0;
-  gs.meetingCooldown = 5; // 5s grace at start
+  gs.meetingCooldown = 5;
   gs.promptText = null;
   gs.promptTimer = 0;
 }

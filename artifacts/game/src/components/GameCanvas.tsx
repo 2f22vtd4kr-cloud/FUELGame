@@ -1,161 +1,263 @@
-import React, { useRef, useEffect, useCallback, useState } from 'react';
-import type { GameState, InputState } from '../game/types';
+import { useEffect, useRef, useCallback, useState } from 'react';
+import type { InputState } from '../game/types';
 import { gs } from '../game/state';
-import { tickGame } from '../game/logic';
+import { tickGame, triggerEmote } from '../game/logic';
 import { renderGame } from '../game/renderer';
+import { audio } from '../game/audio';
 import VirtualJoystick from './VirtualJoystick';
-import HUD from './HUD';
 
-interface Props {
-  onSnapshot: (snap: GameState) => void;
-  dimCanvas: boolean;  // dim canvas during meeting
+interface GameCanvasProps {
+  onStateSnapshot: (snap: typeof gs) => void;
 }
 
-export default function GameCanvas({ onSnapshot, dimCanvas }: Props) {
+const EMOTES = ['👋', '🤔', '🚨', '😂'];
+const EMOTE_LABELS = ['Привет!', 'Подозрительно...', 'Тревога!', 'Хаха!'];
+
+export default function GameCanvas({ onStateSnapshot }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const inputRef = useRef<InputState>({ dx: 0, dy: 0, interact: false, prevInteract: false });
+  const rafRef = useRef<number>(0);
   const lastTimeRef = useRef<number>(0);
-  const snapshotTimerRef = useRef<number>(0);
-  const hudRef = useRef<GameState>({ ...gs });
-  const [, forceHUDUpdate] = useState(0);
+  const accRef = useRef<number>(0);
 
-  // Resize canvas to fill container
+  // Keyboard state
+  const keysRef = useRef<Set<string>>(new Set());
+
+  // Joystick input — separate ref, merged in RAF loop
+  const joystickRef = useRef({ dx: 0, dy: 0 });
+
+  // Canonical input state (built each frame from keys + joystick)
+  const inputRef = useRef<InputState>({
+    dx: 0, dy: 0,
+    interact: false, prevInteract: false,
+    sprint: false, crouch: false,
+    emoteIndex: null,
+  });
+
+  // Extra touch-state (interact button on joystick panel)
+  const touchInteractRef = useRef(false);
+  const touchSprintRef = useRef(false);
+  const touchCrouchRef = useRef(false);
+
+  const [showEmoteWheel, setShowEmoteWheel] = useState(false);
+
+  // ── Keyboard handler ────────────────────────────────────────────────────────
   useEffect(() => {
-    function resize() {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    }
-    resize();
-    window.addEventListener('resize', resize);
-    return () => window.removeEventListener('resize', resize);
-  }, []);
-
-  // Keyboard input
-  useEffect(() => {
-    const keysHeld = new Set<string>();
-
     function onKeyDown(e: KeyboardEvent) {
-      const k = e.key.toLowerCase();
-      keysHeld.add(k);
-      if (k === 'e' || k === ' ') {
+      if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',
+           'w','a','s','d','W','A','S','D',' ','e','E',
+           'Shift','Control','q','Q'].includes(e.key)) {
         e.preventDefault();
-        inputRef.current.interact = true;
+      }
+      keysRef.current.add(e.key);
+      if (e.key === 'q' || e.key === 'Q') {
+        setShowEmoteWheel(v => !v);
       }
     }
     function onKeyUp(e: KeyboardEvent) {
-      const k = e.key.toLowerCase();
-      keysHeld.delete(k);
-      if (k === 'e' || k === ' ') {
-        inputRef.current.interact = false;
-      }
+      keysRef.current.delete(e.key);
     }
-
-    const keyPollId = setInterval(() => {
-      let dx = 0, dy = 0;
-      if (keysHeld.has('a') || keysHeld.has('arrowleft'))  dx -= 1;
-      if (keysHeld.has('d') || keysHeld.has('arrowright')) dx += 1;
-      if (keysHeld.has('w') || keysHeld.has('arrowup'))    dy -= 1;
-      if (keysHeld.has('s') || keysHeld.has('arrowdown'))  dy += 1;
-      // Normalise diagonal
-      const len = Math.sqrt(dx * dx + dy * dy);
-      inputRef.current.dx = len > 0 ? dx / len : 0;
-      inputRef.current.dy = len > 0 ? dy / len : 0;
-    }, 16);
-
-    document.addEventListener('keydown', onKeyDown);
-    document.addEventListener('keyup', onKeyUp);
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
     return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      document.removeEventListener('keyup', onKeyUp);
-      clearInterval(keyPollId);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
     };
   }, []);
 
-  // 60fps game loop + canvas renderer
+  // ── RAF game loop ─────────────────────────────────────────────────────────
   useEffect(() => {
-    let rafId: number;
-    lastTimeRef.current = performance.now();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d', { alpha: false })!;
 
-    function loop(timestamp: number) {
-      // Delta time, capped at 50ms to avoid spiral of death on tab-switch
-      const dt = Math.min((timestamp - lastTimeRef.current) / 1000, 0.05);
-      lastTimeRef.current = timestamp;
+    function resize() {
+      canvas!.width = canvas!.clientWidth;
+      canvas!.height = canvas!.clientHeight;
+    }
+    resize();
+    const ro = new ResizeObserver(resize);
+    ro.observe(canvas);
 
-      // Tick game logic
-      tickGame(dt, inputRef.current);
+    function loop(ts: number) {
+      rafRef.current = requestAnimationFrame(loop);
+      const raw = ts - lastTimeRef.current;
+      lastTimeRef.current = ts;
+      const dt = Math.min(raw / 1000, 0.05);
 
-      // Update prevInteract after tick so single-press detection works next frame
-      inputRef.current.prevInteract = inputRef.current.interact;
+      const keys = keysRef.current;
+      const joy = joystickRef.current;
+      const inp = inputRef.current;
+      inp.prevInteract = inp.interact;
 
-      // Render canvas every frame
-      const canvas = canvasRef.current;
-      if (canvas) renderGame(canvas, gs);
+      // Movement: keyboard takes priority; fall back to joystick
+      let kbDx = 0, kbDy = 0;
+      if (keys.has('ArrowLeft') || keys.has('a') || keys.has('A')) kbDx -= 1;
+      if (keys.has('ArrowRight') || keys.has('d') || keys.has('D')) kbDx += 1;
+      if (keys.has('ArrowUp') || keys.has('w') || keys.has('W')) kbDy -= 1;
+      if (keys.has('ArrowDown') || keys.has('s') || keys.has('S')) kbDy += 1;
 
-      // Update React HUD + parent snapshot at ~10Hz
-      snapshotTimerRef.current += dt;
-      if (snapshotTimerRef.current >= 0.1) {
-        snapshotTimerRef.current = 0;
-        // Shallow-copy mutable arrays so React sees changes
-        const snap: GameState = {
-          ...gs,
-          players: [...gs.players],
-          cars: [...gs.cars],
-          tasks: [...gs.tasks],
-          meeting: gs.meeting
-            ? { ...gs.meeting, votes: [...gs.meeting.votes], chatMessages: [...gs.meeting.chatMessages] }
-            : null,
-        };
-        hudRef.current = snap;
-        forceHUDUpdate(n => n + 1); // trigger HUD re-render
-        onSnapshot(snap);          // notify App of phase changes
+      if (kbDx !== 0 || kbDy !== 0) {
+        inp.dx = kbDx; inp.dy = kbDy;
+      } else {
+        inp.dx = joy.dx; inp.dy = joy.dy;
       }
 
-      rafId = requestAnimationFrame(loop);
+      // Interact: keyboard OR touch button
+      inp.interact = keys.has('e') || keys.has('E') || keys.has(' ') || touchInteractRef.current;
+      inp.sprint = keys.has('Shift') || touchSprintRef.current;
+      inp.crouch = keys.has('Control') || touchCrouchRef.current;
+
+      tickGame(dt, inp);
+      renderGame(ctx, gs, canvas!.width, canvas!.height);
+
+      // 10Hz HUD snapshot
+      accRef.current += dt;
+      if (accRef.current >= 0.1) {
+        accRef.current = 0;
+        onStateSnapshot({ ...gs });
+      }
     }
 
-    rafId = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(rafId);
-  }, [onSnapshot]);
+    lastTimeRef.current = performance.now();
+    rafRef.current = requestAnimationFrame(loop);
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      ro.disconnect();
+    };
+  }, [onStateSnapshot]);
 
-  // Joystick callbacks
-  const handleJoystickMove = useCallback((dx: number, dy: number) => {
-    // Only overwrite joystick axes; keyboard handler sets them independently
-    inputRef.current.dx = dx;
-    inputRef.current.dy = dy;
+  // ── Mobile callbacks ───────────────────────────────────────────────────────
+  const onJoystickMove = useCallback((dx: number, dy: number) => {
+    joystickRef.current.dx = dx;
+    joystickRef.current.dy = dy;
   }, []);
 
-  const handleInteract = useCallback((pressed: boolean) => {
-    inputRef.current.interact = pressed;
+  const onInteract = useCallback((active: boolean) => {
+    audio.init();
+    touchInteractRef.current = active;
   }, []);
 
-  const isPlaying = !dimCanvas;
+  const onSprint = useCallback((active: boolean) => {
+    touchSprintRef.current = active;
+  }, []);
+
+  const onCrouch = useCallback((active: boolean) => {
+    touchCrouchRef.current = active;
+  }, []);
+
+  const onEmote = useCallback((idx: number) => {
+    const player = gs.players.find(p => p.id === gs.localPlayerId);
+    if (player) {
+      triggerEmote(player.id, EMOTES[idx]);
+      audio.play('ui_click');
+    }
+    setShowEmoteWheel(false);
+  }, []);
+
+  const handleCanvasClick = useCallback(() => {
+    audio.init();
+  }, []);
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: '#0D1B0D' }}>
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <canvas
         ref={canvasRef}
-        style={{
-          display: 'block',
-          width: '100%',
-          height: '100%',
-          opacity: dimCanvas ? 0.25 : 1,
-          transition: 'opacity 0.3s',
-          touchAction: 'none',
-          userSelect: 'none',
-        }}
+        onClick={handleCanvasClick}
+        style={{ display: 'block', width: '100%', height: '100%', touchAction: 'none' }}
       />
 
-      {/* HUD overlay (only when playing, not during meeting) */}
-      {isPlaying && <HUD gs={hudRef.current} />}
-
-      {/* Virtual joystick + interact button */}
       <VirtualJoystick
-        onMove={handleJoystickMove}
-        onInteract={handleInteract}
-        visible={isPlaying}
+        onMove={onJoystickMove}
+        onInteract={onInteract}
+        visible={true}
       />
+
+      {/* Mobile action buttons */}
+      <div style={{
+        position: 'absolute', right: 16, bottom: 110,
+        display: 'flex', flexDirection: 'column', gap: 8,
+        pointerEvents: 'all',
+      }}>
+        <button
+          onPointerDown={() => onSprint(true)}
+          onPointerUp={() => onSprint(false)}
+          onPointerLeave={() => onSprint(false)}
+          style={mobileBtn('#FFD700')}
+        >🏃</button>
+
+        <button
+          onPointerDown={() => onCrouch(true)}
+          onPointerUp={() => onCrouch(false)}
+          onPointerLeave={() => onCrouch(false)}
+          style={mobileBtn('#90CAF9')}
+        >🦆</button>
+
+        <button
+          onPointerDown={() => setShowEmoteWheel(v => !v)}
+          style={mobileBtn('#FF8A65')}
+        >😂</button>
+      </div>
+
+      {/* Emote wheel */}
+      {showEmoteWheel && (
+        <div style={{
+          position: 'absolute', right: 80, bottom: 110,
+          background: 'rgba(20,20,32,0.95)', borderRadius: 12,
+          padding: 12, display: 'grid', gridTemplateColumns: '1fr 1fr',
+          gap: 8, zIndex: 50, boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
+          border: '1px solid rgba(255,255,255,0.1)',
+        }}>
+          <div style={{ gridColumn: '1 / -1', color: '#aaa', fontSize: 10, textAlign: 'center', marginBottom: 4 }}>
+            Q — ЭМОЦИИ
+          </div>
+          {EMOTES.map((e, i) => (
+            <button
+              key={i}
+              onClick={() => onEmote(i)}
+              style={{
+                width: 60, height: 52, borderRadius: 8,
+                background: 'rgba(255,255,255,0.08)',
+                border: '1px solid rgba(255,255,255,0.15)',
+                color: '#fff', cursor: 'pointer',
+                display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center',
+                gap: 2, fontSize: 20,
+              }}
+            >
+              <span>{e}</span>
+              <span style={{ fontSize: 7, color: '#aaa' }}>{EMOTE_LABELS[i]}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Desktop controls hint */}
+      <div style={{
+        position: 'absolute', left: 12, bottom: 12,
+        color: 'rgba(255,255,255,0.4)', fontSize: 10, lineHeight: 1.5,
+        pointerEvents: 'none',
+      }}>
+        WASD — движение &nbsp;|&nbsp; E/Пробел — взаимодействие<br />
+        Shift — спринт &nbsp;|&nbsp; Ctrl — присесть &nbsp;|&nbsp; Q — эмоции
+      </div>
     </div>
   );
+}
+
+function mobileBtn(color: string): React.CSSProperties {
+  return {
+    width: 52, height: 52, borderRadius: '50%',
+    background: `rgba(${hexToRgb(color)},0.85)`,
+    border: `2px solid ${color}`,
+    fontSize: 22, cursor: 'pointer',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+    userSelect: 'none',
+  };
+}
+
+function hexToRgb(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `${r},${g},${b}`;
 }

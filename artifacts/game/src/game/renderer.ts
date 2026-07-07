@@ -1,465 +1,579 @@
 import type { GameState } from './types';
-import { INTERACT_RADIUS, SIPHON_RADIUS, ALARM_RADIUS } from './types';
-import { MAP_W, MAP_H, BUILDINGS, PARKING_LOT, DECORATIONS, ENTRANCE_POS, TASK_SPAWNS } from '../data/map';
+import { ALARM_RADIUS } from './types';
 import { TASK_DEFS } from '../data/tasks';
+import { DECORATIONS, ENTRANCE_POS } from '../data/map';
 import { CHARACTERS } from '../data/characters';
 
-const CAR_W = 60;
-const CAR_H = 28;
-const PLAYER_RADIUS = 16;
+// ─── Color palette ────────────────────────────────────────────────────────────
 
-// ─── Camera state (updated each frame) ───────────────────────────────────────
-
-let camX = 0;
-let camY = 0;
-
-function updateCamera(gs: GameState, vw: number, vh: number): void {
-  const player = gs.players.find(p => p.id === gs.localPlayerId);
-  if (!player) return;
-  camX = Math.max(0, Math.min(MAP_W - vw, player.pos.x - vw / 2));
-  camY = Math.max(0, Math.min(MAP_H - vh, player.pos.y - vh / 2));
-}
-
-// World-to-screen
-function ws(wx: number): number { return wx - camX; }
-function hs(wy: number): number { return wy - camY; }
+const COLORS = {
+  sky:        '#87CEEB',
+  grass:      '#6DB56D',
+  asphalt:    '#4A4A4A',
+  parking:    '#555555',
+  building:   '#D0B49F',
+  buildingEdge: '#B09070',
+  archGray:   '#999',
+  road:       '#666',
+  canister:   '#F5A623',
+  body:       '#B0BEC5',
+  bodyOutline:'#78909C',
+};
 
 // ─── Main render ──────────────────────────────────────────────────────────────
 
-export function renderGame(canvas: HTMLCanvasElement, gs: GameState): void {
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
+export function renderGame(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  cw: number,
+  ch: number,
+): void {
+  const localPlayer = state.players.find(p => p.id === state.localPlayerId);
+  if (!localPlayer) return;
 
-  const vw = canvas.width;
-  const vh = canvas.height;
+  // ── Camera: center on local player ──
+  const camX = Math.round(localPlayer.pos.x - cw / 2);
+  const camY = Math.round(localPlayer.pos.y - ch / 2);
 
-  updateCamera(gs, vw, vh);
+  ctx.save();
+  ctx.translate(-camX, -camY);
 
-  // ── Background ──────────────────────────────────────────────────────────────
-  // Sky gradient (only visible if map edge is in view)
-  const skyGrad = ctx.createLinearGradient(0, 0, 0, vh);
-  skyGrad.addColorStop(0, '#87CEEB');
-  skyGrad.addColorStop(1, '#B0E0FF');
-  ctx.fillStyle = skyGrad;
-  ctx.fillRect(0, 0, vw, vh);
+  // ── World layers ──
+  drawBackground(ctx);
+  drawParkingLot(ctx);
+  drawDecorations(ctx);
+  drawTasks(ctx, state);
+  drawCars(ctx, state);
+  drawBodies(ctx, state);
+  drawCanisters(ctx, state);
+  drawPlayers(ctx, state);
+  drawAlarmButton(ctx, state);
+  drawEntrance(ctx);
+  drawUI(ctx, state, localPlayer);
 
-  // ── Ground ──────────────────────────────────────────────────────────────────
-  // Grass
-  ctx.fillStyle = '#5CBB5C';
-  ctx.fillRect(ws(90), hs(90), 1020, 720);
+  ctx.restore();
+}
 
-  // Parking lot asphalt
-  ctx.fillStyle = '#7B8B9A';
-  ctx.fillRect(ws(PARKING_LOT.x), hs(PARKING_LOT.y), PARKING_LOT.w, PARKING_LOT.h);
+// ─── Background ───────────────────────────────────────────────────────────────
 
-  // Parking lot markings
-  ctx.strokeStyle = '#FFFFFF44';
-  ctx.lineWidth = 1.5;
-  for (let x = 160; x <= 1040; x += 130) {
-    ctx.beginPath();
-    ctx.moveTo(ws(x), hs(PARKING_LOT.y));
-    ctx.lineTo(ws(x), hs(PARKING_LOT.y + PARKING_LOT.h));
-    ctx.stroke();
+function drawBackground(ctx: CanvasRenderingContext2D): void {
+  // Top sky strip
+  ctx.fillStyle = '#C8D8E8';
+  ctx.fillRect(0, 0, 1200, 90);
+
+  // Buildings
+  ctx.fillStyle = COLORS.building;
+  ctx.fillRect(0, 0, 1200, 90);
+  ctx.fillRect(0, 810, 1200, 90);
+  ctx.fillRect(0, 90, 90, 720);
+  ctx.fillRect(1110, 90, 90, 720);
+
+  // Building edges/lines
+  ctx.strokeStyle = COLORS.buildingEdge;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(0, 0, 1200, 90);
+  ctx.strokeRect(0, 810, 1200, 90);
+  ctx.strokeRect(0, 90, 90, 720);
+  ctx.strokeRect(1110, 90, 90, 720);
+
+  // Entrance arch gap (bottom center)
+  ctx.fillStyle = '#3A3A4A';
+  ctx.fillRect(450, 810, 300, 90);
+  ctx.fillStyle = '#555';
+  ctx.fillRect(460, 815, 280, 80);
+
+  // Grass/garden
+  ctx.fillStyle = '#5AAD5A';
+  ctx.fillRect(90, 470, 1020, 340);
+
+  // Parking/asphalt
+  ctx.fillStyle = COLORS.parking;
+  ctx.fillRect(90, 90, 1020, 380);
+
+  // Parking spots
+  ctx.strokeStyle = '#777';
+  ctx.lineWidth = 1;
+  for (let x = 140; x < 1100; x += 130) {
+    ctx.strokeRect(x, 100, 110, 180);
+    ctx.strokeRect(x, 290, 110, 170);
   }
 
-  // Path (slightly lighter strip through garden)
-  ctx.fillStyle = '#A8C895';
-  ctx.fillRect(ws(480), hs(470), 240, 340);
+  // Garden path
+  ctx.fillStyle = '#7A6A5A';
+  ctx.fillRect(560, 470, 80, 340);
 
-  // ── Buildings ────────────────────────────────────────────────────────────────
-  for (const b of BUILDINGS) {
-    // Main building body
-    ctx.fillStyle = '#D4C5A9';
-    ctx.fillRect(ws(b.x), hs(b.y), b.w, b.h);
-
-    // Building texture: rows of windows
-    if (b.w > b.h) {
-      // Horizontal building
-      ctx.fillStyle = '#A8CDE8';
-      const winW = 18; const winH = 12; const gapX = 28; const gapY = 18;
-      for (let wx2 = b.x + 15; wx2 < b.x + b.w - 20; wx2 += gapX + winW) {
-        for (let wy2 = b.y + 8; wy2 < b.y + b.h - 8; wy2 += gapY + winH) {
-          ctx.fillRect(ws(wx2), hs(wy2), winW, winH);
-        }
-      }
-    } else {
-      // Vertical building
-      ctx.fillStyle = '#A8CDE8';
-      const winW = 16; const winH = 12; const gapX = 22; const gapY = 18;
-      for (let wx2 = b.x + 10; wx2 < b.x + b.w - 10; wx2 += gapX + winW) {
-        for (let wy2 = b.y + 10; wy2 < b.y + b.h - 10; wy2 += gapY + winH) {
-          ctx.fillRect(ws(wx2), hs(wy2), winW, winH);
-        }
-      }
+  // Windows on buildings (decorative)
+  ctx.fillStyle = '#87CEEB';
+  for (let bx = 50; bx < 1180; bx += 90) {
+    for (let by = 10; by < 85; by += 30) {
+      if (bx > 90 && bx < 1110) continue;
+      ctx.fillRect(bx, by, 24, 18);
     }
-
-    // Building outline
-    ctx.strokeStyle = '#B8A88A';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(ws(b.x), hs(b.y), b.w, b.h);
   }
+}
 
-  // Entrance arch gap (draw over the bottom building)
-  ctx.fillStyle = '#5CBB5C';
-  ctx.fillRect(ws(450), hs(810), 300, 90);
+function drawParkingLot(ctx: CanvasRenderingContext2D): void {
+  // Path from garden to entrance
+  ctx.fillStyle = '#6A5A4A';
+  ctx.fillRect(560, 780, 80, 30);
+}
 
-  // Entrance arch visual
-  ctx.fillStyle = '#C8B89A';
-  ctx.fillRect(ws(450), hs(815), 30, 80);
-  ctx.fillRect(ws(720), hs(815), 30, 80);
-  ctx.fillRect(ws(450), hs(815), 300, 20);
+// ─── Decorations ─────────────────────────────────────────────────────────────
 
-  // ── Decorations ─────────────────────────────────────────────────────────────
+function drawDecorations(ctx: CanvasRenderingContext2D): void {
   for (const deco of DECORATIONS) {
-    const sx = ws(deco.pos.x);
-    const sy = hs(deco.pos.y);
-    // Skip if off screen
-    if (sx < -60 || sx > vw + 60 || sy < -60 || sy > vh + 60) continue;
-
+    const { x, y } = deco.pos;
     switch (deco.type) {
-      case 'tree':
-        // Trunk
-        ctx.fillStyle = '#8B5E3C';
-        ctx.fillRect(sx - 5, sy - 5, 10, 20);
-        // Canopy
-        ctx.fillStyle = '#2E7D32';
-        ctx.beginPath();
-        ctx.arc(sx, sy - 15, 22, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#388E3C';
-        ctx.beginPath();
-        ctx.arc(sx - 5, sy - 20, 14, 0, Math.PI * 2);
-        ctx.fill();
-        break;
-
       case 'bench':
-        ctx.fillStyle = '#8D6E63';
-        ctx.fillRect(sx - 20, sy - 5, 40, 8);
-        ctx.fillRect(sx - 18, sy + 3, 5, 10);
-        ctx.fillRect(sx + 13, sy + 3, 5, 10);
+        ctx.fillStyle = '#8B6914';
+        ctx.fillRect(x - 22, y - 6, 44, 12);
+        ctx.fillStyle = '#A0785C';
+        ctx.fillRect(x - 24, y + 4, 48, 5);
         break;
-
       case 'dumpster':
-        ctx.fillStyle = '#558B2F';
-        ctx.fillRect(sx - 18, sy - 12, 36, 24);
-        ctx.fillStyle = '#33691E';
-        ctx.fillRect(sx - 18, sy - 12, 36, 6);
-        ctx.fillStyle = '#FFF';
+        ctx.fillStyle = '#4CAF50';
+        ctx.fillRect(x - 16, y - 14, 32, 28);
+        ctx.fillStyle = '#388E3C';
+        ctx.fillRect(x - 16, y - 14, 32, 6);
+        ctx.fillStyle = '#fff';
         ctx.font = '10px sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('ТБО', sx, sy + 5);
+        ctx.fillText('♻', x, y + 6);
         break;
-
       case 'flowerbed':
-        ctx.fillStyle = '#66BB6A';
+        ctx.fillStyle = '#4A9430';
         ctx.beginPath();
-        ctx.ellipse(sx, sy, 28, 16, 0, 0, Math.PI * 2);
+        ctx.ellipse(x, y, 28, 18, 0, 0, Math.PI * 2);
         ctx.fill();
-        // Flowers
-        const colors2 = ['#FF4081', '#FFEE58', '#FF7043', '#AB47BC'];
+        ctx.fillStyle = '#FF69B4';
         for (let i = 0; i < 5; i++) {
-          ctx.fillStyle = colors2[i % colors2.length];
-          ctx.beginPath();
-          ctx.arc(sx + (i - 2) * 10, sy + (i % 2 === 0 ? -3 : 3), 4, 0, Math.PI * 2);
-          ctx.fill();
+          const a = (i / 5) * Math.PI * 2;
+          ctx.fillRect(x + Math.cos(a) * 12 - 4, y + Math.sin(a) * 7 - 4, 8, 8);
         }
         break;
-
+      case 'tree':
+        ctx.fillStyle = '#2E7D32';
+        ctx.beginPath();
+        ctx.arc(x, y - 10, 22, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#1B5E20';
+        ctx.beginPath();
+        ctx.arc(x, y - 18, 14, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#5D4037';
+        ctx.fillRect(x - 5, y + 8, 10, 18);
+        break;
       case 'lamppost':
-        ctx.fillStyle = '#616161';
-        ctx.fillRect(sx - 2, sy - 30, 4, 35);
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(x, y + 30); ctx.lineTo(x, y - 30);
+        ctx.stroke();
         ctx.fillStyle = '#FFF9C4';
         ctx.beginPath();
-        ctx.arc(sx, sy - 30, 7, 0, Math.PI * 2);
+        ctx.arc(x, y - 30, 6, 0, Math.PI * 2);
         ctx.fill();
+        ctx.strokeStyle = '#FFD54F';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        break;
+      case 'kvass_stand':
+        ctx.fillStyle = '#E65100';
+        ctx.fillRect(x - 18, y - 22, 36, 30);
+        ctx.fillStyle = '#FFF';
+        ctx.font = 'bold 7px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('КВАС', x, y - 8);
+        ctx.fillStyle = '#FFC107';
+        ctx.fillRect(x - 4, y + 8, 8, 10);
         break;
     }
   }
+}
 
-  // ── Shawarma stand ───────────────────────────────────────────────────────────
-  const shawarmaPos = TASK_SPAWNS.find(t => t.defKey === 'shawarma')?.pos ?? { x: 145, y: 530 };
-  {
-    const sx = ws(shawarmaPos.x);
-    const sy = hs(shawarmaPos.y);
-    ctx.fillStyle = '#FF8C00';
-    ctx.fillRect(sx - 22, sy - 20, 44, 36);
-    ctx.fillStyle = '#FF6D00';
-    ctx.fillRect(sx - 22, sy - 20, 44, 8);
-    ctx.fillStyle = '#FFF';
-    ctx.font = 'bold 8px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('ШАУРМА', sx, sy + 4);
-  }
+// ─── Tasks ────────────────────────────────────────────────────────────────────
 
-  // ── Alarm button at entrance ──────────────────────────────────────────────────
-  {
-    const sx = ws(ENTRANCE_POS.x);
-    const sy = hs(ENTRANCE_POS.y);
-    const t = Date.now() / 1000;
-    const pulse = gs.meetingCooldown <= 0 ? (0.6 + 0.4 * Math.sin(t * 3)) : 0.3;
-    ctx.fillStyle = `rgba(255,50,50,${pulse})`;
-    ctx.beginPath();
-    ctx.arc(sx, sy, 14, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#FFF';
-    ctx.font = 'bold 10px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('!', sx, sy + 4);
-    ctx.fillStyle = '#FFF';
-    ctx.font = '7px sans-serif';
-    ctx.fillText('СХОДКА', sx, sy + 22);
-  }
-
-  // ── Alarm radius hint (when player is close) ─────────────────────────────────
-  const localPlayer = gs.players.find(p => p.id === gs.localPlayerId);
-  if (localPlayer && gs.meetingCooldown <= 0) {
-    const d2 = dist2(localPlayer.pos, ENTRANCE_POS);
-    if (d2 < (ALARM_RADIUS + 80) ** 2) {
-      ctx.strokeStyle = 'rgba(255,80,80,0.2)';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath();
-      ctx.arc(ws(ENTRANCE_POS.x), hs(ENTRANCE_POS.y), ALARM_RADIUS, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-  }
-
-  // ── Task markers ─────────────────────────────────────────────────────────────
-  const t = Date.now() / 1000;
-  for (const task of gs.tasks) {
+function drawTasks(ctx: CanvasRenderingContext2D, state: GameState): void {
+  for (const task of state.tasks) {
     if (task.isComplete) continue;
-    const sx = ws(task.pos.x);
-    const sy = hs(task.pos.y);
-    if (sx < -80 || sx > vw + 80 || sy < -80 || sy > vh + 80) continue;
-
+    const { x, y } = task.pos;
     const def = TASK_DEFS[task.defKey];
-    const isActive = task.doer !== null;
-    const pulse = isActive
-      ? 1
-      : 0.7 + 0.3 * Math.sin(t * 2.5 + task.pos.x);
 
-    // Glow ring
-    ctx.fillStyle = `${def.color}33`;
+    // Glowing circle
+    const alpha = 0.3 + 0.3 * Math.sin(Date.now() / 500);
+    ctx.strokeStyle = def.color;
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = alpha;
     ctx.beginPath();
-    ctx.arc(sx, sy, 22 * pulse, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Task icon circle
-    ctx.fillStyle = isActive ? def.color : `${def.color}BB`;
-    ctx.beginPath();
-    ctx.arc(sx, sy, 16, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.arc(x, y, 26, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
 
     // Emoji
-    ctx.font = '14px serif';
+    ctx.font = '22px serif';
     ctx.textAlign = 'center';
-    ctx.fillText(def.emoji, sx, sy + 5);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(def.emoji, x, y);
 
-    // Progress bar (if in progress)
-    if (task.progress > 0 && !task.isComplete) {
-      const barW = 44;
-      ctx.fillStyle = '#0005';
-      ctx.fillRect(sx - barW / 2, sy + 20, barW, 6);
-      ctx.fillStyle = def.color;
-      ctx.fillRect(sx - barW / 2, sy + 20, barW * task.progress, 6);
+    // Progress ring
+    if (task.progress > 0 && task.doer !== null) {
+      ctx.strokeStyle = def.color;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(x, y, 18, -Math.PI / 2, -Math.PI / 2 + task.progress * Math.PI * 2);
+      ctx.stroke();
     }
 
-    // Task label
-    ctx.fillStyle = '#FFF';
-    ctx.font = 'bold 9px sans-serif';
-    ctx.fillText(def.label, sx, sy + 34);
+    // Label
+    ctx.font = '9px sans-serif';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(def.label, x, y + 30);
+    ctx.textBaseline = 'alphabetic';
   }
+}
 
-  // ── Interact radius hints ─────────────────────────────────────────────────────
-  if (localPlayer) {
-    for (const task of gs.tasks) {
-      if (task.isComplete) continue;
-      const d2 = dist2(localPlayer.pos, task.pos);
-      if (d2 < (INTERACT_RADIUS + 40) ** 2) {
-        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([3, 3]);
+// ─── Cars ─────────────────────────────────────────────────────────────────────
+
+function drawCars(ctx: CanvasRenderingContext2D, state: GameState): void {
+  for (const car of state.cars) {
+    const { x, y } = car.pos;
+    const fuel = car.fuel;
+
+    // Body
+    ctx.fillStyle = car.color;
+    ctx.fillRect(x - 35, y - 18, 70, 36);
+
+    // Windshields
+    ctx.fillStyle = 'rgba(135,206,235,0.55)';
+    ctx.fillRect(x - 28, y - 14, 22, 28);
+    ctx.fillRect(x + 6, y - 14, 22, 28);
+
+    // Wheels
+    ctx.fillStyle = '#222';
+    [{ dx: -28, dy: -18 }, { dx: 18, dy: -18 }, { dx: -28, dy: 12 }, { dx: 18, dy: 12 }]
+      .forEach(({ dx, dy }) => ctx.fillRect(x + dx - 2, y + dy - 2, 14, 8));
+
+    // Fuel indicator above car
+    const barW = 50; const barH = 5;
+    const bx = x - barW / 2; const by = y - 30;
+    ctx.fillStyle = '#333';
+    ctx.fillRect(bx - 1, by - 1, barW + 2, barH + 2);
+    const fuelColor = fuel > 40 ? '#4CAF50' : fuel > 20 ? '#FF9800' : '#F44336';
+    ctx.fillStyle = fuelColor;
+    ctx.fillRect(bx, by, (fuel / 100) * barW, barH);
+
+    // Fuel % text
+    ctx.font = '8px sans-serif';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${Math.round(fuel)}%`, x, by - 2);
+
+    // Siphon visual
+    if (car.siphonPhase === 1) {
+      // Setup phase — subtle shimmer
+      ctx.globalAlpha = 0.4 + 0.3 * Math.sin(Date.now() / 200);
+      ctx.strokeStyle = '#A5D6A7';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.arc(x, y, 28, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+    } else if (car.siphonPhase === 2) {
+      // Active drain — animated green stream
+      const siphoner = state.players.find(p => p.id === car.siphoner);
+      if (siphoner) {
+        ctx.strokeStyle = '#00E676';
+        ctx.lineWidth = 3;
+        ctx.globalAlpha = 0.7 + 0.3 * Math.sin(Date.now() / 100);
+        ctx.setLineDash([6, 4]);
         ctx.beginPath();
-        ctx.arc(ws(task.pos.x), hs(task.pos.y), INTERACT_RADIUS, 0, Math.PI * 2);
+        ctx.moveTo(x, y);
+        ctx.lineTo(siphoner.pos.x, siphoner.pos.y);
         ctx.stroke();
         ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
       }
+      // Red alert ring
+      ctx.strokeStyle = '#FF1744';
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = 0.5 + 0.5 * Math.sin(Date.now() / 150);
+      ctx.beginPath();
+      ctx.arc(x, y, 32, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    // Low fuel warning icon
+    if (fuel < 15 && fuel > 0) {
+      ctx.font = '14px serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const pulse = Math.sin(Date.now() / 300) > 0;
+      if (pulse) ctx.fillText('⚠️', x, y + 28);
+      ctx.textBaseline = 'alphabetic';
     }
   }
+}
 
-  // ── Cars ──────────────────────────────────────────────────────────────────────
-  for (const car of gs.cars) {
-    const sx = ws(car.pos.x);
-    const sy = hs(car.pos.y);
-    if (sx < -80 || sx > vw + 80 || sy < -80 || sy > vh + 80) continue;
+// ─── Bodies ───────────────────────────────────────────────────────────────────
+
+function drawBodies(ctx: CanvasRenderingContext2D, state: GameState): void {
+  for (const body of state.bodies) {
+    if (body.reportedBy !== null) continue; // fade out after reported (TODO)
+    const { x, y } = body.pos;
 
     // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.globalAlpha = 0.4;
+    ctx.fillStyle = '#000';
     ctx.beginPath();
-    ctx.ellipse(sx, sy + CAR_H / 2 + 2, CAR_W / 2, 6, 0, 0, Math.PI * 2);
+    ctx.ellipse(x, y + 16, 18, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Body silhouette (lying down)
+    const charDef = CHARACTERS[body.character];
+    ctx.fillStyle = charDef.color;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.PI / 2);
+    // Torso
+    ctx.fillRect(-10, -20, 20, 35);
+    // Head
+    ctx.beginPath();
+    ctx.arc(0, -25, 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // X eyes
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('✕', x, y - 22);
+    ctx.textBaseline = 'alphabetic';
+
+    // Report prompt glow
+    const pulsing = Math.sin(Date.now() / 400) > 0;
+    if (pulsing) {
+      ctx.strokeStyle = '#FF5722';
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = 0.6;
+      ctx.beginPath();
+      ctx.arc(x, y, 38, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    // Name tag
+    ctx.font = 'bold 10px sans-serif';
+    ctx.fillStyle = '#FF5722';
+    ctx.textAlign = 'center';
+    ctx.fillText(`💀 ${body.name}`, x, y + 38);
+  }
+}
+
+// ─── Canisters ────────────────────────────────────────────────────────────────
+
+function drawCanisters(ctx: CanvasRenderingContext2D, state: GameState): void {
+  for (const can of state.canisters) {
+    const { x, y } = can.pos;
+
+    // Canister shape
+    ctx.fillStyle = can.isFull ? '#F5A623' : '#BDBDBD';
+    ctx.fillRect(x - 10, y - 14, 20, 24);
+    ctx.fillStyle = '#78909C';
+    ctx.fillRect(x - 4, y - 18, 8, 6);
+
+    // Spill droplet
+    ctx.fillStyle = '#1E88E5';
+    ctx.beginPath();
+    ctx.arc(x + 8, y + 8, 4, 0, Math.PI * 2);
     ctx.fill();
 
-    // Car body
-    ctx.fillStyle = car.hasImmunity ? '#FFD700' : car.color;
+    // Pulsing highlight
+    ctx.globalAlpha = 0.3 + 0.3 * Math.sin(Date.now() / 350);
+    ctx.strokeStyle = '#F5A623';
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.roundRect(sx - CAR_W / 2, sy - CAR_H / 2, CAR_W, CAR_H, 5);
+    ctx.arc(x, y, 20, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // Label
+    ctx.font = '8px sans-serif';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.fillText(can.isFull ? '🪣 полная' : '🪣 улика', x, y + 18);
+  }
+}
+
+// ─── Players ─────────────────────────────────────────────────────────────────
+
+function drawPlayers(ctx: CanvasRenderingContext2D, state: GameState): void {
+  const localPlayer = state.players.find(p => p.id === state.localPlayerId);
+  const isLocalSlivshchik = localPlayer?.role === 'slivshchik';
+
+  for (const player of state.players) {
+    if (!player.isAlive) continue;
+    const { x, y } = player.pos;
+    const charDef = CHARACTERS[player.character];
+
+    // Suspected outline
+    if (player.suspectedTimer > 0) {
+      ctx.strokeStyle = '#FF1744';
+      ctx.lineWidth = 4;
+      ctx.globalAlpha = 0.8;
+      ctx.beginPath();
+      ctx.arc(x, y, 22, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    // Fellow slivshchik outline (red, only visible to local slivshchik)
+    if (isLocalSlivshchik && player.role === 'slivshchik' && player.id !== state.localPlayerId) {
+      ctx.strokeStyle = '#FF1744';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([4, 4]);
+      ctx.globalAlpha = 0.7;
+      ctx.beginPath();
+      ctx.arc(x, y, 24, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+    }
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath();
+    ctx.ellipse(x, y + 14, 12, 5, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Windshield
-    ctx.fillStyle = 'rgba(200,230,255,0.6)';
+    // Body
+    ctx.fillStyle = charDef.color;
     ctx.beginPath();
-    ctx.roundRect(sx - CAR_W / 2 + 8, sy - CAR_H / 2 + 4, CAR_W * 0.4, CAR_H - 8, 2);
+    ctx.arc(x, y, 14, 0, Math.PI * 2);
     ctx.fill();
 
     // Outline
-    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.roundRect(sx - CAR_W / 2, sy - CAR_H / 2, CAR_W, CAR_H, 5);
+    ctx.strokeStyle = player.id === state.localPlayerId ? '#FFD700' : '#fff';
+    ctx.lineWidth = player.id === state.localPlayerId ? 2.5 : 1.5;
     ctx.stroke();
 
-    // Immunity golden glow
-    if (car.hasImmunity) {
-      ctx.shadowColor = '#FFD700';
-      ctx.shadowBlur = 15;
-      ctx.strokeStyle = '#FFD700';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(sx - CAR_W / 2 - 3, sy - CAR_H / 2 - 3, CAR_W + 6, CAR_H + 6);
-      ctx.shadowBlur = 0;
-    }
-
-    // Fuel bar (below car)
-    const barW = CAR_W;
-    const fuelPct = car.fuel / 100;
-    ctx.fillStyle = '#0008';
-    ctx.fillRect(sx - barW / 2, sy + CAR_H / 2 + 4, barW, 5);
-    ctx.fillStyle = fuelPct > 0.5 ? '#4CAF50' : fuelPct > 0.25 ? '#FFC107' : '#F44336';
-    ctx.fillRect(sx - barW / 2, sy + CAR_H / 2 + 4, barW * fuelPct, 5);
-
-    // Siphon animation (green stream from siphoner to car)
-    if (car.siphoner) {
-      const siphoner = gs.players.find(p => p.id === car.siphoner);
-      if (siphoner) {
-        const px = ws(siphoner.pos.x);
-        const py = hs(siphoner.pos.y);
-        const grad = ctx.createLinearGradient(px, py, sx, sy);
-        grad.addColorStop(0, 'rgba(0,200,80,0)');
-        grad.addColorStop(0.4, 'rgba(0,200,80,0.8)');
-        grad.addColorStop(1, 'rgba(0,200,80,0.3)');
-        ctx.strokeStyle = grad;
-        ctx.lineWidth = 3 + Math.sin(t * 8) * 1;
-        ctx.setLineDash([6, 4]);
-        ctx.beginPath();
-        ctx.moveTo(px, py);
-        ctx.lineTo(sx, sy);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Drip particles
-        for (let i = 0; i < 3; i++) {
-          const frac = ((t * 2 + i * 0.33) % 1);
-          const dropX = px + (sx - px) * frac;
-          const dropY = py + (sy - py) * frac;
-          ctx.fillStyle = `rgba(0,220,80,${1 - frac})`;
-          ctx.beginPath();
-          ctx.arc(dropX, dropY, 3, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-    }
-  }
-
-  // ── Players ───────────────────────────────────────────────────────────────────
-  for (const player of gs.players) {
-    if (!player.isAlive) continue;
-    const sx = ws(player.pos.x);
-    const sy = hs(player.pos.y);
-    if (sx < -50 || sx > vw + 50 || sy < -50 || sy > vh + 50) continue;
-
-    const charDef = CHARACTERS[player.character];
-    const isLocalPlayer = player.id === gs.localPlayerId;
-
-    // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    // Facing direction indicator
+    ctx.fillStyle = '#fff';
+    const fx = x + Math.cos(player.facingAngle) * 10;
+    const fy = y + Math.sin(player.facingAngle) * 10;
     ctx.beginPath();
-    ctx.ellipse(sx, sy + PLAYER_RADIUS, PLAYER_RADIUS, 5, 0, 0, Math.PI * 2);
+    ctx.arc(fx, fy, 3, 0, Math.PI * 2);
     ctx.fill();
 
-    // Player body (larger for local player)
-    const r = isLocalPlayer ? PLAYER_RADIUS + 3 : PLAYER_RADIUS;
-    ctx.fillStyle = charDef.color;
-    ctx.beginPath();
-    ctx.arc(sx, sy, r, 0, Math.PI * 2);
-    ctx.fill();
-
-    // White outline for local player
-    if (isLocalPlayer) {
-      ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = 2.5;
+    // Crouching indicator
+    if (player.isCrouching) {
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = '#90CAF9';
       ctx.beginPath();
-      ctx.arc(sx, sy, r, 0, Math.PI * 2);
+      ctx.ellipse(x, y, 18, 10, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // Sprint dust trail
+    if (player.isSprinting) {
+      ctx.globalAlpha = 0.3;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      const bx = x - Math.cos(player.facingAngle) * 18;
+      const by = y - Math.sin(player.facingAngle) * 18;
+      ctx.arc(bx, by, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // Canister indicator
+    if (player.isCarryingCanister) {
+      ctx.font = '12px serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🪣', x + 16, y - 10);
+      ctx.textBaseline = 'alphabetic';
+    }
+
+    // Emote bubble
+    if (player.emote) {
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      ctx.fillRect(x - 16, y - 52, 32, 26);
+      ctx.font = '16px serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(player.emote, x, y - 39);
+      ctx.textBaseline = 'alphabetic';
+    }
+
+    // Name tag
+    ctx.font = `${player.id === state.localPlayerId ? 'bold ' : ''}10px sans-serif`;
+    ctx.fillStyle = player.id === state.localPlayerId ? '#FFD700' : '#fff';
+    ctx.textAlign = 'center';
+    ctx.fillText(player.name, x, y + 28);
+
+    // Ambush charge indicator
+    if (player.ambushChargeTimer > 0) {
+      const pct = player.ambushChargeTimer / 1.5;
+      ctx.strokeStyle = '#FF1744';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(x, y, 20, -Math.PI / 2, -Math.PI / 2 + pct * Math.PI * 2);
       ctx.stroke();
     }
-
-    // Character emoji
-    ctx.font = `${r + 2}px serif`;
-    ctx.textAlign = 'center';
-    ctx.fillText(charDef.emoji, sx, sy + (r + 2) * 0.35);
-
-    // Name label
-    ctx.fillStyle = isLocalPlayer ? '#FFFFFF' : '#F5F5F5';
-    ctx.font = `bold ${isLocalPlayer ? 10 : 9}px sans-serif`;
-    ctx.textAlign = 'center';
-    // Name background
-    const nameW = ctx.measureText(player.name).width + 6;
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(sx - nameW / 2, sy - r - 17, nameW, 13);
-    ctx.fillStyle = isLocalPlayer ? '#FFD700' : '#FFFFFF';
-    ctx.fillText(player.name, sx, sy - r - 7);
-
-    // Role badge (only visible to local player for themselves)
-    if (isLocalPlayer) {
-      const badgeText = player.role === 'slivshchik' ? '🪣 СЛИВЩИК' : '🏠 ХОЗЯИН';
-      const badgeColor = player.role === 'slivshchik' ? '#D32F2F' : '#388E3C';
-      ctx.fillStyle = badgeColor;
-      ctx.beginPath();
-      ctx.roundRect(sx - 36, sy + r + 6, 72, 14, 4);
-      ctx.fill();
-      ctx.fillStyle = '#FFF';
-      ctx.font = 'bold 8px sans-serif';
-      ctx.fillText(badgeText, sx, sy + r + 16);
-    }
-  }
-
-  // ── Dead player markers ───────────────────────────────────────────────────────
-  for (const player of gs.players) {
-    if (player.isAlive) continue;
-    const sx = ws(player.pos.x);
-    const sy = hs(player.pos.y);
-    if (sx < -50 || sx > vw + 50 || sy < -50 || sy > vh + 50) continue;
-
-    ctx.fillStyle = 'rgba(100,100,100,0.6)';
-    ctx.beginPath();
-    ctx.arc(sx, sy, 12, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#999';
-    ctx.font = '12px serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('💀', sx, sy + 5);
-    ctx.fillStyle = '#AAA';
-    ctx.font = '8px sans-serif';
-    ctx.fillText(CHARACTERS[player.character].name, sx, sy + 22);
   }
 }
 
-function dist2(a: { x: number; y: number }, b: { x: number; y: number }): number {
-  const dx = a.x - b.x;
-  const dy = a.y - b.y;
-  return dx * dx + dy * dy;
+// ─── Alarm button / entrance ──────────────────────────────────────────────────
+
+function drawAlarmButton(ctx: CanvasRenderingContext2D, state: GameState): void {
+  if (state.meetingCooldown > 0) return;
+  const { x, y } = ENTRANCE_POS;
+  const t = Date.now() / 500;
+  const alpha = 0.5 + 0.5 * Math.sin(t);
+
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = '#FF5252';
+  ctx.beginPath();
+  ctx.arc(x, y - 10, ALARM_RADIUS * 0.4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  ctx.font = '12px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#fff';
+  ctx.fillText('🔔 Сходка', x, y + 6);
 }
 
-// Make dist available
-function dist(a: { x: number; y: number }, b: { x: number; y: number }): number {
-  return Math.sqrt(dist2(a, b));
+function drawEntrance(ctx: CanvasRenderingContext2D): void {
+  // Arch frame
+  ctx.fillStyle = '#A0522D';
+  ctx.fillRect(450, 810, 15, 90);
+  ctx.fillRect(735, 810, 15, 90);
+  ctx.fillStyle = '#8B4513';
+  ctx.fillRect(450, 810, 300, 8);
+}
+
+// ─── World UI ─────────────────────────────────────────────────────────────────
+
+function drawUI(ctx: CanvasRenderingContext2D, state: GameState, local: typeof state.players[number]): void {
+  // Stamina bar near local player (only when not full or sprinting)
+  const showStamina = local.isSprinting || local.stamina < 4.9;
+  if (showStamina) {
+    const { x, y } = local.pos;
+    const barW = 36; const barH = 5;
+    const bx = x - barW / 2; const by = y - 42;
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(bx - 1, by - 1, barW + 2, barH + 2);
+    ctx.fillStyle = local.isSprinting ? '#FFF176' : '#81D4FA';
+    ctx.fillRect(bx, by, (local.stamina / 5) * barW, barH);
+    ctx.font = '7px sans-serif';
+    ctx.fillStyle = '#FFD54F';
+    ctx.textAlign = 'center';
+    ctx.fillText('🏃', x, by - 2);
+  }
 }

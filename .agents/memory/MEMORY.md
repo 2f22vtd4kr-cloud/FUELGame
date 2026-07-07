@@ -1,1 +1,2 @@
 - [95-Y game architecture](game-architecture.md) — singleton `gs` mutated at 60fps; React HUD snapshots at 10Hz; no Zustand; Canvas 2D; bots tick inside game loop
+- [95-Y Vol1 mechanics](game-vol1-mechanics.md) — ambush/body/canister/siphon phases/sprint/crouch all implemented; key bugs fixed (body-report gating, vote reset, joystick overwrite, gurgle cleanup)

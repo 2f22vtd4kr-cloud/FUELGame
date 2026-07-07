@@ -3,6 +3,7 @@ import type { GameState } from './game/types';
 import { gs, resetGameState } from './game/state';
 import Lobby from './components/Lobby';
 import GameCanvas from './components/GameCanvas';
+import HUD from './components/HUD';
 import MeetingScreen from './components/MeetingScreen';
 import GameResults from './components/GameResults';
 
@@ -43,17 +44,21 @@ export default function App() {
         <Lobby onStart={handleGameStart} />
       )}
 
-      {/* ── Canvas (mounted while game is active, dims during meeting) ── */}
+      {/* ── Canvas (always mounted during active game) ── */}
       {(appPhase === 'play' || appPhase === 'meeting') && (
         <GameCanvas
-          onSnapshot={handleSnapshot}
-          dimCanvas={appPhase === 'meeting'}
+          onStateSnapshot={handleSnapshot}
         />
+      )}
+
+      {/* ── HUD overlay (play only) ── */}
+      {appPhase === 'play' && (
+        <HUD state={snapshot} />
       )}
 
       {/* ── Meeting overlay ── */}
       {appPhase === 'meeting' && snapshot.meeting && (
-        <MeetingScreen gs={snapshot} />
+        <MeetingScreen state={snapshot} />
       )}
 
       {/* ── Results screen ── */}

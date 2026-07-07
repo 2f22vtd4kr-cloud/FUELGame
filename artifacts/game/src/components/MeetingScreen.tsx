@@ -1,228 +1,401 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { GameState } from '../game/types';
+import { gs } from '../game/state';
+import { submitVote, triggerEmote } from '../game/logic';
 import { CHARACTERS } from '../data/characters';
-import { gs as gameState } from '../game/state';
-import { submitVote } from '../game/logic';
+import { audio } from '../game/audio';
 
-interface Props {
-  gs: GameState;
+interface MeetingScreenProps {
+  state: GameState;
 }
 
-export default function MeetingScreen({ gs }: Props) {
-  const m = gs.meeting;
-  const [hasVoted, setHasVoted] = useState(false);
+// ── Quick-chat phrases (§2.7.5 — 12 phrases) ──────────────────────────────
 
+const QUICK_CHAT = [
+  { text: 'Я был у шавермы!', emoji: '🌯' },
+  { text: 'Это не я!', emoji: '🙅' },
+  { text: 'Я выполнял задачу.', emoji: '✅' },
+  { text: 'Видел его у машин.', emoji: '🚗' },
+  { text: 'Почему молчишь?', emoji: '🤔' },
+  { text: 'Я видел канистру!', emoji: '🪣' },
+  { text: 'Алиби есть!', emoji: '📜' },
+  { text: 'Давайте пропустим.', emoji: '⏭️' },
+  { text: 'Это точно Сливщик!', emoji: '⚡' },
+  { text: 'Кто-то от меня ушёл.', emoji: '🏃' },
+  { text: 'Я в это не верю.', emoji: '🙄' },
+  { text: 'Подождём улик.', emoji: '🔍' },
+];
+
+const MEETING_REASON_TEXT: Record<string, string> = {
+  alarm:       'Созвано собрание',
+  body:        '💀 Обнаружено тело!',
+  drained_car: '🪣 Слив обнаружен!',
+};
+
+export default function MeetingScreen({ state }: MeetingScreenProps) {
+  const meeting = state.meeting;
+  if (!meeting) return null;
+
+  const [showQuickChat, setShowQuickChat] = useState(false);
+  const [myVote, setMyVote] = useState<string | 'skip' | null>(null);
+
+  // Reset local UI state whenever a new meeting starts
   useEffect(() => {
-    setHasVoted(false);
-  }, [m?.phase]);
+    setMyVote(null);
+    setShowQuickChat(false);
+  }, [meeting?.meetingId]);
 
-  if (!m) return null;
+  const localPlayer = state.players.find(p => p.id === state.localPlayerId);
+  const alive = state.players.filter(p => p.isAlive);
 
-  const localPlayer = gs.players.find(p => p.id === gs.localPlayerId);
-  const alivePlayers = gs.players.filter(p => p.isAlive);
-  const caller = gs.players.find(p => p.id === m.callerId);
-  const ejected = m.ejectedId ? gs.players.find(p => p.id === m.ejectedId) : null;
+  const handleVote = useCallback((targetId: string | null) => {
+    if (myVote !== null) return;
+    submitVote(state.localPlayerId, targetId);
+    setMyVote(targetId ?? 'skip');
+    audio.play('vote_cast');
+  }, [myVote, state.localPlayerId]);
 
-  const timerColor = m.timer < 10 ? '#F44336' : m.timer < 20 ? '#FFC107' : '#4CAF50';
+  const handleQuickChat = useCallback((phrase: string) => {
+    if (!gs.meeting) return;
+    const caller = state.players.find(p => p.id === state.localPlayerId);
+    gs.meeting.chatMessages.push({
+      playerId: state.localPlayerId,
+      playerName: caller?.name ?? '???',
+      text: phrase,
+      timestamp: Date.now(),
+    });
+    if (caller) triggerEmote(caller.id, '💬');
+    audio.play('ui_click');
+    setShowQuickChat(false);
+  }, [state.localPlayerId, state.players]);
 
-  function handleVote(targetId: string | null) {
-    if (hasVoted || m!.phase !== 'voting') return;
-    submitVote(gs.localPlayerId, targetId);
-    setHasVoted(true);
-  }
+  const getVotesFor = (playerId: string) =>
+    meeting.votes.filter(v => v.targetId === playerId).length;
 
-  const myVote = m.votes.find(v => v.voterId === gs.localPlayerId);
+  const caller = state.players.find(p => p.id === meeting.callerId);
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, zIndex: 50,
-      background: 'rgba(10,10,20,0.93)',
+      position: 'absolute', inset: 0,
+      background: 'linear-gradient(180deg, #0D0D1A 0%, #1A0A28 100%)',
       display: 'flex', flexDirection: 'column',
-      fontFamily: 'sans-serif',
-      overflowY: 'auto',
+      fontFamily: '"Segoe UI", Arial, sans-serif',
+      color: '#fff', zIndex: 20, overflow: 'hidden',
     }}>
-      {/* Header */}
-      <div style={{
-        padding: '16px 16px 8px',
-        background: 'linear-gradient(180deg, #1A1A2E, transparent)',
-        textAlign: 'center',
-      }}>
-        <div style={{ fontSize: 28, marginBottom: 4 }}>⚠️</div>
-        <div style={{ fontSize: 18, fontWeight: 'bold', color: '#FFF', letterSpacing: 1 }}>
-          СХОДКА
-        </div>
-        <div style={{ fontSize: 12, color: '#9E9E9E', marginTop: 2 }}>
-          {caller ? `${caller.name} вызвал(а) собрание` : 'Собрание созвано'}
-        </div>
 
-        {/* Phase + Timer */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 10 }}>
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      <div style={{
+        padding: '16px 20px 12px',
+        background: 'rgba(0,0,0,0.5)',
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      }}>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 'bold' }}>
+            {MEETING_REASON_TEXT[meeting.reason] ?? '📢 СХОДКА'}
+          </div>
+          <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
+            {caller?.name} созвал(а) собрание
+          </div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
           <div style={{
-            fontSize: 12, fontWeight: 'bold',
-            color: m.phase === 'discussion' ? '#64B5F6' : m.phase === 'voting' ? '#FFB74D' : '#EF9A9A',
-            background: 'rgba(255,255,255,0.08)',
-            padding: '4px 12px', borderRadius: 20,
+            fontSize: 24, fontWeight: 'bold',
+            color: meeting.timer < 10 ? '#FF5252' : '#FFD700',
           }}>
-            {m.phase === 'discussion' ? '💬 ОБСУЖДЕНИЕ' : m.phase === 'voting' ? '🗳️ ГОЛОСОВАНИЕ' : '📢 РЕЗУЛЬТАТ'}
+            {Math.ceil(meeting.timer)}с
           </div>
           <div style={{
-            fontSize: 22, fontWeight: 'bold', color: timerColor,
-            fontFamily: 'monospace',
-            minWidth: 50, textAlign: 'center',
+            fontSize: 10, color: '#aaa',
+            textTransform: 'uppercase', letterSpacing: 1,
           }}>
-            {Math.ceil(m.timer)}с
+            {meeting.phase === 'discussion' ? 'Обсуждение' :
+             meeting.phase === 'voting' ? 'Голосование' : 'Итог'}
           </div>
         </div>
       </div>
 
-      {/* REVEAL phase */}
-      {m.phase === 'reveal' && (
-        <div style={{
-          margin: '20px 16px',
-          background: ejected ? 'rgba(183,28,28,0.3)' : 'rgba(0,0,0,0.3)',
-          borderRadius: 16,
-          padding: '20px 16px',
-          textAlign: 'center',
-          border: `2px solid ${ejected ? '#EF5350' : '#555'}`,
-        }}>
-          {ejected ? (
-            <>
-              <div style={{ fontSize: 48, marginBottom: 8 }}>
-                {CHARACTERS[ejected.character].emoji}
-              </div>
-              <div style={{ fontSize: 16, color: '#FFF', fontWeight: 'bold', marginBottom: 8 }}>
-                {ejected.name} выброшен(а) из двора!
-              </div>
-              {m.ejectionText && (
-                <div style={{ fontSize: 13, color: '#BDBDBD', fontStyle: 'italic', lineHeight: 1.4 }}>
-                  "{m.ejectionText}"
-                </div>
-              )}
-              <div style={{ marginTop: 16, fontSize: 22, color: ejected.role === 'slivshchik' ? '#EF5350' : '#66BB6A' }}>
-                {ejected.role === 'slivshchik' ? '✅ Сливщик пойман!' : '❌ Это был невиновный...'}
-              </div>
-            </>
-          ) : (
-            <>
-              <div style={{ fontSize: 40 }}>🤷</div>
-              <div style={{ fontSize: 15, color: '#FFF', fontWeight: 'bold', marginTop: 8 }}>
-                {m.ejectionText}
-              </div>
-            </>
-          )}
-        </div>
-      )}
+      {/* ── Body ───────────────────────────────────────────────────────────── */}
+      <div style={{ flex: 1, display: 'flex', gap: 0, overflow: 'hidden', minHeight: 0 }}>
 
-      {/* Chat messages */}
-      {(m.phase === 'discussion' || m.phase === 'voting') && m.chatMessages.length > 0 && (
+        {/* Left: players grid */}
         <div style={{
-          margin: '8px 16px',
-          background: 'rgba(255,255,255,0.04)',
-          borderRadius: 12, padding: '8px 12px',
-          maxHeight: 140, overflowY: 'auto',
+          width: '55%', padding: '12px',
+          display: 'flex', flexDirection: 'column', gap: 8,
+          overflowY: 'auto',
         }}>
-          {m.chatMessages.map((msg, i) => {
-            const char = gs.players.find(p => p.id === msg.playerId);
-            const color = char ? CHARACTERS[char.character].color : '#FFF';
+          {alive.map(p => {
+            const charDef = CHARACTERS[p.character];
+            const votes = getVotesFor(p.id);
+            const isMine = p.id === state.localPlayerId;
+            const hasVoted = meeting.votes.some(v => v.voterId === state.localPlayerId);
+            const myVoteTarget = meeting.votes.find(v => v.voterId === state.localPlayerId);
+            const isMyTarget = myVoteTarget?.targetId === p.id;
+            const canVoteThis = !isMine && meeting.phase === 'voting' && !hasVoted;
+
             return (
-              <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 5, alignItems: 'flex-start' }}>
-                <div style={{ color, fontSize: 11, fontWeight: 'bold', whiteSpace: 'nowrap', minWidth: 60 }}>
-                  {msg.playerName}:
+              <div
+                key={p.id}
+                onClick={() => canVoteThis && handleVote(p.id)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '8px 12px', borderRadius: 10,
+                  background: isMyTarget
+                    ? 'rgba(229,57,53,0.3)'
+                    : isMine
+                    ? 'rgba(255,215,0,0.1)'
+                    : 'rgba(255,255,255,0.05)',
+                  border: `1px solid ${
+                    isMyTarget ? '#E53935' :
+                    isMine ? 'rgba(255,215,0,0.3)' :
+                    'rgba(255,255,255,0.08)'
+                  }`,
+                  cursor: canVoteThis ? 'pointer' : 'default',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {/* Avatar */}
+                <div style={{
+                  width: 34, height: 34, borderRadius: '50%',
+                  background: charDef.color,
+                  border: `2px solid ${isMine ? '#FFD700' : 'rgba(255,255,255,0.2)'}`,
+                  flexShrink: 0, display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', fontSize: 14,
+                }}>
+                  {charDef.emoji}
                 </div>
-                <div style={{ fontSize: 11, color: '#E0E0E0', lineHeight: 1.3 }}>{msg.text}</div>
+
+                {/* Name + role hint */}
+                <div style={{ flex: 1 }}>
+                  <div style={{
+                    fontSize: 13, fontWeight: 500,
+                    color: isMine ? '#FFD700' : '#fff',
+                  }}>
+                    {p.name} {isMine && '(ты)'}
+                  </div>
+                  {meeting.phase === 'reveal' && (
+                    <div style={{
+                      fontSize: 10,
+                      color: p.role === 'slivshchik' ? '#FF5252' : '#4CAF50',
+                    }}>
+                      {p.role === 'slivshchik' ? '🪣 Сливщик' : '🏠 Хозяин'}
+                    </div>
+                  )}
+                </div>
+
+                {/* Vote count chips */}
+                {votes > 0 && (
+                  <div style={{
+                    background: 'rgba(229,57,53,0.6)', color: '#fff',
+                    borderRadius: 10, padding: '2px 8px', fontSize: 11, fontWeight: 'bold',
+                  }}>
+                    {votes}
+                  </div>
+                )}
+
+                {/* Check/vote indicator */}
+                {meeting.votes.map(v => v.voterId).includes(p.id) && (
+                  <div style={{ fontSize: 10, color: '#aaa' }}>✓голос</div>
+                )}
               </div>
             );
           })}
+
+          {/* Dead players */}
+          {state.players.filter(p => !p.isAlive).map(p => {
+            const charDef = CHARACTERS[p.character];
+            return (
+              <div key={p.id} style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '6px 12px', borderRadius: 10,
+                background: 'rgba(0,0,0,0.2)',
+                border: '1px solid rgba(255,255,255,0.04)',
+                opacity: 0.5,
+              }}>
+                <div style={{
+                  width: 26, height: 26, borderRadius: '50%',
+                  background: charDef.color, opacity: 0.5,
+                  flexShrink: 0,
+                }} />
+                <div style={{ fontSize: 11, color: '#666', textDecoration: 'line-through' }}>
+                  {p.name}
+                </div>
+                <div style={{ fontSize: 10, color: '#555' }}>💀</div>
+              </div>
+            );
+          })}
+
+          {/* Skip vote button */}
+          {meeting.phase === 'voting' && !meeting.votes.some(v => v.voterId === state.localPlayerId) && (
+            <button
+              onClick={() => handleVote(null)}
+              style={{
+                marginTop: 4, padding: '8px', borderRadius: 8,
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                color: '#aaa', cursor: 'pointer', fontSize: 12,
+              }}
+            >
+              ⏭️ Пропустить
+            </button>
+          )}
         </div>
-      )}
 
-      {/* Player grid — voting targets */}
-      {(m.phase === 'discussion' || m.phase === 'voting') && (
-        <div style={{ margin: '8px 16px', flex: 1 }}>
-          <div style={{ fontSize: 11, color: '#9E9E9E', marginBottom: 8, textAlign: 'center' }}>
-            {m.phase === 'voting'
-              ? hasVoted ? `✅ Ты проголосовал(а)${myVote?.targetId ? ` за ${gs.players.find(p=>p.id===myVote.targetId)?.name}` : ' (пропуск)'}` : 'Выбери подозреваемого:'
-              : 'Обсуждение...'}
-          </div>
+        {/* Right: chat log + quick-chat */}
+        <div style={{
+          width: '45%', display: 'flex', flexDirection: 'column',
+          borderLeft: '1px solid rgba(255,255,255,0.06)',
+          overflow: 'hidden',
+        }}>
+          {/* Chat messages */}
           <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
-            gap: 8,
+            flex: 1, overflowY: 'auto', padding: '10px',
+            display: 'flex', flexDirection: 'column', gap: 6,
           }}>
-            {alivePlayers.map(player => {
-              const charDef = CHARACTERS[player.character];
-              const isSelf = player.id === gs.localPlayerId;
-              const votedFor = m.votes.find(v => v.targetId === player.id);
-              const voteCount = m.votes.filter(v => v.targetId === player.id).length;
-              const myVoteIsThis = myVote?.targetId === player.id;
-              const canVote = m.phase === 'voting' && !hasVoted && !isSelf && localPlayer?.isAlive;
-
+            {meeting.chatMessages.map((msg, i) => {
+              const sender = state.players.find(p => p.id === msg.playerId);
+              const charDef = sender ? CHARACTERS[sender.character] : null;
               return (
-                <button
-                  key={player.id}
-                  onClick={() => canVote && handleVote(player.id)}
-                  disabled={!canVote}
-                  style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center',
-                    gap: 4, padding: '8px 4px',
-                    background: myVoteIsThis
-                      ? 'rgba(244,67,54,0.3)'
-                      : 'rgba(255,255,255,0.06)',
-                    border: myVoteIsThis
-                      ? '2px solid #EF5350'
-                      : isSelf
-                      ? '2px solid rgba(255,215,0,0.4)'
-                      : '2px solid transparent',
-                    borderRadius: 10,
-                    cursor: canVote ? 'pointer' : 'default',
-                    opacity: isSelf ? 0.6 : 1,
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  <div style={{ fontSize: 24 }}>{charDef.emoji}</div>
+                <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
                   <div style={{
-                    fontSize: 9, color: '#FFF', fontWeight: 'bold',
-                    textAlign: 'center', lineHeight: 1.2,
+                    width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+                    background: charDef?.color ?? '#555',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 10,
                   }}>
-                    {player.name}
-                    {isSelf && ' (я)'}
+                    {charDef?.emoji ?? '?'}
                   </div>
-                  {voteCount > 0 && (
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 9, color: '#888' }}>{msg.playerName}</div>
                     <div style={{
-                      fontSize: 10, color: '#EF5350', fontWeight: 'bold',
-                      background: 'rgba(244,67,54,0.2)',
-                      borderRadius: 8, padding: '1px 6px',
+                      fontSize: 11, color: '#ddd',
+                      background: 'rgba(255,255,255,0.06)',
+                      padding: '3px 7px', borderRadius: 6, marginTop: 1,
                     }}>
-                      {voteCount}🗳️
+                      {msg.text}
                     </div>
-                  )}
-                </button>
+                  </div>
+                </div>
               );
             })}
           </div>
 
-          {/* Skip vote button */}
-          {m.phase === 'voting' && !hasVoted && localPlayer?.isAlive && (
-            <button
-              onClick={() => handleVote(null)}
-              style={{
-                width: '100%', marginTop: 10, padding: '10px',
-                background: 'rgba(255,255,255,0.08)',
-                border: '1.5px solid rgba(255,255,255,0.2)',
-                borderRadius: 10, color: '#9E9E9E', fontSize: 12,
-                cursor: 'pointer',
-              }}
-            >
-              ⏭️ Пропустить голосование
-            </button>
+          {/* Quick-chat panel */}
+          {meeting.phase === 'discussion' && (
+            <div style={{ padding: '8px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+              {!showQuickChat ? (
+                <button
+                  onClick={() => setShowQuickChat(true)}
+                  style={{
+                    width: '100%', padding: '8px', borderRadius: 8,
+                    background: 'rgba(99,102,241,0.3)',
+                    border: '1px solid rgba(99,102,241,0.5)',
+                    color: '#fff', cursor: 'pointer', fontSize: 12,
+                  }}
+                >
+                  💬 Быстрый чат
+                </button>
+              ) : (
+                <div>
+                  <div style={{
+                    fontSize: 9, color: '#aaa', marginBottom: 6, textAlign: 'center',
+                  }}>
+                    БЫСТРЫЕ ФРАЗЫ (§2.7.5)
+                  </div>
+                  <div style={{
+                    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4,
+                    maxHeight: 200, overflowY: 'auto',
+                  }}>
+                    {QUICK_CHAT.map((qc, i) => (
+                      <button
+                        key={i}
+                        onClick={() => handleQuickChat(qc.text)}
+                        style={{
+                          padding: '5px 6px', borderRadius: 6, fontSize: 9,
+                          background: 'rgba(255,255,255,0.07)',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          color: '#ddd', cursor: 'pointer', textAlign: 'left',
+                          display: 'flex', alignItems: 'center', gap: 4,
+                        }}
+                      >
+                        <span>{qc.emoji}</span>
+                        <span style={{ flex: 1 }}>{qc.text}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => setShowQuickChat(false)}
+                    style={{
+                      marginTop: 5, width: '100%', padding: '4px', fontSize: 9,
+                      background: 'transparent', border: 'none', color: '#888', cursor: 'pointer',
+                    }}
+                  >
+                    ✕ закрыть
+                  </button>
+                </div>
+              )}
+            </div>
           )}
+        </div>
+      </div>
+
+      {/* ── Reveal panel ─────────────────────────────────────────────────────── */}
+      {meeting.phase === 'reveal' && meeting.ejectedId !== null && meeting.ejectionText && (
+        <div style={{
+          padding: '16px 24px',
+          background: 'rgba(183,28,28,0.5)',
+          borderTop: '1px solid rgba(229,57,53,0.4)',
+          textAlign: 'center',
+        }}>
+          {(() => {
+            const ejected = state.players.find(p => p.id === meeting.ejectedId);
+            const charDef = ejected ? CHARACTERS[ejected.character] : null;
+            return (
+              <>
+                <div style={{ fontSize: 32, marginBottom: 6 }}>
+                  {charDef?.emoji ?? '💀'}
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 'bold', color: '#FF8A80' }}>
+                  {meeting.ejectionText}
+                </div>
+              </>
+            );
+          })()}
         </div>
       )}
 
-      {/* Vote tally (visible during voting) */}
-      {m.phase === 'voting' && m.votes.length > 0 && (
-        <div style={{ padding: '8px 16px', fontSize: 10, color: '#757575', textAlign: 'center' }}>
-          Проголосовало: {m.votes.length} / {alivePlayers.length}
+      {meeting.phase === 'reveal' && meeting.ejectedId === null && meeting.ejectionText && (
+        <div style={{
+          padding: '14px 24px',
+          background: 'rgba(33,33,33,0.7)',
+          borderTop: '1px solid rgba(255,255,255,0.08)',
+          textAlign: 'center', fontSize: 13, color: '#ccc',
+        }}>
+          {meeting.ejectionText}
+        </div>
+      )}
+
+      {/* ── Canisters evidence note ─────────────────────────────────────────── */}
+      {state.canisters.length > 0 && meeting.phase !== 'reveal' && (
+        <div style={{
+          padding: '6px 20px',
+          background: 'rgba(245,166,35,0.15)',
+          borderTop: '1px solid rgba(245,166,35,0.3)',
+          fontSize: 11, color: '#F5A623', textAlign: 'center',
+        }}>
+          🪣 Найдено {state.canisters.length} канистр(ы) — учитывайте при голосовании!
+        </div>
+      )}
+
+      {/* ── Bodies evidence note ─────────────────────────────────────────────── */}
+      {state.bodies.length > 0 && meeting.phase !== 'reveal' && (
+        <div style={{
+          padding: '6px 20px',
+          background: 'rgba(183,28,28,0.15)',
+          borderTop: '1px solid rgba(183,28,28,0.3)',
+          fontSize: 11, color: '#FF8A80', textAlign: 'center',
+        }}>
+          💀 Обнаружено {state.bodies.filter(b => b.reportedBy !== null).length} тел — кто рядом?
         </div>
       )}
     </div>
