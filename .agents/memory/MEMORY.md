@@ -7,3 +7,4 @@
 - [95-Y multiplayer](game-multiplayer.md) — WS at /api/ws; tickGameMulti 3-phase design avoids N× timer bugs; gameActions.ts proxy layer; room.ts handles disconnect/host-reassign
 - [95-Y Vol1 gaps](game-vol1-gaps.md) — match timer, neutral roles (barsik/cop/janitor), bot pipe-burst fix, skip-discussion majority, per-player stats, share card PNG, Барсик smaller circle
 - [95-Y audio and sprint](game-audio-sprint.md) — §8.1 music system + §8.2 12 new SFX; sprint is now a toggle (Shift key); music lifecycle wired to phase transitions in tickGame top-level guard
+- [95-Y Vol1 final gaps](game-vol1-gaps.md) — briefing atmospheric text + skip button; getMatchTitle §9.1; replayBuffer.ts §9.2 Backstab Moment capture/download; backstabMoment on GameState

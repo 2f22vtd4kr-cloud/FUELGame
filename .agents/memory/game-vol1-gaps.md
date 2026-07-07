@@ -1,53 +1,30 @@
 ---
-name: 95-Y Vol1 gap mechanics
-description: All Vol1 gap features implemented; now 20 tasks total, minimap, high contrast mode
+name: 95-Y Vol1 remaining gaps implementation
+description: What was implemented to close the final Vol 1 design-doc gaps
 ---
 
-## Features implemented
+## What was implemented (Vol 1 completion)
 
-### Match timer (§2.1)
-- `matchTimeLimit: number` on GameState (default 300s)
-- Counts down in tickGame play phase; Сливщики win on expiry
-- Task completion adds +30s (capped at 600s); HUD shows countdown, red at <60s
+### §2.1 Briefing cinematic text
+- App.tsx now shows atmospheric setting text ("ЖК «Цветочные Поляны». Лето 2026. АИ-95: 85₽/л. Кто-то сифонит ваши баки.") above the role card
+- Neutral role briefing block (barsik/policeman/janitor goal text in gold) shown inside the card when applicable
+- Skip button appears when `briefingTimer < 3` (2+ seconds elapsed from 5s total); calls `skipBriefing()` exported from logic.ts
+- `clearMoment()` called in `handlePlayAgain` to reset replay buffer
 
-### Skip discussion by majority (§2.7.4)
-- `skipDiscussionVotes: string[]` on MeetingState
-- `submitSkipDiscussion(voterId)` in logic.ts/gameActions.ts
-- MeetingScreen shows "⏭️ К голосованию" button + progress counter
+### §9.1 Per-match title
+- `getMatchTitle(player, winner, unityMeter, winReason)` function in GameResults.tsx
+- Contextual titles: Топливный Барон (>70% siphon + win), Строитель Двора (100% unity), Детектив ЖК (ejection win), Трудяга Двора (5+ tasks), Котик Двора (barsik), etc.
+- Title shown prominently on results screen (large gold text)
+- Title embedded in share card PNG between result headline and player stats
 
-### Neutral roles (§3.1.3)
-- `neutralRole`, `barsikMeowCooldown`, `canistersCollected` on Player
-- Barsik auto-meows near siphon; Участковый investigates bodies; Дворник collects canisters
-- HUD shows neutral role buttons + emoji on role badge
+### §9.2 Backstab Moment replay system
+- `replayBuffer.ts` — captures canvas to JPEG with watermark+label on `captureMoment(canvas, type)`, exposes `downloadMoment()`, `clearMoment()`, guarded with try/catch for tainted canvas
+- `GameState` gains `backstabMoment: 'catch_siphoner' | 'caught_siphoning' | 'dramatic_eject' | null` and `backstabMomentAcked: boolean`
+- `updateBackstabMoment()` (private) runs in tickGame play phase; exported as `checkBackstabMoment()` for multiplayer path
+- Detection: `catch_siphoner` = khozain within SIPHON_AUDIO_RADIUS of phase-2 siphon; `caught_siphoning` = slivshchik siphoning while another player nearby; `dramatic_eject` = local player ejected in resolveMeeting
+- `GameCanvas.tsx` detects when `gs.backstabMoment` transitions from null to non-null, calls `captureMoment(canvas, type)`; multiplayer path calls `checkBackstabMoment()` after applyLatestState
+- `HUD.tsx` shows animated "💥 БАКСТАБ МОМЕНТ!" toast with "💾 Скачать момент" and dismiss "✕" buttons; CSS backstabPulse animation
 
-### 20 tasks total (§2.5)
-Original 10: shawarma, intercom, trash, window, grandma, mailbox, pigeons, flowers, kvass, sweep
-Session-3 tasks: dog_walk, flower_match, drunk_calm, taxi_order
-Session-5 new tasks: help_bags, find_cat, fix_swing, water_lawn, check_meter, close_tap
-
-**Mini-game mappings for new tasks:**
-- help_bags → dog_walk (waypoints: 3 stops, 10s limit, uses DogWalk UI with 🛍️ icon)
-- find_cat → dog_walk (waypoints: 3 spots, 10s limit, uses DogWalk UI with 🐱 icon)
-- fix_swing → rapid_tap (8 taps, 6s)
-- water_lawn → rapid_tap (12 taps, 6s)
-- check_meter → sequence (4 digits, ascending order sort applied)
-- close_tap → dial (2 stops instead of default 3)
-
-**DogWalk UI is context-aware:** reads mg.defKey to show correct labels/icons for help_bags/find_cat vs dog_walk.
-
-### Minimap (§13.1)
-- `Minimap` React component in HUD.tsx, scaled to MAP_W×MAP_H
-- Position: `bottom: 148, left: 12` (above settings button, clears all other controls)
-- Shows: players (colored dots), local player (gold), cars, incomplete tasks (green dots), bodies (red badge), immunity tickets (gold dots)
-
-### High contrast mode (§13.1)
-- `highContrastMode: boolean` on GameState + gs init
-- Toggle in settings panel
-- Applied as `filter: contrast(1.15) brightness(1.05)` on HUD container + `data-hc` CSS hook
-
-## Sync notes
-- api-server types.ts/tasks.ts/map.ts/logic.ts all mirrored with same 20-task schema
-- Pre-existing api-server TS error (api-zod/dist not built) is unrelated to these changes
-- api-server logic.ts uses same defKey-based config for fix_swing/water_lawn/close_tap/check_meter
-
-**Why:** Remaining Vol1 gap features needed to reach full doc alignment before moving to Vol2.
+## Known limitations
+- Backstab detection uses proximity (SIPHON_AUDIO_RADIUS, 280px) not raycasting line-of-sight; this is intentional (matches the §13.1 audio indicator range — if you hear it, it's a moment)
+- `dramatic_eject` only fires for the local player being ejected, not for witnessing others ejected

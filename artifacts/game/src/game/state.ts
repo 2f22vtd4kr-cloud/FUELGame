@@ -46,6 +46,8 @@ export function createInitialState(): GameState {
     textSize: 'medium',
     simplifiedChatWheel: false,
     tutorialStep: 0,
+    backstabMoment: null,
+    backstabMomentAcked: false,
   };
 }
 

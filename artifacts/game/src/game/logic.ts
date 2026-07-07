@@ -15,6 +15,7 @@ import {
   IMMUNITY_TICKET_DURATION,
   KHOZAIN_LOCK_DURATION, KHOZAIN_LOCK_COOLDOWN, KHOZAIN_LOCK_HOLD_TIME,
   BOT_DIFFICULTY_SETTINGS,
+  SIPHON_AUDIO_RADIUS,
 } from './types';
 import { TASK_DEFS } from '../data/tasks';
 import {
@@ -187,6 +188,7 @@ export function tickGame(dt: number, input: InputState): void {
     updateEmotes(dt);
     updateNeutralMechanics(dt);
     updateTutorial(dt);
+    updateBackstabMoment();
     checkWinConditions();
   } else if (gs.phase === 'meeting') {
     if (gs.meeting) tickMeeting(dt);
@@ -1758,6 +1760,10 @@ function resolveMeeting(): void {
       const isSlivshchik = ejected.role === 'slivshchik';
       m.ejectionText = getEjectionText(ejected.character, isSlivshchik);
       audio.play('ejection');
+      // §9.2 Backstab Moment: local player being ejected is dramatic
+      if (ejectedId === gs.localPlayerId && !gs.backstabMoment) {
+        gs.backstabMoment = 'dramatic_eject';
+      }
     }
   } else {
     m.ejectionText = 'Ничья! Никто не выброшен. Двор продолжает страдать.';
@@ -1960,6 +1966,53 @@ export function triggerEmote(playerId: string, emote: string): void {
 
 // §2.2 Emote constants (4 quick emotes for the play-phase wheel)
 export const PLAY_EMOTES = ['👋', '🤔', '🚨', '😂'] as const;
+
+// ─── §9.2 Backstab Moment detection ──────────────────────────────────────────
+
+function updateBackstabMoment(): void {
+  // Only detect once per match; don't overwrite
+  if (gs.backstabMoment) return;
+
+  const localPlayer = gs.players.find(p => p.id === gs.localPlayerId);
+  if (!localPlayer || !localPlayer.isAlive) return;
+
+  // catch_siphoner: local Хозяин hears an active siphon (phase 2) nearby
+  if (localPlayer.role === 'khozain') {
+    for (const car of gs.cars) {
+      if (car.siphonPhase === 2 && car.siphoner && car.siphoner !== gs.localPlayerId) {
+        const siphoner = gs.players.find(p => p.id === car.siphoner);
+        if (siphoner && dist(siphoner.pos, localPlayer.pos) < SIPHON_AUDIO_RADIUS) {
+          gs.backstabMoment = 'catch_siphoner';
+          return;
+        }
+      }
+    }
+  }
+
+  // caught_siphoning: local Сливщик is actively draining while another player is nearby
+  if (localPlayer.role === 'slivshchik') {
+    const myCar = gs.cars.find(c => c.siphoner === gs.localPlayerId && c.siphonPhase === 2);
+    if (myCar) {
+      for (const other of gs.players) {
+        if (other.id === gs.localPlayerId || !other.isAlive) continue;
+        if (dist(other.pos, localPlayer.pos) < SIPHON_AUDIO_RADIUS) {
+          gs.backstabMoment = 'caught_siphoning';
+          return;
+        }
+      }
+    }
+  }
+}
+
+/** §9.2 Public alias — run backstab detection outside the single-player tick (e.g. multiplayer) */
+export function checkBackstabMoment(): void {
+  updateBackstabMoment();
+}
+
+/** §2.1 Allow player to skip the briefing countdown after 2 seconds */
+export function skipBriefing(): void {
+  if (gs.phase === 'briefing') gs.briefingTimer = 0;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

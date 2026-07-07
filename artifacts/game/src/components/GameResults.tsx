@@ -1,19 +1,59 @@
 import React, { useRef } from 'react';
-import type { GameState } from '../game/types';
+import type { GameState, Player } from '../game/types';
 import { CHARACTERS } from '../data/characters';
-import { resetGameState } from '../game/state';
 
 interface Props {
   gs: GameState;
   onPlayAgain: () => void;
 }
 
+// ─── §9.1 Per-match title generation ─────────────────────────────────────────
+function getMatchTitle(
+  player: Player | undefined,
+  winner: string | null,
+  unityMeter: number,
+  winReason: string,
+): string {
+  if (!player) return '👀 Наблюдатель';
+
+  const iWon = (winner === 'khozaeva' && player.role === 'khozain') ||
+               (winner === 'slivshchiki' && player.role === 'slivshchik');
+
+  if (player.neutralRole === 'barsik') return '🐱 Котик Двора';
+  if (player.neutralRole === 'janitor') {
+    return player.canistersCollected >= 3 ? '🧹 Чемпион Чистоты' : '🧹 Дворник Года';
+  }
+  if (player.neutralRole === 'policeman') return '🕵️ Участковый Года';
+
+  if (player.role === 'slivshchik') {
+    if (iWon) {
+      if (player.fuelSiphoned >= 70) return '⛽ Топливный Барон';
+      if (!player.isAlive) return '🪣 Мученик Слива';
+      return '🪣 Мастер Слива';
+    } else {
+      if (!player.isAlive) return '🪤 Попался с Канистрой';
+      return '🚨 Жертва Сходки';
+    }
+  }
+
+  // khozain
+  if (iWon) {
+    if (unityMeter >= 99) return '🏗️ Строитель Двора';
+    if (player.tasksCompleted >= 5) return '💪 Трудяга Двора';
+    if (winReason.includes('Сливщик') || winReason.includes('выкинул')) return '🔍 Детектив ЖК';
+    return '🏠 Страж Двора';
+  } else {
+    if (!player.isAlive) return '💀 Жертва Слива';
+    return '⛽ Пустой Бак';
+  }
+}
+
 export default function GameResults({ gs, onPlayAgain }: Props) {
-  const shareCanvasRef = useRef<HTMLCanvasElement>(null);
   const localPlayer = gs.players.find(p => p.id === gs.localPlayerId);
   const myRole = localPlayer?.role ?? 'khozain';
   const iWon = (gs.winner === 'khozaeva' && myRole === 'khozain') ||
                (gs.winner === 'slivshchiki' && myRole === 'slivshchik');
+  const matchTitle = getMatchTitle(localPlayer, gs.winner, gs.unityMeter, gs.winReason);
 
   const slivshchiki = gs.players.filter(p => p.role === 'slivshchik');
 
@@ -77,25 +117,32 @@ export default function GameResults({ gs, onPlayAgain }: Props) {
     if (localPlayer) {
       ctx.fillStyle = 'rgba(255,255,255,0.1)';
       ctx.beginPath();
-      ctx.roundRect(80, 590, 920, 140, 20);
+      ctx.roundRect(80, 570, 920, 200, 20);
       ctx.fill();
+
+      // §9.1 Match title (prominent)
+      ctx.fillStyle = iWon ? '#FFD700' : '#FF8A80';
+      ctx.font = 'bold 44px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(matchTitle, 540, 630);
+
       ctx.fillStyle = '#FFD700';
-      ctx.font = 'bold 32px sans-serif';
+      ctx.font = 'bold 30px sans-serif';
       ctx.textAlign = 'left';
-      ctx.fillText(`${localPlayer.name} — ${localPlayer.role === 'slivshchik' ? '🪣 Сливщик' : '🏠 Хозяин'}`, 120, 660);
+      ctx.fillText(`${localPlayer.name} — ${localPlayer.role === 'slivshchik' ? '🪣 Сливщик' : '🏠 Хозяин'}`, 120, 695);
       ctx.fillStyle = '#ccc';
-      ctx.font = '28px sans-serif';
-      ctx.fillText(`Топлива слито: ${Math.round(localPlayer.fuelSiphoned)}% | Задач: ${localPlayer.tasksCompleted}`, 120, 710);
+      ctx.font = '26px sans-serif';
+      ctx.fillText(`Топлива слито: ${Math.round(localPlayer.fuelSiphoned)}% | Задач: ${localPlayer.tasksCompleted}`, 120, 740);
     }
 
     // CTA
     ctx.fillStyle = '#FFD700';
-    ctx.font = 'bold 48px sans-serif';
+    ctx.font = 'bold 44px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('→ @fuel_fuel_fuel_bot', 540, 880);
+    ctx.fillText('→ @fuel_fuel_fuel_bot', 540, 890);
     ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.font = '32px sans-serif';
-    ctx.fillText('Играй в 95-Й Бакстаб | АИ-95 уже 87₽', 540, 940);
+    ctx.font = '30px sans-serif';
+    ctx.fillText('Играй в 95-Й Бакстаб | АИ-95 уже 87₽', 540, 945);
 
     // Download
     const link = document.createElement('a');
@@ -114,7 +161,7 @@ export default function GameResults({ gs, onPlayAgain }: Props) {
       overflowY: 'auto', fontFamily: 'sans-serif', padding: '24px 16px',
     }}>
       {/* Result headline */}
-      <div style={{ fontSize: 60, marginBottom: 8 }}>
+      <div style={{ fontSize: 56, marginBottom: 6 }}>
         {iWon ? '🏆' : '💀'}
       </div>
       <div style={{
@@ -123,10 +170,22 @@ export default function GameResults({ gs, onPlayAgain }: Props) {
       }}>
         {iWon ? 'ПОБЕДА!' : 'ПОРАЖЕНИЕ'}
       </div>
-      <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', textAlign: 'center', marginBottom: 4 }}>
+
+      {/* §9.1 Per-match title */}
+      <div style={{
+        fontSize: 18, fontWeight: 'bold',
+        color: iWon ? '#FFD700' : '#FF8A80',
+        textAlign: 'center', marginBottom: 4,
+        letterSpacing: 1,
+        textShadow: iWon ? '0 0 16px rgba(255,215,0,0.5)' : '0 0 16px rgba(255,100,50,0.4)',
+      }}>
+        {matchTitle}
+      </div>
+
+      <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', textAlign: 'center', marginBottom: 4 }}>
         {gs.winner === 'khozaeva' ? '🏠 Хозяева победили' : '🪣 Сливщики победили'}
       </div>
-      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', textAlign: 'center', marginBottom: 20, fontStyle: 'italic' }}>
+      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textAlign: 'center', marginBottom: 20, fontStyle: 'italic' }}>
         {gs.winReason}
       </div>
 
@@ -274,8 +333,7 @@ export default function GameResults({ gs, onPlayAgain }: Props) {
         🎮 СЫГРАТЬ ЕЩЁ
       </button>
 
-      {/* Hidden share canvas */}
-      <canvas ref={shareCanvasRef} style={{ display: 'none' }} />
+      {/* Hidden share canvas — generated dynamically in generateShareCard() */}
     </div>
   );
 }

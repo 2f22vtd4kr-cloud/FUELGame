@@ -3,6 +3,8 @@ import type { GameState } from './game/types';
 import { gs, resetGameState } from './game/state';
 import { CHARACTERS } from './data/characters';
 import { setActiveNetwork } from './game/gameActions';
+import { skipBriefing } from './game/logic';
+import { clearMoment } from './game/replayBuffer';
 import { GameNetwork } from './game/network';
 import { audio } from './game/audio';
 import Lobby from './components/Lobby';
@@ -78,6 +80,7 @@ export default function App() {
     setMyPlayerId(null);
     setMultiDisconnected(false);
     resetGameState();
+    clearMoment();
     audio.stopMusic();
     audio.playMusic('menu');
     setAppPhase('lobby');
@@ -128,48 +131,88 @@ export default function App() {
       {appPhase === 'briefing' && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 50,
-          background: 'rgba(0,0,0,0.88)',
+          background: 'rgba(0,0,0,0.92)',
           display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
-          fontFamily: 'sans-serif',
+          fontFamily: 'sans-serif', gap: 14,
           animation: 'fadeInBriefing 0.4s ease',
+          overflowY: 'auto', padding: '16px',
         }}>
+          {/* §2.1 Atmospheric setting text */}
+          <div style={{
+            textAlign: 'center', maxWidth: 320,
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 12, padding: '12px 18px',
+          }}>
+            <div style={{ fontSize: 11, color: '#76C043', letterSpacing: 2, marginBottom: 4 }}>
+              ЖК «ЦВЕТОЧНЫЕ ПОЛЯНЫ»
+            </div>
+            <div style={{ fontSize: 10, color: '#888', marginBottom: 6 }}>
+              Лето 2026 · АИ-95: {snapshot.ai95Price}₽/л
+            </div>
+            <div style={{ fontSize: 13, color: '#e0e0e0', lineHeight: 1.6, fontStyle: 'italic' }}>
+              «Кто-то сифонит ваши баки.»
+            </div>
+          </div>
+
+          {/* Role card */}
           <div style={{
             background: roleIsSlivshchik
               ? 'linear-gradient(160deg,#1a0000 0%,#3b0000 100%)'
               : 'linear-gradient(160deg,#001b0d 0%,#003820 100%)',
             border: `2px solid ${roleIsSlivshchik ? '#FF1744' : '#00E676'}`,
-            borderRadius: 16, padding: '32px 40px',
-            textAlign: 'center', maxWidth: 340,
+            borderRadius: 16, padding: '24px 32px',
+            textAlign: 'center', maxWidth: 320, width: '100%',
             boxShadow: `0 0 60px ${roleIsSlivshchik ? 'rgba(255,23,68,0.35)' : 'rgba(0,230,118,0.25)'}`,
           }}>
             <div style={{
-              width: 64, height: 64, borderRadius: '50%',
+              width: 56, height: 56, borderRadius: '50%',
               background: charDef?.color ?? '#888',
-              margin: '0 auto 16px',
+              margin: '0 auto 12px',
               border: `3px solid ${roleIsSlivshchik ? '#FF1744' : '#00E676'}`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 28,
+              fontSize: 24,
             }}>
               {roleIsSlivshchik ? '🪣' : '🏠'}
             </div>
 
             <div style={{
-              fontSize: 11, letterSpacing: 3, marginBottom: 8,
+              fontSize: 11, letterSpacing: 3, marginBottom: 6,
               color: roleIsSlivshchik ? '#FF5252' : '#69F0AE',
             }}>
               ВЫ — {roleIsSlivshchik ? 'СЛИВЩИК' : 'ХОЗЯИН'}
             </div>
 
-            <div style={{ fontSize: 22, fontWeight: 900, marginBottom: 12, color: '#fff' }}>
+            <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 10, color: '#fff' }}>
               {localGsPlayer?.name ?? ''}
             </div>
 
-            <div style={{ fontSize: 12, color: '#ccc', lineHeight: 1.6, marginBottom: 20 }}>
+            <div style={{ fontSize: 12, color: '#ccc', lineHeight: 1.6, marginBottom: 14 }}>
               {roleIsSlivshchik
                 ? 'Слей бензин из машин соседей.\nНе попадись. Устраняй свидетелей.'
-                : 'Следи за машинами. Вычисли Сливщика.\nСообщай на Сходке.'}
+                : 'Следи за машинами. Вычисли Сливщика.\nЗаполни метр единства до 100%.'}
             </div>
+
+            {/* §3.1.3 Neutral role text */}
+            {localGsPlayer?.neutralRole && (
+              <div style={{
+                background: 'rgba(255,200,0,0.12)',
+                border: '1px solid rgba(255,200,0,0.35)',
+                borderRadius: 8, padding: '8px 10px',
+                fontSize: 11, color: '#FFD700', lineHeight: 1.6, marginBottom: 12,
+              }}>
+                {localGsPlayer.neutralRole === 'barsik' && (
+                  <>😺 <strong>БАРСИК</strong> — выживи до конца матча. Тебя никто не проголосует.</>
+                )}
+                {localGsPlayer.neutralRole === 'policeman' && (
+                  <>🕵️ <strong>УЧАСТКОВЫЙ</strong> — правильно проголосуй за Сливщика на Сходке.</>
+                )}
+                {localGsPlayer.neutralRole === 'janitor' && (
+                  <>🧹 <strong>ДВОРНИК</strong> — собери 3 канистры, брошенные Сливщиками.</>
+                )}
+              </div>
+            )}
 
             <div style={{
               background: 'rgba(255,255,255,0.07)', borderRadius: 8,
@@ -177,14 +220,33 @@ export default function App() {
               textAlign: 'left', lineHeight: 1.8,
             }}>
               <div>🕹️ WASD / стрелки — движение</div>
-              <div>⚡ Shift — спринт</div>
+              <div>⚡ Shift — спринт (переключатель)</div>
               <div>🦆 Ctrl / Z — пригнуться</div>
               <div>🔔 E — взаимодействие / слив</div>
             </div>
           </div>
 
-          <div style={{ marginTop: 24, fontSize: 14, color: '#666', letterSpacing: 2 }}>
-            ИГРА НАЧНЁТСЯ ЧЕРЕЗ {Math.ceil(snapshot.briefingTimer || 0)}с...
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 13, color: '#555', letterSpacing: 2, marginBottom: 10 }}>
+              {snapshot.briefingTimer > 0
+                ? `ИГРА НАЧНЁТСЯ ЧЕРЕЗ ${Math.ceil(snapshot.briefingTimer)}с...`
+                : 'ЗАГРУЖАЕМ ДВОР...'}
+            </div>
+            {/* §2.1 Skip button — appears 2s after briefing starts (briefingTimer < 3) */}
+            {(snapshot.briefingTimer < 3) && (
+              <button
+                onClick={() => skipBriefing()}
+                style={{
+                  padding: '8px 24px',
+                  background: 'rgba(255,255,255,0.08)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  borderRadius: 20, fontSize: 11,
+                  color: '#aaa', cursor: 'pointer', letterSpacing: 1,
+                }}
+              >
+                ▶ Пропустить
+              </button>
+            )}
           </div>
         </div>
       )}

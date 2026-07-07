@@ -1,10 +1,11 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import type { InputState } from '../game/types';
 import { gs } from '../game/state';
-import { tickGame } from '../game/logic';
+import { tickGame, checkBackstabMoment } from '../game/logic';
 import { triggerEmote } from '../game/gameActions';
 import { renderGame } from '../game/renderer';
 import { audio } from '../game/audio';
+import { captureMoment } from '../game/replayBuffer';
 import type { GameNetwork } from '../game/network';
 import VirtualJoystick from './VirtualJoystick';
 
@@ -36,6 +37,7 @@ export default function GameCanvas({ onStateSnapshot, network, myPlayerId }: Gam
   const touchSprintRef = useRef(false);   // mobile toggle state
   const touchCrouchRef = useRef(false);
   const sprintToggleRef = useRef(false);  // keyboard sprint toggle state
+  const prevBackstabMomentRef = useRef<string | null>(null); // §9.2 frame capture
 
   const [showEmoteWheel, setShowEmoteWheel] = useState(false);
 
@@ -119,12 +121,24 @@ export default function GameCanvas({ onStateSnapshot, network, myPlayerId }: Gam
 
         // After applying server state, restore our localPlayerId
         if (myPlayerId) gs.localPlayerId = myPlayerId;
+
+        // §9.2 Run backstab detection on the multiplayer path too
+        // (single-player path runs it inside tickGame → updateBackstabMoment)
+        if (gs.phase === 'play') checkBackstabMoment();
       } else {
         // ── Single-player mode ────────────────────────────────────────────
         tickGame(dt, inp);
       }
 
       renderGame(ctx, gs, canvas!.width, canvas!.height);
+
+      // §9.2 Backstab Moment: capture canvas when a dramatic moment is first detected
+      if (gs.backstabMoment && gs.backstabMoment !== prevBackstabMomentRef.current) {
+        prevBackstabMomentRef.current = gs.backstabMoment;
+        captureMoment(canvas!, gs.backstabMoment);
+      } else if (!gs.backstabMoment && prevBackstabMomentRef.current) {
+        prevBackstabMomentRef.current = null; // reset for next match
+      }
 
       // 10Hz HUD snapshot
       accRef.current += dt;

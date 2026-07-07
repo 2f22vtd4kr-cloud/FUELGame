@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { GameState, SabotageKey } from '../game/types';
+import { downloadMoment, getMomentDataUrl } from '../game/replayBuffer';
 import { SPRINT_MAX, SABOTAGE_LABELS, SABOTAGE_COOLDOWNS, SABOTAGE_DURATIONS, SIPHON_AUDIO_RADIUS } from '../game/types';
 import { NEWS_HEADLINES } from '../data/ticker';
 import { CHARACTERS } from '../data/characters';
@@ -932,6 +933,56 @@ export default function HUD({ state }: HUDProps) {
         </button>
       </div>
 
+      {/* ── §9.2 Backstab Moment toast ── */}
+      {state.backstabMoment && !state.backstabMomentAcked && (
+        <div style={{
+          position: 'absolute', top: 70, left: '50%', transform: 'translateX(-50%)',
+          background: 'rgba(0,0,0,0.93)',
+          border: '2px solid #FF1744',
+          borderRadius: 14, padding: '12px 16px',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+          zIndex: 120, pointerEvents: 'all',
+          minWidth: 240, maxWidth: 300,
+          boxShadow: '0 4px 28px rgba(255,23,68,0.45)',
+          animation: 'backstabPulse 0.6s ease-in-out',
+        }}>
+          <div style={{ fontSize: 15, fontWeight: 'bold', color: '#FF1744', letterSpacing: 1 }}>
+            💥 БАКСТАБ МОМЕНТ!
+          </div>
+          <div style={{ fontSize: 10, color: '#bbb', textAlign: 'center' }}>
+            {state.backstabMoment === 'catch_siphoner'   && 'Ты поймал Сливщика за сливом!'}
+            {state.backstabMoment === 'caught_siphoning' && 'Тебя застукали во время слива!'}
+            {state.backstabMoment === 'dramatic_eject'   && 'Тебя выбросили из двора!'}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {getMomentDataUrl() && (
+              <button
+                onClick={() => { downloadMoment(); gs.backstabMomentAcked = true; }}
+                style={{
+                  padding: '6px 14px', borderRadius: 8,
+                  background: '#FF1744', border: 'none',
+                  color: '#fff', fontSize: 11, fontWeight: 'bold',
+                  cursor: 'pointer',
+                }}
+              >
+                💾 Скачать момент
+              </button>
+            )}
+            <button
+              onClick={() => { gs.backstabMomentAcked = true; }}
+              style={{
+                padding: '6px 12px', borderRadius: 8,
+                background: 'rgba(255,255,255,0.08)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                color: '#888', fontSize: 11, cursor: 'pointer',
+              }}
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── §10.2 Immunity Ticket HUD badge ── */}
       {localPlayer.hasImmunityTicket && (
         <div style={{
@@ -954,6 +1005,11 @@ export default function HUD({ state }: HUDProps) {
         @keyframes siphonPulse {
           from { opacity: 0.6; }
           to { opacity: 1; }
+        }
+        @keyframes backstabPulse {
+          0%   { transform: translateX(-50%) scale(0.85); opacity: 0; }
+          60%  { transform: translateX(-50%) scale(1.05); opacity: 1; }
+          100% { transform: translateX(-50%) scale(1);    opacity: 1; }
         }
         [data-hc="1"] {
           text-shadow: 0 0 4px #000, 0 1px 3px #000 !important;

@@ -401,6 +401,9 @@ export interface GameState {
   simplifiedChatWheel: boolean;
   // §12.4 Tutorial
   tutorialStep: number; // 0=off, 1=go_shawarma, 2=near_shawarma, 3=done
+  // §9.2 Backstab Moment detection
+  backstabMoment: 'catch_siphoner' | 'caught_siphoning' | 'dramatic_eject' | null;
+  backstabMomentAcked: boolean; // true once player has saved/dismissed
 }
 
 // ─── Input ────────────────────────────────────────────────────────────────────
