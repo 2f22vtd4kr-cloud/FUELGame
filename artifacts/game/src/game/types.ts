@@ -3,7 +3,7 @@
 export type Phase = 'lobby' | 'briefing' | 'play' | 'meeting' | 'results';
 export type Role = 'khozain' | 'slivshchik';
 export type NeutralRole = 'barsik' | 'policeman' | 'janitor';
-export type BotBehavior = 'idle' | 'moving' | 'interacting' | 'fleeing' | 'at_meeting' | 'fake_task' | 'fix_sabotage';
+export type BotBehavior = 'idle' | 'moving' | 'interacting' | 'fleeing' | 'at_meeting' | 'fake_task' | 'fix_sabotage' | 'follow_suspicious';
 
 export interface Vec2 { x: number; y: number; }
 

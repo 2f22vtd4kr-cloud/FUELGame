@@ -68,6 +68,16 @@ function updateKhozainBot(bot: Player, dt: number): void {
   decaySuspicion(bot, dt);
   const diff = BOT_DIFFICULTY_SETTINGS[gs.botDifficulty];
 
+  // §4.3 Safety: flush stale follow_suspicious state before any high-priority branch can
+  // return early without seeing the follow handler (avoids botCarId/botState desync).
+  if (bot.botState === 'follow_suspicious') {
+    const stillValid = gs.players.some(p => p.id === bot.botCarId && p.isAlive);
+    if (!stillValid || bot.botCooldown <= 0) {
+      bot.botState = 'idle';
+      bot.botCarId = null;
+    }
+  }
+
   // 0. Fix pipe_burst sabotage — highest priority for khozain bots
   const pipeBurst = gs.activeSabotages.find(s => s.key === 'pipe_burst' && !s.isResolved);
   if (pipeBurst) {
@@ -103,6 +113,7 @@ function updateKhozainBot(bot: Player, dt: number): void {
   );
   if (nearSiphoner) {
     bot.botState = 'fleeing';
+    bot.botCarId = null;   // abandon any follow target — fleeing takes over
     // §4.3 Raise suspicion on slivshchik who was seen near the bot
     raiseSuspicion(bot, nearSiphoner.id, 0.15 * dt);
     const awayX = bot.pos.x - nearSiphoner.pos.x;
@@ -198,6 +209,48 @@ function updateKhozainBot(bot: Player, dt: number): void {
     if (p.character === 'uncle_seryozha' && p.isAlive && p.id !== bot.id) {
       bot.suspicion[p.id] = Math.max(0, (bot.suspicion[p.id] ?? 0) - 0.05 * dt);
     }
+  }
+
+  // §4.3 Follow suspicious player (40% chance when idle and a suspect is near a drained car)
+  if (bot.botState === 'idle' && bot.botCooldown <= 0) {
+    const nearDrained = gs.cars.find(c => c.fuel < 20);
+    if (nearDrained) {
+      // Find a living suspect with elevated suspicion who is near the drained car and near this bot
+      const suspect = gs.players.find(p =>
+        p.id !== bot.id && p.isAlive &&
+        dist(bot.pos, p.pos) < 180 &&
+        (bot.suspicion[p.id] ?? 0) > 0.20 &&
+        dist(p.pos, nearDrained.pos) < 230
+      );
+      if (suspect && Math.random() < 0.40) {
+        bot.botState = 'follow_suspicious';
+        bot.botCarId = suspect.id;   // repurpose botCarId as follow-target player id
+        bot.botCooldown = 5;         // follow for up to 5 seconds
+      }
+    }
+  }
+
+  // §4.3 Execute follow behavior
+  if (bot.botState === 'follow_suspicious') {
+    const suspect = gs.players.find(p => p.id === bot.botCarId && p.isAlive);
+    if (!suspect || bot.botCooldown <= 0) {
+      bot.botState = 'idle';
+      bot.botCarId = null;
+      return;
+    }
+    moveBot(bot, suspect.pos, dt);
+    // If suspect approaches a viable siphon target during the follow: call meeting
+    const suspectNearCar = gs.cars.find(c =>
+      c.fuel > 15 && !c.hasImmunity && !c.siphoner &&
+      dist(suspect.pos, c.pos) < SIPHON_RADIUS + 40
+    );
+    if (suspectNearCar && gs.meetingCooldown <= 0) {
+      raiseSuspicion(bot, suspect.id, 0.35);
+      callMeeting(bot.id, 'alarm');
+      bot.botState = 'idle';
+      bot.botCarId = null;
+    }
+    return;
   }
 
   // 4. Pick up a canister (evidence)
@@ -435,12 +488,29 @@ function updateSlivshchikBot(bot: Player, dt: number): void {
     if (bot.siphonCooldown > 0) { randomWander(bot, dt); return; }
     // §2.9 Pipe burst: cars are flooded and inaccessible for all players
     if (isSabotageActive('pipe_burst')) { randomWander(bot, dt); return; }
-    let best = null; let bestDist = Infinity;
-    for (const car of gs.cars) {
-      if (car.fuel <= 0 || car.hasImmunity || car.siphoner) continue;
-      const d = dist(bot.pos, car.pos);
-      if (d < bestDist) { bestDist = d; best = car; }
+
+    const viableCars = gs.cars.filter(c => c.fuel > 0 && !c.hasImmunity && !c.siphoner);
+
+    // §4.2 Nightmare: stalk the human player — prioritise the car nearest to them
+    let best = null;
+    if (gs.botDifficulty === 'nightmare') {
+      const human = gs.players.find(p => p.isHuman && p.isAlive);
+      if (human && viableCars.length > 0) {
+        best = viableCars.reduce((a, b) =>
+          dist(human.pos, a.pos) < dist(human.pos, b.pos) ? a : b
+        );
+      }
     }
+
+    // Default: pick nearest viable car to this bot
+    if (!best) {
+      let bestDist = Infinity;
+      for (const car of viableCars) {
+        const d = dist(bot.pos, car.pos);
+        if (d < bestDist) { bestDist = d; best = car; }
+      }
+    }
+
     if (best) { bot.botCarId = best.id; bot.botState = 'moving'; }
     else { randomWander(bot, dt); return; }
   }

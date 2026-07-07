@@ -50,7 +50,7 @@ const EJECTED_AS_INNOCENT: Partial<Record<string, string>> = {
   denis:         'Денис не был Сливщиком. Но его выкинули, потому что он сказал «Смена горит» в третий раз.',
   anya:          'Аня не была Сливщицей. Она просто любила каршеринг.',
   vova:          'Вова не был Сливщиком. Он просто хотел внимания.',
-  uncle_seryozha:'Дядя Серёжа не был Сливщиком. У него и так талоны. Зачем ему сливать?',
+  uncle_seryozha:'Дядя Серёжа не был Сливщиком. У него и так талоны. Зачем ему сливать? → @fuel_fuel_fuel_bot',
   petrovich:     'Петрович не был Сливщиком. Он чинил всем машины. Бесплатно. Подозрительно.',
   marina:        'Марина не была Сливщицей. Она снимала контент, а не сливала.',
   akhmet:        'Ахмет не был Сливщиком. Он просто мёл двор. И молчал.',
@@ -1947,7 +1947,26 @@ function scheduleBotChatMessages(): void {
     'Я выполнял задачу.', 'Почему ты молчал?', 'Я видел канистру!', 'Давайте пропустим.',
   ];
 
+  const alibiPhrases = [
+    'Это не я! Я был у подъезда всё время.',
+    'Можете спросить у бабушки — она меня видела.',
+    'Я задачи делал. Проверьте метр единства!',
+    'Кто-то специально на меня показывает.',
+    'Это провокация. Думайте головой.',
+    'У меня нет мотива сливать.',
+  ];
+
+  // §4.4 AI meeting accusation phrases (Сливщики deflect by accusing others)
+  const accusePhrases = [
+    (name: string) => `Я видел ${name} у машины!`,
+    (name: string) => `${name} сделал это — я ручаюсь.`,
+    (name: string) => `Спросите у ${name}, где он был.`,
+    (name: string) => `${name} выглядел подозрительно рядом с баком.`,
+  ];
+
+  const callerBot = gs.meeting ? gs.players.find(p => p.id === gs.meeting!.callerId) : null;
   const thisMeetingId = gs.meeting.meetingId;
+
   for (let i = 0; i < Math.min(bots.length, 5); i++) {
     const bot = bots[i];
     const delay = 3 + i * (4 + Math.random() * 6);
@@ -1955,11 +1974,59 @@ function scheduleBotChatMessages(): void {
       if (!gs.meeting || gs.meeting.meetingId !== thisMeetingId) return;
       const charDef = CHARACTERS[bot.character];
       let phrase: string;
-      if (Math.random() < 0.6 && charDef.voiceLines.length > 0) {
-        phrase = charDef.voiceLines[Math.floor(Math.random() * charDef.voiceLines.length)];
+
+      // §4.4 Role-aware meeting chat behavior
+      const isAccused = callerBot && callerBot.id !== bot.id &&
+        (bot.suspicion[callerBot.id] ?? 0) > 0.4;
+
+      if (bot.id === callerBot?.id && Math.random() < 0.7) {
+        // Caller explains briefly — use voice line or confirm accusation
+        phrase = charDef.voiceLines.length > 0
+          ? charDef.voiceLines[Math.floor(Math.random() * charDef.voiceLines.length)]
+          : fallbackPhrases[Math.floor(Math.random() * fallbackPhrases.length)];
+      } else if (isAccused && Math.random() < 0.75) {
+        // §4.4 Bot being accused: send alibi
+        phrase = alibiPhrases[Math.floor(Math.random() * alibiPhrases.length)];
+      } else if (bot.role === 'slivshchik' && Math.random() < 0.65) {
+        // §4.4 Сливщик deflects: accuse highest-suspicion player
+        let bestTarget: Player | null = null;
+        let bestScore = 0.15;
+        for (const p of gs.players) {
+          if (p.id === bot.id || !p.isAlive) continue;
+          const score = bot.suspicion[p.id] ?? 0;
+          if (score > bestScore) { bestScore = score; bestTarget = p; }
+        }
+        if (bestTarget) {
+          const fn = accusePhrases[Math.floor(Math.random() * accusePhrases.length)];
+          phrase = fn(bestTarget.name);
+        } else {
+          phrase = fallbackPhrases[Math.floor(Math.random() * fallbackPhrases.length)];
+        }
+      } else if (bot.role === 'khozain' && Math.random() < 0.5) {
+        // §4.4 Хозяин with high suspicion: share observation
+        let bestTarget: Player | null = null;
+        let bestScore = 0.3;
+        for (const p of gs.players) {
+          if (p.id === bot.id || !p.isAlive || p.role === 'khozain') continue;
+          const score = bot.suspicion[p.id] ?? 0;
+          if (score > bestScore) { bestScore = score; bestTarget = p; }
+        }
+        if (bestTarget) {
+          phrase = `Я видел ${bestTarget.name} у машин. Подозрительно.`;
+        } else {
+          phrase = charDef.voiceLines.length > 0
+            ? charDef.voiceLines[Math.floor(Math.random() * charDef.voiceLines.length)]
+            : fallbackPhrases[Math.floor(Math.random() * fallbackPhrases.length)];
+        }
       } else {
-        phrase = fallbackPhrases[Math.floor(Math.random() * fallbackPhrases.length)];
+        // Default: character voice line (60%) or generic fallback
+        if (Math.random() < 0.6 && charDef.voiceLines.length > 0) {
+          phrase = charDef.voiceLines[Math.floor(Math.random() * charDef.voiceLines.length)];
+        } else {
+          phrase = fallbackPhrases[Math.floor(Math.random() * fallbackPhrases.length)];
+        }
       }
+
       gs.meeting.chatMessages.push({
         playerId: bot.id,
         playerName: bot.name,
