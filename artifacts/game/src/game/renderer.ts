@@ -1,7 +1,7 @@
 import type { GameState, Vec2 } from './types';
 import { ALARM_RADIUS, MAP_W, MAP_H } from './types';
 import { TASK_DEFS } from '../data/tasks';
-import { DECORATIONS, ENTRANCE_POS, DUMPSTER_POSITIONS, VISION_BUILDINGS } from '../data/map';
+import { DECORATIONS, ENTRANCE_POS, DUMPSTER_POSITIONS, VISION_BUILDINGS, VALVE_POSITIONS, BABUSHKA_CERBERUS_POS } from '../data/map';
 import { CHARACTERS } from '../data/characters';
 import {
   computeVisionPolygon,
@@ -67,11 +67,14 @@ export function renderGame(
   drawBackground(ctx);
   drawParkingLot(ctx);
   drawDecorations(ctx);
+  drawSabotageFlood(ctx, state);   // §2.9 flood effect under entities
   drawTasks(ctx, state);
   drawCars(ctx, state);
   drawBodies(ctx, state);
   drawCanisters(ctx, state);
+  drawValveMarkers(ctx, state);    // §2.9 valve fix markers
   drawPlayers(ctx, state, visionPoly);
+  drawBabushkaNPC(ctx, state);     // §2.9 babushka cerberus NPC
   drawAlarmButton(ctx, state);
   drawEntrance(ctx);
   drawUI(ctx, state, localPlayer);
@@ -161,6 +164,161 @@ function drawTeammateOutlines(ctx: CanvasRenderingContext2D, state: GameState): 
     ctx.fillText('СЛ', x, y - 30);
     ctx.globalAlpha = 1;
   }
+}
+
+// ─── §2.9 Sabotage visual effects ────────────────────────────────────────────
+
+/** Pipe burst: animated blue flood overlay on the parking/garden area */
+function drawSabotageFlood(ctx: CanvasRenderingContext2D, state: GameState): void {
+  const flood = state.activeSabotages.find(s => s.key === 'pipe_burst' && !s.isResolved);
+  if (!flood) return;
+
+  const urgency = flood.timer / 60; // 1 = fresh, 0 = critical
+  const alpha = 0.18 + (1 - urgency) * 0.22; // gets more opaque as timer runs out
+  const wave = Math.sin(Date.now() / 400) * 0.05;
+
+  ctx.save();
+  ctx.globalAlpha = alpha + wave;
+  ctx.fillStyle = '#1565C0';
+  ctx.fillRect(90, 90, 1020, 380 + 340); // cover parking + garden
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  // Ripple lines
+  ctx.save();
+  ctx.strokeStyle = 'rgba(100,181,246,0.35)';
+  ctx.lineWidth = 2;
+  ctx.globalAlpha = 0.5;
+  const t = Date.now() / 800;
+  for (let row = 0; row < 4; row++) {
+    ctx.beginPath();
+    for (let x = 90; x < 1110; x += 10) {
+      const y = 200 + row * 150 + Math.sin((x / 60) + t + row) * 8;
+      if (x === 90) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  // Warning text in center
+  ctx.save();
+  ctx.font = 'bold 18px sans-serif';
+  ctx.fillStyle = urgency < 0.3 ? '#F44336' : '#FF9800';
+  ctx.textAlign = 'center';
+  ctx.globalAlpha = 0.85;
+  ctx.fillText(`💧 ПОТОП — ${Math.ceil(flood.timer)}с`, MAP_W / 2, 470);
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+/** Pipe burst: valve markers with fix progress rings */
+function drawValveMarkers(ctx: CanvasRenderingContext2D, state: GameState): void {
+  const flood = state.activeSabotages.find(s => s.key === 'pipe_burst' && !s.isResolved);
+  if (!flood) return;
+
+  const valveProgress = [flood.valve1Progress, flood.valve2Progress];
+
+  VALVE_POSITIONS.forEach((pos, i) => {
+    const prog = valveProgress[i] / 3; // 3 = VALVE_FIX_TIME
+    const isDone = prog >= 1;
+
+    ctx.save();
+
+    // Glow
+    ctx.globalAlpha = 0.4;
+    ctx.fillStyle = isDone ? '#4CAF50' : '#2196F3';
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, 20, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Progress arc
+    ctx.globalAlpha = 0.9;
+    ctx.strokeStyle = isDone ? '#4CAF50' : '#2196F3';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, 18, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2);
+    ctx.stroke();
+
+    // Icon
+    ctx.globalAlpha = 1;
+    ctx.font = 'bold 14px sans-serif';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.fillText(isDone ? '✓' : '🔧', pos.x, pos.y + 5);
+
+    // Label
+    ctx.font = '9px sans-serif';
+    ctx.fillStyle = '#90CAF9';
+    ctx.fillText(`Вентиль ${i + 1}`, pos.x, pos.y + 26);
+
+    ctx.restore();
+  });
+}
+
+/** Babushka Cerberus: draws a little grandma NPC near the entrance */
+function drawBabushkaNPC(ctx: CanvasRenderingContext2D, state: GameState): void {
+  const active = state.activeSabotages.find(s => s.key === 'babushka_cerberus' && !s.isResolved);
+  if (!active) return;
+
+  const { x, y } = BABUSHKA_CERBERUS_POS;
+  const bob = Math.sin(Date.now() / 500) * 2;
+
+  ctx.save();
+
+  // Shadow
+  ctx.globalAlpha = 0.3;
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 16, 14, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body (shawl)
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#6A1B9A';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 4 + bob, 12, 15, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Head
+  ctx.fillStyle = '#FFCC80';
+  ctx.beginPath();
+  ctx.arc(x, y - 14 + bob, 10, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Headscarf
+  ctx.fillStyle = '#7B1FA2';
+  ctx.beginPath();
+  ctx.arc(x, y - 14 + bob, 10, Math.PI, 0);
+  ctx.fill();
+  ctx.fillRect(x - 10, y - 16 + bob, 20, 4);
+
+  // Cane
+  ctx.strokeStyle = '#8D6E63';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x + 10, y - 2 + bob);
+  ctx.lineTo(x + 14, y + 14 + bob);
+  ctx.stroke();
+
+  // Label
+  ctx.font = 'bold 9px sans-serif';
+  ctx.fillStyle = '#CE93D8';
+  ctx.textAlign = 'center';
+  ctx.fillText('👵 Цербер', x, y - 30 + bob);
+
+  // Timer bubble
+  ctx.fillStyle = 'rgba(106,27,154,0.8)';
+  ctx.beginPath();
+  ctx.roundRect(x - 16, y - 45 + bob, 32, 14, 4);
+  ctx.fill();
+  ctx.font = '8px sans-serif';
+  ctx.fillStyle = '#fff';
+  ctx.fillText(`${Math.ceil(active.timer)}с`, x, y - 35 + bob);
+
+  ctx.restore();
 }
 
 // ─── Background ───────────────────────────────────────────────────────────────

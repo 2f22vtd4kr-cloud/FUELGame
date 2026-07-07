@@ -114,7 +114,12 @@ export default function GameCanvas({ onStateSnapshot }: GameCanvasProps) {
       accRef.current += dt;
       if (accRef.current >= 0.1) {
         accRef.current = 0;
-        onStateSnapshot({ ...gs });
+        onStateSnapshot({
+          ...gs,
+          // Shallow-copy mutated sub-objects so React detects changes at 10Hz
+          activeMiniGame: gs.activeMiniGame ? { ...gs.activeMiniGame } : null,
+          activeSabotages: gs.activeSabotages.map(s => ({ ...s })),
+        });
       }
     }
 

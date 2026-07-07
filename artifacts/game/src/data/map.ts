@@ -76,6 +76,17 @@ export const TASK_SPAWNS: TaskSpawnDef[] = [
   { id: 'task_sweep',    defKey: 'sweep',    pos: { x: 800, y: 700 } },
 ];
 
+// ─── Sabotage positions (§2.9) ────────────────────────────────────────────────
+
+/** Two valve positions for pipe-burst fix. Player holds E at each. */
+export const VALVE_POSITIONS: Vec2[] = [
+  { x: 180, y: 490 },   // left garden
+  { x: 1020, y: 490 },  // right garden
+];
+
+/** Babushka Cerberus NPC spawns near entrance arch, blocking alarm button. */
+export const BABUSHKA_CERBERUS_POS: Vec2 = { x: 530, y: 790 };
+
 // ─── Decorations ──────────────────────────────────────────────────────────────
 
 export interface DecorationDef {

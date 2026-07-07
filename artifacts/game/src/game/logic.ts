@@ -1,5 +1,5 @@
 import { gs } from './state';
-import type { InputState, Player, Body, Canister } from './types';
+import type { InputState, Player, Body, Canister, TaskInstance, MiniGameType, SabotageKey, SabotageInstance } from './types';
 import {
   INTERACT_RADIUS, SIPHON_RADIUS, ALARM_RADIUS,
   BODY_RADIUS, CANISTER_RADIUS, AMBUSH_RADIUS, AMBUSH_LONE_RADIUS,
@@ -7,17 +7,22 @@ import {
   TASK_RESPAWN_TIME, MEETING_COOLDOWN,
   SPRINT_SPEED_MULT, CROUCH_SPEED_MULT, CANISTER_SLOW_MULT,
   SPRINT_MAX, SPRINT_DRAIN_RATE, SPRINT_REGEN_RATE,
+  TASK_MINIGAME_MAP,
+  SABOTAGE_COOLDOWNS, SABOTAGE_DURATIONS,
+  VALVE_FIX_TIME, VALVE_INTERACT_RADIUS,
 } from './types';
 import { TASK_DEFS } from '../data/tasks';
-import { ENTRANCE_POS, DUMPSTER_POSITIONS, MEETING_SPAWNS, dist, clampToMap, isInsideBuilding } from '../data/map';
+import {
+  ENTRANCE_POS, DUMPSTER_POSITIONS, MEETING_SPAWNS, dist, clampToMap, isInsideBuilding,
+  VALVE_POSITIONS, BABUSHKA_CERBERUS_POS,
+} from '../data/map';
 import { CHARACTERS } from '../data/characters';
 import { NEWS_HEADLINES, TICKER_INTERVAL } from '../data/ticker';
 import { updateBots } from './botAI';
 import { audio } from './audio';
 
-// ─── Ejection texts (20 total, §2.7.6 — character-specific) ─────────────────
+// ─── Ejection texts (§2.7.6) ──────────────────────────────────────────────────
 
-// Maps character key to their specific ejection suffix when they ARE a slivshchik
 const EJECTED_AS_SLIVSHCHIK: Partial<Record<string, string>> = {
   denis:         'Денис был Сливщиком. Теперь он работает на промзоне за еду.',
   anya:          'Аня была Сливщицей. «Это не моя тачка» — это было её прикрытие.',
@@ -31,7 +36,6 @@ const EJECTED_AS_SLIVSHCHIK: Partial<Record<string, string>> = {
   barsik:        'Барсик был Сливщиком. (Это невозможно по правилам, но вот мы тут.)',
 };
 
-// Maps character key to their specific ejection suffix when they are NOT a slivshchik
 const EJECTED_AS_INNOCENT: Partial<Record<string, string>> = {
   denis:         'Денис не был Сливщиком. Но его выкинули, потому что он сказал «Смена горит» в третий раз.',
   anya:          'Аня не была Сливщицей. Она просто любила каршеринг.',
@@ -52,6 +56,16 @@ function getEjectionText(charKey: string, isSlivshchik: boolean): string {
   return EJECTED_AS_INNOCENT[charKey] ?? `${charKey} не был Сливщиком. Двор скорбит.`;
 }
 
+// ─── Letter texts for mailbox mini-game ──────────────────────────────────────
+
+const LETTER_TEXTS = [
+  'Уважаемый жилец!\nС 1 августа тариф на ЖКХ\nповышается на 14%.\n\n— Руководство ЖК «Цветочные Поляны»',
+  'Вам посылка. Она на почте до 15-го.\nЕсли не заберёте — вернём отправителю.\nИзвинений не принимаем.\n\n— Почта России',
+  'УВЕДОМЛЕНИЕ:\nПарковочное место №7 забронировано.\nОсвободите немедленно.\n\n— Администрация ЖК',
+  'Жилец! Вам начислены пени\nза просрочку коммуналки: 340₽.\nОплатите до 1-го числа.\n\n— УК «Уют-2026»',
+  'Приглашаем на собрание жильцов\n19-го числа в 18:00.\nПовестка: сифонеры во дворе.\nЯвка обязательна.\n\n— Старший по дому',
+];
+
 // ─── Main tick ────────────────────────────────────────────────────────────────
 
 export function tickGame(dt: number, input: InputState): void {
@@ -61,6 +75,8 @@ export function tickGame(dt: number, input: InputState): void {
 
     updateHumanPlayer(dt, input);
     updateBots(dt);
+    updateMiniGame(dt, input);
+    updateSabotages(dt, input);
     updateInteractions(dt, input);
     updateSiphoning(dt);
     updateImmunity(dt);
@@ -89,12 +105,10 @@ function updateHumanPlayer(dt: number, input: InputState): void {
   const len = Math.sqrt(input.dx * input.dx + input.dy * input.dy);
   const isMoving = len > 0.05;
 
-  // Update facing angle from movement direction
   if (isMoving) {
     player.facingAngle = Math.atan2(input.dy, input.dx);
   }
 
-  // Sprint/crouch stamina management
   player.isCrouching = input.crouch && !input.sprint;
 
   if (input.sprint && isMoving && player.stamina > 0) {
@@ -108,7 +122,6 @@ function updateHumanPlayer(dt: number, input: InputState): void {
     }
   }
 
-  // Speed modifier
   let speedMult = 1.0;
   if (player.isSprinting) speedMult = SPRINT_SPEED_MULT;
   else if (player.isCrouching) speedMult = CROUCH_SPEED_MULT;
@@ -135,21 +148,370 @@ function updateHumanPlayer(dt: number, input: InputState): void {
     }
   }
 
-  // Update cooldowns
   if (player.ambushCooldown > 0) player.ambushCooldown -= dt;
   if (player.siphonCooldown > 0) player.siphonCooldown -= dt;
-
-  // Update suspected timer
   if (player.suspectedTimer > 0) player.suspectedTimer -= dt;
 }
 
-// ─── Interaction priority system ──────────────────────────────────────────────
-// Priority: ambush > body report > drained car report > canister >
-//           alarm button > task > siphon
+// ─── §2.5 Task Mini-Games ─────────────────────────────────────────────────────
+
+function startMiniGame(taskId: string, defKey: string, type: MiniGameType): void {
+  gs.activeMiniGame = {
+    taskId,
+    defKey: defKey as import('./types').TaskDefKey,
+    type,
+    // tap_timing
+    markerPos: 0.5,
+    markerDir: 1,
+    markerSpeed: 0.65,
+    hits: 0,
+    requiredHits: defKey === 'shawarma' ? 3 : 2,
+    // rapid_tap
+    tapCount: 0,
+    requiredTaps: defKey === 'pigeons' ? 15 : 12,
+    timeLimit: defKey === 'pigeons' ? 7 : 5,
+    timeLimitMax: defKey === 'pigeons' ? 7 : 5,
+    // sequence
+    sequence: [
+      Math.floor(Math.random() * 9) + 1,
+      Math.floor(Math.random() * 9) + 1,
+      Math.floor(Math.random() * 9) + 1,
+      Math.floor(Math.random() * 9) + 1,
+    ],
+    seqIndex: 0,
+    seqWrong: false,
+    // dial
+    dialAngle: 0,
+    dialTarget: Math.floor(Math.random() * 360),
+    dialGreenWidth: 22,
+    dialStops: 0,
+    dialRequiredStops: 3,
+    // letter
+    letterText: LETTER_TEXTS[Math.floor(Math.random() * LETTER_TEXTS.length)],
+    // shared
+    feedback: 'none',
+    feedbackTimer: 0,
+    done: false,
+  };
+}
+
+function updateMiniGame(dt: number, input: InputState): void {
+  const mg = gs.activeMiniGame;
+  if (!mg) return;
+
+  const task = gs.tasks.find(t => t.id === mg.taskId);
+  const player = gs.players.find(p => p.id === gs.localPlayerId);
+
+  if (!task || task.isComplete || !player || !player.isAlive) {
+    cancelMiniGame();
+    return;
+  }
+
+  // Cancel if player walked away from the task (no exemptions — even digit pad needs proximity)
+  const taskDist = dist(player.pos, task.pos);
+  if (taskDist > INTERACT_RADIUS * 1.6) {
+    cancelMiniGame();
+    return;
+  }
+
+  // Update feedback timer
+  if (mg.feedbackTimer > 0) {
+    mg.feedbackTimer = Math.max(0, mg.feedbackTimer - dt);
+    if (mg.feedbackTimer <= 0) mg.feedback = 'none';
+  }
+
+  // If already done, complete the task
+  if (mg.done) {
+    completeTask(task, player);
+    gs.activeMiniGame = null;
+    return;
+  }
+
+  const justPressed = input.interact && !input.prevInteract;
+  const held = input.interact;
+  const justReleased = !input.interact && input.prevInteract;
+
+  switch (mg.type) {
+    case 'tap_timing': {
+      // Oscillate marker
+      mg.markerPos += mg.markerDir * mg.markerSpeed * dt;
+      if (mg.markerPos >= 1) { mg.markerPos = 1; mg.markerDir = -1; }
+      if (mg.markerPos <= 0) { mg.markerPos = 0; mg.markerDir = 1; }
+
+      if (justPressed && mg.feedback === 'none') {
+        const inZone = mg.markerPos >= 0.4 && mg.markerPos <= 0.6;
+        if (inZone) {
+          mg.hits++;
+          mg.feedback = 'hit';
+          mg.feedbackTimer = 0.35;
+          audio.play('task_complete');
+          if (mg.hits >= mg.requiredHits) mg.done = true;
+        } else {
+          mg.feedback = 'miss';
+          mg.feedbackTimer = 0.35;
+          mg.hits = Math.max(0, mg.hits - 1);
+        }
+      }
+      break;
+    }
+
+    case 'rapid_tap': {
+      mg.timeLimit = Math.max(0, mg.timeLimit - dt);
+      if (justPressed) {
+        mg.tapCount++;
+        if (mg.tapCount >= mg.requiredTaps) mg.done = true;
+      }
+      if (mg.timeLimit <= 0 && !mg.done) {
+        // Failed: reset counter and timer
+        mg.tapCount = 0;
+        mg.timeLimit = mg.timeLimitMax;
+        mg.feedback = 'miss';
+        mg.feedbackTimer = 0.5;
+      }
+      break;
+    }
+
+    case 'dial': {
+      if (held) {
+        mg.dialAngle = (mg.dialAngle + 90 * dt) % 360;
+      }
+      if (justReleased) {
+        const diff = Math.abs(((mg.dialAngle - mg.dialTarget + 540) % 360) - 180);
+        if (diff <= mg.dialGreenWidth) {
+          mg.dialStops++;
+          mg.feedback = 'hit';
+          mg.feedbackTimer = 0.45;
+          audio.play('task_complete');
+          // New random target for next stop
+          mg.dialTarget = (mg.dialAngle + 90 + Math.floor(Math.random() * 180)) % 360;
+          if (mg.dialStops >= mg.dialRequiredStops) mg.done = true;
+        } else {
+          mg.feedback = 'miss';
+          mg.feedbackTimer = 0.45;
+        }
+      }
+      break;
+    }
+
+    case 'sequence': {
+      // Clear seqWrong flash after feedback timer
+      if (mg.seqWrong && mg.feedbackTimer <= 0) mg.seqWrong = false;
+      break;
+    }
+
+    case 'letter': {
+      if (justPressed) mg.done = true;
+      break;
+    }
+  }
+}
+
+/** Called from React mini-game UI for tap-based interactions */
+export function onMiniGameTap(): void {
+  const mg = gs.activeMiniGame;
+  if (!mg || mg.feedback !== 'none') return;
+  // Proximity guard: React UI can be tapped while player has already walked away
+  const player = gs.players.find(p => p.id === gs.localPlayerId);
+  const task = gs.tasks.find(t => t.id === mg.taskId);
+  if (!player || !task || dist(player.pos, task.pos) > INTERACT_RADIUS * 1.6) {
+    cancelMiniGame(); return;
+  }
+
+  if (mg.type === 'letter') {
+    mg.done = true;
+  } else if (mg.type === 'rapid_tap') {
+    mg.tapCount++;
+    if (mg.tapCount >= mg.requiredTaps) mg.done = true;
+  } else if (mg.type === 'tap_timing') {
+    const inZone = mg.markerPos >= 0.4 && mg.markerPos <= 0.6;
+    if (inZone) {
+      mg.hits++;
+      mg.feedback = 'hit';
+      mg.feedbackTimer = 0.35;
+      audio.play('task_complete');
+      if (mg.hits >= mg.requiredHits) mg.done = true;
+    } else {
+      mg.feedback = 'miss';
+      mg.feedbackTimer = 0.35;
+      mg.hits = Math.max(0, mg.hits - 1);
+    }
+  }
+}
+
+/** Called from React sequence digit pad */
+export function onMiniGameDigitTap(digit: number): void {
+  const mg = gs.activeMiniGame;
+  if (!mg || mg.type !== 'sequence') return;
+  // Proximity guard
+  const player = gs.players.find(p => p.id === gs.localPlayerId);
+  const task = gs.tasks.find(t => t.id === mg.taskId);
+  if (!player || !task || dist(player.pos, task.pos) > INTERACT_RADIUS * 1.6) {
+    cancelMiniGame(); return;
+  }
+
+  if (mg.sequence[mg.seqIndex] === digit) {
+    mg.seqIndex++;
+    mg.seqWrong = false;
+    audio.play('ui_click');
+    if (mg.seqIndex >= mg.sequence.length) mg.done = true;
+  } else {
+    mg.seqIndex = 0;
+    mg.seqWrong = true;
+    mg.feedback = 'miss';
+    mg.feedbackTimer = 0.4;
+  }
+}
+
+/** Cancel the active mini-game (called by React cancel button or logic) */
+export function cancelMiniGame(): void {
+  if (!gs.activeMiniGame) return;
+  const task = gs.tasks.find(t => t.id === gs.activeMiniGame!.taskId);
+  if (task) task.doer = null;
+  gs.activeMiniGame = null;
+}
+
+function completeTask(task: TaskInstance, player: Player): void {
+  const taskDef = TASK_DEFS[task.defKey];
+  task.progress = 1;
+  task.isComplete = true;
+  task.completedBy = player.id;
+  task.doer = null;
+  task.respawnTimer = TASK_RESPAWN_TIME;
+  audio.play('task_complete');
+
+  if (player.role === 'khozain') {
+    gs.unityMeter = Math.min(100, gs.unityMeter + taskDef.unityReward);
+    setPrompt(`✅ ${taskDef.label} — +${taskDef.unityReward}% единства!`, 3);
+  } else {
+    setPrompt(`🎭 ${taskDef.label} — выглядело убедительно.`, 3);
+  }
+}
+
+// ─── §2.9 Sabotage System ─────────────────────────────────────────────────────
+
+export function isSabotageActive(key: SabotageKey): boolean {
+  return gs.activeSabotages.some(s => s.key === key && !s.isResolved);
+}
+
+/** Called by human player via HUD sabotage menu */
+export function triggerSabotage(key: SabotageKey): void {
+  const player = gs.players.find(p => p.id === gs.localPlayerId);
+  if (!player || player.role !== 'slivshchik' || player.sabotageCooldown > 0) return;
+  if (isSabotageActive(key)) return; // already active
+
+  player.sabotageCooldown = SABOTAGE_COOLDOWNS[key];
+  spawnSabotage(key);
+  setPrompt(getSabotageActivationPrompt(key), 4);
+}
+
+/** Called by bot AI — bypasses localPlayerId check */
+export function triggerBotSabotage(botId: string, key: SabotageKey): void {
+  const bot = gs.players.find(p => p.id === botId);
+  if (!bot || bot.sabotageCooldown > 0) return;
+  if (isSabotageActive(key)) return;
+
+  bot.sabotageCooldown = SABOTAGE_COOLDOWNS[key];
+  spawnSabotage(key);
+}
+
+function spawnSabotage(key: SabotageKey): void {
+  const sab: SabotageInstance = {
+    id: `sab_${key}_${Date.now()}`,
+    key,
+    timer: SABOTAGE_DURATIONS[key],
+    isResolved: false,
+    valve1Progress: 0,
+    valve2Progress: 0,
+  };
+  gs.activeSabotages.push(sab);
+  audio.play('alarm_button');
+}
+
+function getSabotageActivationPrompt(key: SabotageKey): string {
+  switch (key) {
+    case 'babushka_cerberus': return '👵 Бабушка-Цербер вызвана! Блокирует тревогу.';
+    case 'pipe_burst':        return '💧 Трубу прорвало! У хозяев 60 секунд.';
+    case 'chat_offline':      return '📵 ЖК-чат офлайн! Тревогу не вызвать 20с.';
+    case 'alarm_chaos':       return '🚨 Сигнализация хаос! Звук слива замаскирован.';
+  }
+}
+
+function updateSabotages(dt: number, input: InputState): void {
+  const player = gs.players.find(p => p.id === gs.localPlayerId);
+
+  // Decay all player sabotageCooldowns
+  for (const p of gs.players) {
+    if (p.sabotageCooldown > 0) p.sabotageCooldown = Math.max(0, p.sabotageCooldown - dt);
+  }
+
+  for (let i = gs.activeSabotages.length - 1; i >= 0; i--) {
+    const sab = gs.activeSabotages[i];
+    if (sab.isResolved) {
+      gs.activeSabotages.splice(i, 1);
+      continue;
+    }
+
+    sab.timer = Math.max(0, sab.timer - dt);
+
+    // ── Player interactions with active sabotages ──
+    if (player && player.isAlive && !gs.activeMiniGame) {
+
+      if (sab.key === 'babushka_cerberus') {
+        const d = dist(player.pos, BABUSHKA_CERBERUS_POS);
+        if (d < ALARM_RADIUS) {
+          setPrompt('👵 [E] Покормить бабушку (шаверма)', 0.2);
+          if (input.interact && !input.prevInteract) {
+            sab.isResolved = true;
+            setPrompt('✅ Бабушка накормлена! Кнопка тревоги свободна.', 3);
+            audio.play('task_complete');
+          }
+        }
+      }
+
+      if (sab.key === 'pipe_burst') {
+        for (let v = 0; v < VALVE_POSITIONS.length; v++) {
+          const d = dist(player.pos, VALVE_POSITIONS[v]);
+          if (d < VALVE_INTERACT_RADIUS) {
+            const prog = v === 0 ? sab.valve1Progress : sab.valve2Progress;
+            const pct = Math.min(100, Math.round((prog / VALVE_FIX_TIME) * 100));
+            setPrompt(`🔧 [удерживай E] Вентиль ${v + 1}: ${pct}%`, 0.2);
+            if (input.interact) {
+              if (v === 0) sab.valve1Progress = Math.min(VALVE_FIX_TIME, sab.valve1Progress + dt);
+              else         sab.valve2Progress = Math.min(VALVE_FIX_TIME, sab.valve2Progress + dt);
+
+              if (sab.valve1Progress >= VALVE_FIX_TIME && sab.valve2Progress >= VALVE_FIX_TIME) {
+                sab.isResolved = true;
+                setPrompt('✅ Труба починена! Машины снова доступны.', 3);
+                audio.play('task_complete');
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // ── Timer expiry ──
+    if (sab.timer <= 0) {
+      if (sab.key === 'pipe_burst' && !sab.isResolved) {
+        // CRITICAL: slivshchiki win immediately
+        gs.winner = 'slivshchiki';
+        gs.winReason = 'Труба прорвала весь двор! Сливщики победили.';
+        gs.phase = 'results';
+        audio.play('win_slivshchiki');
+      }
+      sab.isResolved = true;
+    }
+  }
+}
+
+// ─── Interaction priority ──────────────────────────────────────────────────────
 
 function updateInteractions(dt: number, input: InputState): void {
   const player = gs.players.find(p => p.id === gs.localPlayerId);
   if (!player || !player.isAlive) return;
+
+  // While mini-game is active the mini-game overlay owns all input
+  if (gs.activeMiniGame) return;
 
   // Respawn completed tasks
   for (const task of gs.tasks) {
@@ -164,6 +526,8 @@ function updateInteractions(dt: number, input: InputState): void {
     }
   }
 
+  const chatOffline = isSabotageActive('chat_offline');
+
   // ── 1. Ambush (slivshchik only) ──────────────────────────────────────────
   if (player.role === 'slivshchik' && player.ambushCooldown <= 0) {
     const target = findAmbushTarget(player);
@@ -173,11 +537,9 @@ function updateInteractions(dt: number, input: InputState): void {
         player.ambushTarget = target.id;
         player.ambushChargeTimer += dt;
 
-        // §2.4: Re-check lone condition mid-charge — interrupt if someone walks in
         if (player.ambushChargeTimer > 0.05) {
           const stillLone = findAmbushTarget(player);
           if (!stillLone || stillLone.id !== target.id) {
-            // A third player entered — abort, mark slivshchik as suspicious
             player.suspectedTimer = 5;
             player.ambushTarget = null;
             player.ambushChargeTimer = 0;
@@ -191,14 +553,13 @@ function updateInteractions(dt: number, input: InputState): void {
           return;
         }
       } else {
-        // Released early
         if (player.ambushChargeTimer > 0.1 && player.ambushChargeTimer < AMBUSH_CHARGE_TIME) {
           player.suspectedTimer = 5;
         }
         player.ambushTarget = null;
         player.ambushChargeTimer = 0;
       }
-      return; // ambush takes priority over everything else
+      return;
     } else {
       player.ambushTarget = null;
       player.ambushChargeTimer = 0;
@@ -210,12 +571,14 @@ function updateInteractions(dt: number, input: InputState): void {
     b.reportedBy === null && dist(player.pos, b.pos) < BODY_RADIUS
   );
   if (nearBody) {
-    if (gs.meetingCooldown > 0) {
+    if (chatOffline) {
+      setPrompt(`💀 ${nearBody.name} мёртв — ЖК-чат офлайн!`, 0.2);
+    } else if (gs.meetingCooldown > 0) {
       setPrompt(`💀 ${nearBody.name} мёртв. Сходка через ${Math.ceil(gs.meetingCooldown)}с`, 0.2);
     } else {
       setPrompt(`💀 [E] Сообщить о теле: ${nearBody.name}`, 0.2);
       if (input.interact && !input.prevInteract) {
-        nearBody.reportedBy = player.id; // mark AFTER confirming meeting can start
+        nearBody.reportedBy = player.id;
         audio.play('body_found');
         callMeeting(player.id, 'body');
         return;
@@ -228,11 +591,15 @@ function updateInteractions(dt: number, input: InputState): void {
   // ── 3. Drained car report ────────────────────────────────────────────────
   const drainedCar = gs.cars.find(c => c.fuel < 10 && dist(player.pos, c.pos) < INTERACT_RADIUS);
   if (drainedCar && gs.meetingCooldown <= 0) {
-    setPrompt(`🚨 [E] Сообщить об опустевшем баке!`, 0.2);
-    if (input.interact && !input.prevInteract) {
-      audio.play('alarm_button');
-      callMeeting(player.id, 'drained_car');
-      return;
+    if (chatOffline) {
+      setPrompt('🚨 Бак пустой — ЖК-чат офлайн!', 0.2);
+    } else {
+      setPrompt('🚨 [E] Сообщить об опустевшем баке!', 0.2);
+      if (input.interact && !input.prevInteract) {
+        audio.play('alarm_button');
+        callMeeting(player.id, 'drained_car');
+        return;
+      }
     }
     clearTaskDoer(player.id);
     return;
@@ -242,7 +609,7 @@ function updateInteractions(dt: number, input: InputState): void {
   if (player.isCarryingCanister && player.role === 'slivshchik') {
     const nearDump = DUMPSTER_POSITIONS.some(d => dist(player.pos, d) < 80);
     if (nearDump) {
-      setPrompt(`♻️ [E] Выбросить канистру у мусорки`, 0.2);
+      setPrompt('♻️ [E] Выбросить канистру у мусорки', 0.2);
       if (input.interact && !input.prevInteract) {
         player.isCarryingCanister = false;
         setPrompt('✅ Канистра выброшена. Улика уничтожена.', 3);
@@ -250,7 +617,6 @@ function updateInteractions(dt: number, input: InputState): void {
       clearTaskDoer(player.id);
       return;
     }
-    // Carry hint shown via HUD stamina area — don't block other interactions
   }
 
   // ── 4b. Canister pickup from ground ──────────────────────────────────────
@@ -284,19 +650,32 @@ function updateInteractions(dt: number, input: InputState): void {
   // ── 5. Alarm button ────────────────────────────────────────────────────────
   const alarmDist = dist(player.pos, ENTRANCE_POS);
   if (alarmDist < ALARM_RADIUS && gs.meetingCooldown <= 0) {
-    setPrompt('🔔 [E] Созвать сходку!', 0.2);
-    if (input.interact && !input.prevInteract) {
-      audio.play('alarm_button');
-      callMeeting(player.id, 'alarm');
-      return;
+    const babushkaBlocking = isSabotageActive('babushka_cerberus');
+    if (chatOffline || babushkaBlocking) {
+      setPrompt(babushkaBlocking ? '👵 Бабушка блокирует кнопку! (покорми её)' : '📵 ЖК-чат офлайн!', 0.2);
+    } else {
+      setPrompt('🔔 [E] Созвать сходку!', 0.2);
+      if (input.interact && !input.prevInteract) {
+        audio.play('alarm_button');
+        callMeeting(player.id, 'alarm');
+        return;
+      }
     }
     clearTaskDoer(player.id);
     return;
   }
 
-  // ── 6. Siphon (slivshchik only, car nearby) ────────────────────────────────
+  // ── 6. Siphon (slivshchik only) ────────────────────────────────────────────
   if (player.role === 'slivshchik') {
-    // Show cooldown if active
+    // Pipe burst blocks car access
+    if (isSabotageActive('pipe_burst')) {
+      const nearAnyCar = gs.cars.some(c => dist(player.pos, c.pos) < SIPHON_RADIUS + 20);
+      if (nearAnyCar) {
+        setPrompt('💧 Потоп! Машины недоступны. Почини вентили.', 0.2);
+        return;
+      }
+    }
+
     if (player.siphonCooldown > 0) {
       setPrompt(`⏱ Перезарядка слива: ${Math.ceil(player.siphonCooldown)}с`, 0.2);
     }
@@ -314,12 +693,9 @@ function updateInteractions(dt: number, input: InputState): void {
     if (nearCar) {
       const phase = nearCar.siphonPhase;
       if (phase === 0) {
-        if (player.siphonCooldown > 0) {
-          // Still on cooldown — already shown above, no action
-        } else {
+        if (player.siphonCooldown <= 0) {
           setPrompt('🪣 [удерживай E] Слить бензин', 0.2);
           if (input.interact) {
-            // Start setup phase
             nearCar.siphoner = player.id;
             nearCar.siphonPhase = 1;
             nearCar.siphonTimer = 0;
@@ -328,22 +704,20 @@ function updateInteractions(dt: number, input: InputState): void {
       } else if (nearCar.siphoner === player.id && phase === 1) {
         setPrompt('⏳ Готовим шланг... [удерживай E]', 0.2);
         if (!input.interact) {
-          // Released before active — cancel, apply cooldown
           nearCar.siphoner = null;
           nearCar.siphonPhase = 0;
           nearCar.siphonTimer = 0;
-          player.siphonCooldown = 15; // §2.4: 15s cooldown
+          player.siphonCooldown = 15;
           setPrompt('Слив отменён.', 1.5);
         }
       } else if (nearCar.siphoner === player.id && phase === 2) {
         setPrompt('🪣 Активный слив! [отпусти → улика]', 0.2);
         if (!input.interact) {
-          // Released during active — drop canister (evidence!) + cooldown
           dropCanister(player, nearCar, false);
           nearCar.siphoner = null;
           nearCar.siphonPhase = 0;
           nearCar.siphonTimer = 0;
-          player.siphonCooldown = 15; // §2.4: 15s cooldown
+          player.siphonCooldown = 15;
         }
       }
       return;
@@ -368,30 +742,27 @@ function updateInteractions(dt: number, input: InputState): void {
   }
 
   const taskDef = TASK_DEFS[nearTask.defKey];
-  setPrompt(`${taskDef.emoji} [E] ${taskDef.label}`, 0.2);
+  const mgType = TASK_MINIGAME_MAP[nearTask.defKey];
 
-  if (input.interact) {
-    nearTask.doer = player.id;
-    nearTask.progress += dt / taskDef.duration;
-
-    if (nearTask.progress >= 1) {
-      nearTask.progress = 1;
-      nearTask.isComplete = true;
-      nearTask.completedBy = player.id;
-      nearTask.doer = null;
-      nearTask.respawnTimer = TASK_RESPAWN_TIME;
-      audio.play('task_complete');
-
-      // Slivshchiki don't add to unity (fake task)
-      if (player.role === 'khozain') {
-        gs.unityMeter = Math.min(100, gs.unityMeter + taskDef.unityReward);
-        setPrompt(`✅ ${taskDef.label} — +${taskDef.unityReward}% единства!`, 3);
-      } else {
-        setPrompt(`🎭 ${taskDef.label} — выглядело убедительно.`, 3);
-      }
+  if (mgType) {
+    // Mini-game task: single E press to start
+    setPrompt(`${taskDef.emoji} [E] ${taskDef.label}`, 0.2);
+    if (input.interact && !input.prevInteract) {
+      nearTask.doer = player.id;
+      startMiniGame(nearTask.id, nearTask.defKey, mgType);
     }
   } else {
-    if (nearTask.doer === player.id) nearTask.doer = null;
+    // Hold-timer task (trash, grandma, flowers)
+    setPrompt(`${taskDef.emoji} [удерживай E] ${taskDef.label}`, 0.2);
+    if (input.interact) {
+      nearTask.doer = player.id;
+      nearTask.progress += dt / taskDef.duration;
+      if (nearTask.progress >= 1) {
+        completeTask(nearTask, player);
+      }
+    } else {
+      if (nearTask.doer === player.id) nearTask.doer = null;
+    }
   }
 }
 
@@ -399,7 +770,6 @@ function findAmbushTarget(player: Player): Player | null {
   for (const target of gs.players) {
     if (target.id === player.id || !target.isAlive || target.role === 'slivshchik') continue;
     if (dist(player.pos, target.pos) > AMBUSH_RADIUS) continue;
-    // Check lone (no other living player within AMBUSH_LONE_RADIUS)
     const others = gs.players.filter(p =>
       p.id !== player.id && p.id !== target.id && p.isAlive &&
       dist(p.pos, target.pos) < AMBUSH_LONE_RADIUS
@@ -416,7 +786,6 @@ function executeAmbush(killer: Player, victim: Player): void {
   killer.ambushCooldown = AMBUSH_COOLDOWN;
   audio.play('ambush');
 
-  // Drop body at victim's position
   const body: Body = {
     id: `body_${victim.id}_${Date.now()}`,
     playerId: victim.id,
@@ -427,7 +796,7 @@ function executeAmbush(killer: Player, victim: Player): void {
   };
   gs.bodies.push(body);
   setPrompt(`💀 ${victim.name} устранён(а). Действуй быстро.`, 4);
-  checkWinConditions(); // §2.5: check win immediately after ambush kill
+  checkWinConditions();
 }
 
 function clearTaskDoer(playerId: string): void {
@@ -442,8 +811,6 @@ function stopSiphon(car: typeof gs.cars[number], siphoner: Player | undefined, r
   if (siphoner?.isHuman && car.siphonPhase === 2) {
     audio.stopGurgle();
   }
-  // §2.4: 15s cooldown for ALL end paths (cancel/interrupt/complete).
-  // 'complete' callers set it before invoking stopSiphon; we set it here for the rest.
   if (siphoner && reason !== 'complete') {
     siphoner.siphonCooldown = 15;
   }
@@ -453,6 +820,17 @@ function stopSiphon(car: typeof gs.cars[number], siphoner: Player | undefined, r
 }
 
 function updateSiphoning(dt: number): void {
+  // §2.9 Pipe burst: all active siphons are suspended (cars flooded, inaccessible)
+  if (isSabotageActive('pipe_burst')) {
+    for (const car of gs.cars) {
+      if (!car.siphoner) continue;
+      const s = gs.players.find(p => p.id === car.siphoner);
+      if (s?.isHuman && car.siphonPhase === 2) audio.stopGurgle();
+      car.siphoner = null; car.siphonPhase = 0; car.siphonTimer = 0;
+    }
+    return;
+  }
+
   for (const car of gs.cars) {
     if (!car.siphoner || car.siphonPhase === 0) continue;
 
@@ -465,7 +843,6 @@ function updateSiphoning(dt: number): void {
       stopSiphon(car, siphoner, 'cancel');
       continue;
     }
-    // Out of range
     if (dist(siphoner.pos, car.pos) > SIPHON_RADIUS + 15) {
       if (car.siphonPhase === 2) dropCanister(siphoner, car, false);
       stopSiphon(car, siphoner, 'interrupt');
@@ -475,19 +852,20 @@ function updateSiphoning(dt: number): void {
     car.siphonTimer += dt;
 
     if (car.siphonPhase === 1) {
-      // Setup — advance to active after SIPHON_SETUP_TIME
       if (car.siphonTimer >= SIPHON_SETUP_TIME) {
         car.siphonPhase = 2;
         car.siphonTimer = 0;
-        if (siphoner.isHuman) audio.startGurgle();
+        // Alarm chaos masks the gurgle sound
+        if (siphoner.isHuman && !isSabotageActive('alarm_chaos')) {
+          audio.startGurgle();
+        }
       }
     } else if (car.siphonPhase === 2) {
-      // Active drain
       car.fuel = Math.max(0, car.fuel - SIPHON_RATE * dt);
       if (car.fuel <= 0) {
         if (siphoner.isHuman) audio.play('siphon_complete');
         dropCanister(siphoner, car, true);
-        siphoner.siphonCooldown = 15; // §2.4: 15s cooldown after completing
+        siphoner.siphonCooldown = 15;
         stopSiphon(car, siphoner, 'complete');
       }
     }
@@ -509,7 +887,6 @@ function dropCanister(siphoner: Player, car: { id: string; pos: { x: number; y: 
   if (siphoner.isHuman && !isFull) {
     setPrompt('⚠️ Канистра брошена! Улика на месте.', 3);
   }
-  // Bots immediately "hold" the canister they just produced so disposal AI triggers
   if (!siphoner.isHuman) {
     siphoner.isCarryingCanister = true;
   }
@@ -534,7 +911,14 @@ let _meetingId = 0;
 export function callMeeting(callerId: string, reason: 'alarm' | 'body' | 'drained_car' = 'alarm'): void {
   if (gs.meetingCooldown > 0 || gs.phase !== 'play') return;
 
-  // Stop all siphoning
+  // §2.9 Sabotage blocks: ЖК Чат Офлайн disables all reporting for all players (including bots)
+  if (isSabotageActive('chat_offline')) return;
+  // Бабушка-Цербер only blocks the alarm button trigger
+  if (reason === 'alarm' && isSabotageActive('babushka_cerberus')) return;
+
+  // Cancel any active mini-game
+  if (gs.activeMiniGame) cancelMiniGame();
+
   for (const car of gs.cars) {
     if (car.siphoner) {
       const s = gs.players.find(p => p.id === car.siphoner);
@@ -543,8 +927,7 @@ export function callMeeting(callerId: string, reason: 'alarm' | 'body' | 'draine
     car.siphoner = null; car.siphonPhase = 0; car.siphonTimer = 0;
   }
   for (const task of gs.tasks) task.doer = null;
-  // Drop carried canisters on the ground so they remain as evidence (§2.4)
-  // Must check the flag BEFORE clearing it.
+
   for (const p of gs.players) {
     if (!p.isAlive) continue;
     if (p.isCarryingCanister) {
@@ -558,7 +941,6 @@ export function callMeeting(callerId: string, reason: 'alarm' | 'body' | 'draine
     p.isCarryingCanister = false;
   }
 
-  // Teleport alive players to meeting circle
   const alive = gs.players.filter(p => p.isAlive);
   alive.forEach((p, i) => {
     const spawn = MEETING_SPAWNS[i % MEETING_SPAWNS.length];
@@ -582,7 +964,6 @@ export function callMeeting(callerId: string, reason: 'alarm' | 'body' | 'draine
 
   audio.play('meeting_horn');
 
-  // Add a system message based on reason
   const caller = gs.players.find(p => p.id === callerId);
   const callerName = caller?.name ?? 'Кто-то';
   let systemMsg = '';
@@ -604,8 +985,6 @@ export function callMeeting(callerId: string, reason: 'alarm' | 'body' | 'draine
   scheduleBotChatMessages();
 }
 
-// ─── Meeting tick ──────────────────────────────────────────────────────────────
-
 function tickMeeting(dt: number): void {
   const m = gs.meeting!;
   m.timer -= dt;
@@ -625,7 +1004,7 @@ function tickMeeting(dt: number): void {
 
 function castBotVotes(): void {
   const m = gs.meeting!;
-  const thisMeetingId = m.meetingId; // snapshot to detect stale timeouts
+  const thisMeetingId = m.meetingId;
   const alivePlayers = gs.players.filter(p => p.isAlive);
 
   for (const bot of gs.players) {
@@ -634,13 +1013,11 @@ function castBotVotes(): void {
 
     const delay = 2 + Math.random() * 12;
     setTimeout(() => {
-      // Guard: discard vote if meeting ended, phase changed, or a new meeting started
       if (!gs.meeting || gs.meeting.phase !== 'voting' || gs.meeting.meetingId !== thisMeetingId) return;
       const skipChance = bot.role === 'slivshchik' ? 0.1 : 0.2;
       if (Math.random() < skipChance) {
         gs.meeting.votes.push({ voterId: bot.id, targetId: null });
       } else {
-        // Slivshchik bots avoid voting each other
         const candidates = alivePlayers.filter(p => {
           if (p.id === bot.id) return false;
           if (bot.role === 'slivshchik' && p.role === 'slivshchik') return false;
@@ -711,26 +1088,16 @@ function endMeeting(): void {
   checkWinConditions();
 }
 
-// ─── Bot chat (uses character voice lines) ────────────────────────────────────
-
 function scheduleBotChatMessages(): void {
   if (!gs.meeting) return;
   const bots = gs.players.filter(p => !p.isHuman && p.isAlive);
   shuffleArr(bots);
 
   const fallbackPhrases = [
-    'Я был у шавермы!',
-    'Кто смотрел на мой бак?!',
-    'Слива! Слива!',
-    'Я видел кого-то у машин.',
-    'Где ты был последние 30 секунд?',
-    'Это не я, честно!',
-    'У меня есть алиби.',
-    'Кто-то только что ушёл от меня.',
-    'Я выполнял задачу.',
-    'Почему ты молчал?',
-    'Я видел канистру!',
-    'Давайте пропустим.',
+    'Я был у шавермы!', 'Кто смотрел на мой бак?!', 'Слива! Слива!',
+    'Я видел кого-то у машин.', 'Где ты был последние 30 секунд?',
+    'Это не я, честно!', 'У меня есть алиби.', 'Кто-то только что ушёл от меня.',
+    'Я выполнял задачу.', 'Почему ты молчал?', 'Я видел канистру!', 'Давайте пропустим.',
   ];
 
   for (let i = 0; i < Math.min(bots.length, 5); i++) {
@@ -739,7 +1106,6 @@ function scheduleBotChatMessages(): void {
     setTimeout(() => {
       if (!gs.meeting) return;
       const charDef = CHARACTERS[bot.character];
-      // 60% chance to use character voice line, 40% generic phrase
       let phrase: string;
       if (Math.random() < 0.6 && charDef.voiceLines.length > 0) {
         phrase = charDef.voiceLines[Math.floor(Math.random() * charDef.voiceLines.length)];

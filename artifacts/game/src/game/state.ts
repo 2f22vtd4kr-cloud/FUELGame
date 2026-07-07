@@ -30,6 +30,8 @@ export function createInitialState(): GameState {
     ai95Price: 87,
     promptText: null,
     promptTimer: 0,
+    activeMiniGame: null,
+    activeSabotages: [],
   };
 }
 
@@ -83,6 +85,7 @@ export function startGame(
       ambushChargeTimer: 0,
       ambushCooldown: 0,
       siphonCooldown: 0,
+      sabotageCooldown: 0,
       isCarryingCanister: false,
       emote: null,
       emoteTimer: 0,
@@ -134,6 +137,8 @@ export function startGame(
   gs.meetingCooldown = 5;
   gs.promptText = null;
   gs.promptTimer = 0;
+  gs.activeMiniGame = null;
+  gs.activeSabotages = [];
 }
 
 // ─── Utils ────────────────────────────────────────────────────────────────────

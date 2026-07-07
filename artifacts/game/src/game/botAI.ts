@@ -6,7 +6,8 @@ import {
 } from './types';
 import { TASK_DEFS } from '../data/tasks';
 import { isInsideBuilding, clampToMap, dist, DUMPSTER_POSITIONS } from '../data/map';
-import { callMeeting } from './logic';
+import type { SabotageKey } from './types';
+import { callMeeting, triggerBotSabotage, isSabotageActive } from './logic';
 import { audio } from './audio';
 
 export function updateBots(dt: number): void {
@@ -216,6 +217,20 @@ function updateSlivshchikBot(bot: Player, dt: number): void {
     }
   }
 
+  // 3.5. Sabotage attempt (§2.9 — slivshchiki can trigger sabotages)
+  if (bot.sabotageCooldown <= 0 && !isWatched && Math.random() < 0.003) {
+    // ~18% chance per 60s (checked per frame at 0.003 * 60fps)
+    const keys: SabotageKey[] = ['alarm_chaos', 'chat_offline', 'babushka_cerberus', 'pipe_burst'];
+    const available = keys.filter(k => !gs.activeSabotages.some(s => s.key === k && !s.isResolved));
+    if (available.length > 0) {
+      // Prefer alarm_chaos before siphoning to mask gurgle; pipe_burst last (critical risk)
+      const preferOrder: SabotageKey[] = ['alarm_chaos', 'chat_offline', 'babushka_cerberus', 'pipe_burst'];
+      const sorted = preferOrder.filter(k => available.includes(k));
+      const pick = sorted.length > 0 ? sorted[0] : available[0];
+      triggerBotSabotage(bot.id, pick);
+    }
+  }
+
   // 4a. Dispose of carried canister at dumpster (§2.4 — Сливщики must dispose)
   if (bot.isCarryingCanister) {
     const nearDump = DUMPSTER_POSITIONS.some(dp => dist(bot.pos, dp) < 60);
@@ -238,7 +253,9 @@ function updateSlivshchikBot(bot: Player, dt: number): void {
 
   // 4. Find a car to siphon
   if (bot.botState === 'idle' || bot.botState === 'fake_task') {
-    if (bot.siphonCooldown > 0) { randomWander(bot, dt); return; } // §2.4 cooldown
+    if (bot.siphonCooldown > 0) { randomWander(bot, dt); return; }
+    // §2.9 Pipe burst: cars are flooded and inaccessible for all players
+    if (isSabotageActive('pipe_burst')) { randomWander(bot, dt); return; }
     let best = null; let bestDist = Infinity;
     for (const car of gs.cars) {
       if (car.fuel <= 0 || car.hasImmunity || car.siphoner) continue;

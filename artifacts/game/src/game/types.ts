@@ -36,7 +36,7 @@ export interface TaskDef {
   key: TaskDefKey;
   label: string;
   emoji: string;
-  duration: number;    // seconds to complete
+  duration: number;    // seconds to complete (hold-timer tasks)
   unityReward: number; // % added to unity meter on complete
   color: string;
 }
@@ -51,6 +51,95 @@ export interface TaskInstance {
   doer: string | null;
   respawnTimer: number;
 }
+
+// ─── Task Mini-Games (§2.5) ───────────────────────────────────────────────────
+
+export type MiniGameType = 'tap_timing' | 'rapid_tap' | 'sequence' | 'dial' | 'letter';
+
+/** Which mini-game type each task uses. Unmapped tasks use the hold-timer. */
+export const TASK_MINIGAME_MAP: Partial<Record<TaskDefKey, MiniGameType>> = {
+  shawarma: 'tap_timing',
+  kvass:    'tap_timing',
+  intercom: 'sequence',
+  pigeons:  'rapid_tap',
+  sweep:    'rapid_tap',
+  window:   'dial',
+  mailbox:  'letter',
+};
+
+export interface MiniGameState {
+  taskId: string;
+  defKey: TaskDefKey;
+  type: MiniGameType;
+  // ── tap_timing: oscillating marker, tap in green zone ──
+  markerPos: number;        // 0-1
+  markerDir: number;        // +1 or -1
+  markerSpeed: number;      // units/sec
+  hits: number;
+  requiredHits: number;
+  // ── rapid_tap: mash button N times ──
+  tapCount: number;
+  requiredTaps: number;
+  timeLimit: number;        // remaining seconds
+  timeLimitMax: number;
+  // ── sequence: digit pad, tap in order ──
+  sequence: number[];
+  seqIndex: number;
+  seqWrong: boolean;        // flash red on wrong press
+  // ── dial: rotate to green zone, release to lock ──
+  dialAngle: number;        // current angle 0-360
+  dialTarget: number;       // target angle
+  dialGreenWidth: number;   // ± degrees for green zone
+  dialStops: number;        // locked stops so far
+  dialRequiredStops: number;
+  // ── letter: read a satirical notice ──
+  letterText: string;
+  // ── shared feedback ──
+  feedback: 'none' | 'hit' | 'miss';
+  feedbackTimer: number;
+  done: boolean;
+}
+
+// ─── Sabotage System (§2.9) ───────────────────────────────────────────────────
+
+export type SabotageKey =
+  | 'babushka_cerberus'
+  | 'pipe_burst'
+  | 'chat_offline'
+  | 'alarm_chaos';
+
+export interface SabotageInstance {
+  id: string;
+  key: SabotageKey;
+  timer: number;        // seconds remaining
+  isResolved: boolean;
+  // pipe_burst: two valves must each be held for VALVE_FIX_TIME seconds
+  valve1Progress: number;
+  valve2Progress: number;
+}
+
+export const SABOTAGE_COOLDOWNS: Record<SabotageKey, number> = {
+  babushka_cerberus: 60,
+  pipe_burst:        75,
+  chat_offline:      50,
+  alarm_chaos:       45,
+};
+
+export const SABOTAGE_DURATIONS: Record<SabotageKey, number> = {
+  babushka_cerberus: 45,
+  pipe_burst:        60,  // critical — slivshchiki win if unresolved
+  chat_offline:      20,
+  alarm_chaos:       15,
+};
+
+export const SABOTAGE_LABELS: Record<SabotageKey, string> = {
+  babushka_cerberus: '👵 Бабушка-Цербер',
+  pipe_burst:        '💧 Прорвало трубу',
+  chat_offline:      '📵 ЖК Чат Офлайн',
+  alarm_chaos:       '🚨 Сигнализация хаос',
+};
+
+export const VALVE_FIX_TIME = 3; // seconds to hold at each valve
 
 // ─── Cars ─────────────────────────────────────────────────────────────────────
 
@@ -88,6 +177,8 @@ export interface Player {
   ambushChargeTimer: number;  // charge up to AMBUSH_CHARGE_TIME
   ambushCooldown: number;
   siphonCooldown: number;     // 15s cooldown after completing/canceling a siphon (§2.4)
+  // Sabotage
+  sabotageCooldown: number;   // global cooldown between sabotage uses
   // Items
   isCarryingCanister: boolean;
   // Visual
@@ -167,6 +258,7 @@ export const AMBUSH_COOLDOWN    = 25;
 export const BOT_FLEE_RADIUS    = 220;
 export const TASK_RESPAWN_TIME  = 35;
 export const MEETING_COOLDOWN   = 30;
+export const VALVE_INTERACT_RADIUS = 80;
 
 // Sprint / crouch
 export const SPRINT_SPEED_MULT  = 1.55;      // ~5.4 m/s from 3.5 base
@@ -198,6 +290,10 @@ export interface GameState {
   ai95Price: number;
   promptText: string | null;
   promptTimer: number;
+  // §2.5 Task mini-games
+  activeMiniGame: MiniGameState | null;
+  // §2.9 Sabotage
+  activeSabotages: SabotageInstance[];
 }
 
 // ─── Input ────────────────────────────────────────────────────────────────────

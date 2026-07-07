@@ -2,3 +2,4 @@
 - [95-Y Vol1 mechanics](game-vol1-mechanics.md) — ambush/body/canister/siphon phases/sprint/crouch all implemented; key bugs fixed (body-report gating, vote reset, joystick overwrite, gurgle cleanup)
 - [95-Y Vol1 doc alignment](game-vol1-doc-alignment.md) — 12 bugs fixed to align with doc §1.3/§2.4/§2.5/§2.7; siphon cooldown centralized in stopSiphon(); bot disposal uses isCarryingCanister flag set in dropCanister()
 - [95-Y vision system](game-vol1-vision.md) — §2.3 raycasting fog-of-war; VISION_BUILDINGS splits arch gap; teammate outlines drawn post-fog to pierce darkness
+- [95-Y mini-games and sabotage](game-minigames-sabotage.md) — §2.5 task mini-games + §2.9 sabotage system fully implemented
