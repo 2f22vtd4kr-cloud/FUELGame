@@ -118,6 +118,9 @@ export function applyMatchRewards(gs: GameState): MatchRewards {
 
   saveProfile(profile);
 
+  // ── §9.3 Submit score to leaderboard (fire-and-forget, no await) ────────────
+  submitLeaderboardScore(profile, gs).catch(() => { /* silent — offline ok */ });
+
   return {
     babkiEarned: babki,
     xpEarned: xp,
@@ -129,6 +132,27 @@ export function applyMatchRewards(gs: GameState): MatchRewards {
     dailyProgress,
     dailyTarget,
   };
+}
+
+/** §9.3 Fire-and-forget leaderboard score submission */
+async function submitLeaderboardScore(profile: PlayerProfile, gs: GameState): Promise<void> {
+  const localPlayer = gs.players.find(p => p.id === gs.localPlayerId);
+  const name = profile.playerName?.trim() || localPlayer?.name || 'Аноним';
+  const character = (localPlayer?.character as string) ?? 'denis';
+
+  const apiBase = import.meta.env.VITE_API_URL ?? '/api';
+  await fetch(`${apiBase}/leaderboard`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      playerName: name,
+      character,
+      babki: profile.babki,
+      wins: profile.totalMatchesWon,
+      matches: profile.totalMatchesPlayed,
+      deviceId: profile.deviceId,
+    }),
+  });
 }
 
 // ── §3.5 Daily challenge progress from a single match ─────────────────────────

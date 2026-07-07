@@ -8,9 +8,14 @@ export const usersTable = pgTable("users", {
   telegramId: bigint("telegram_id", { mode: "number" }).primaryKey(),
   username: varchar("username", { length: 64 }),
   displayName: varchar("display_name", { length: 128 }).notNull(),
+  photoUrl: varchar("photo_url", { length: 500 }),
   babki: integer("babki").default(0).notNull(),
+  stars: integer("stars").default(0).notNull(),
   xp: integer("xp").default(0).notNull(),
   level: integer("level").default(1).notNull(),
+  battlePassTier: integer("battle_pass_tier").default(0).notNull(),
+  battlePassXp: integer("battle_pass_xp").default(0).notNull(),
+  battlePassPremium: boolean("battle_pass_premium").default(false).notNull(),
   preferredCharacter: varchar("preferred_character", { length: 50 }).default("denis"),
   totalMatches: integer("total_matches").default(0).notNull(),
   totalWins: integer("total_wins").default(0).notNull(),
@@ -95,6 +100,25 @@ export const roomsTable = pgTable("rooms", {
 export const insertRoomSchema = createInsertSchema(roomsTable).omit({ createdAt: true });
 export type InsertRoom = z.infer<typeof insertRoomSchema>;
 export type Room = typeof roomsTable.$inferSelect;
+
+// ─── Leaderboard Entries (guest-friendly, no FK to users) ────────────────────
+
+export const leaderboardEntriesTable = pgTable("leaderboard_entries", {
+  id: serial("id").primaryKey(),
+  playerName: varchar("player_name", { length: 128 }).notNull(),
+  character: varchar("character", { length: 50 }),
+  babki: integer("babki").default(0).notNull(),
+  wins: integer("wins").default(0).notNull(),
+  matches: integer("matches").default(0).notNull(),
+  deviceId: varchar("device_id", { length: 64 }),
+  submittedAt: timestamp("submitted_at").defaultNow(),
+}, (t) => [
+  index("leaderboard_babki_idx").on(t.babki),
+]);
+
+export const insertLeaderboardEntrySchema = createInsertSchema(leaderboardEntriesTable).omit({ id: true, submittedAt: true });
+export type InsertLeaderboardEntry = z.infer<typeof insertLeaderboardEntrySchema>;
+export type LeaderboardEntry = typeof leaderboardEntriesTable.$inferSelect;
 
 // ─── Room Events ──────────────────────────────────────────────────────────────
 

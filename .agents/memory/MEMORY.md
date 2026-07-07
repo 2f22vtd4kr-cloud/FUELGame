@@ -13,3 +13,4 @@
 - [95-Y Vol1 final gaps](game-vol1-final-gaps.md) — session 7: Дядя Серёжа CTA, role-aware bot meeting chat, bot follow-suspicious state, Nightmare stalking; all Vol1 frontend items done
 - [95-Y Quick Play matchmaking](game-quickplay.md) — §5.5 server-side queue in wsHandler.ts; QUICK_MATCH_SIZE=4; GameRoom.isQuickPlay triggers server countdown; room_joined carries isQuickPlay flag; MultiplayerLobby has queueing screen
 - [95-Y Economy & Progression](game-economy-progression.md) — §3.2/§3.3/§3.5/§3.6 Бабки+XP+daily+achievements; localStorage profile; update stats BEFORE checkAchievements to avoid double-count; correctVotes tracked in resolveMeeting()
+- [95-Y Leaderboard & Shop](game-leaderboard-shop.md) — §3.4/§9.3/§10.3 done; leaderboard_entries table (no FK); POST /api/leaderboard upserts by deviceId; ShopTab has Stars flow via window.Telegram.WebApp.openInvoice; Lobby has 3 tabs (game/shop/leaderboard)
