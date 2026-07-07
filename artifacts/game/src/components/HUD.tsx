@@ -3,7 +3,7 @@ import type { GameState, SabotageKey } from '../game/types';
 import { SPRINT_MAX, SABOTAGE_LABELS, SABOTAGE_COOLDOWNS, SABOTAGE_DURATIONS, SIPHON_AUDIO_RADIUS } from '../game/types';
 import { NEWS_HEADLINES } from '../data/ticker';
 import { CHARACTERS } from '../data/characters';
-import { triggerSabotage, triggerEmote, PLAY_EMOTES } from '../game/logic';
+import { triggerSabotage, triggerEmote, PLAY_EMOTES, triggerBarsikMeow, investigateBody, janitorCollectCanister } from '../game/logic';
 import { gs } from '../game/state';
 import TaskMiniGame from './TaskMiniGame';
 
@@ -112,7 +112,7 @@ export default function HUD({ state }: HUDProps) {
           </div>
         </div>
 
-        {/* Center: role badge + phase clock */}
+        {/* Center: role badge + match clock */}
         <div style={{ textAlign: 'center' }}>
           <div style={{
             display: 'inline-block',
@@ -124,10 +124,27 @@ export default function HUD({ state }: HUDProps) {
             textShadow: '0 1px 2px rgba(0,0,0,0.8)',
           }}>
             {isSlivshchik ? '🪣 СЛИВЩИК' : '🏠 ХОЗЯИН'}
+            {localPlayer.neutralRole === 'barsik' && ' 😺'}
+            {localPlayer.neutralRole === 'policeman' && ' 🕵️'}
+            {localPlayer.neutralRole === 'janitor' && ' 🧹'}
           </div>
-          <div style={{ fontSize: 9, color: '#ccc', marginTop: 2, textShadow: '0 1px 2px #000' }}>
-            {Math.floor(state.time / 60).toString().padStart(2,'0')}:{Math.floor(state.time % 60).toString().padStart(2,'0')}
-          </div>
+          {/* §2.1 Match time limit countdown */}
+          {(() => {
+            const tleft = state.matchTimeLimit;
+            const mins = Math.floor(tleft / 60).toString().padStart(2, '0');
+            const secs = Math.floor(tleft % 60).toString().padStart(2, '0');
+            const urgent = tleft < 60;
+            return (
+              <div style={{
+                fontSize: 10, fontWeight: 'bold', marginTop: 2,
+                color: urgent ? '#FF5252' : '#ccc',
+                textShadow: '0 1px 2px #000',
+                animation: urgent && Math.floor(tleft) % 2 === 0 ? 'none' : undefined,
+              }}>
+                ⏱ {mins}:{secs}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Car fuel bars */}
@@ -415,6 +432,60 @@ export default function HUD({ state }: HUDProps) {
             </div>
             <div style={{ fontSize: 9, color: '#ffcdd2' }}>где-то рядом...</div>
           </div>
+        </div>
+      )}
+
+      {/* ── §3.1.3 Neutral role ability buttons ── */}
+      {localPlayer.isAlive && localPlayer.neutralRole && (
+        <div style={{
+          position: 'absolute', bottom: 160, left: '50%', transform: 'translateX(-50%)',
+          pointerEvents: 'all', display: 'flex', gap: 8,
+        }}>
+          {localPlayer.neutralRole === 'barsik' && (
+            <button
+              onClick={() => triggerBarsikMeow(gs.localPlayerId)}
+              disabled={localPlayer.barsikMeowCooldown > 0}
+              style={{
+                padding: '7px 14px', borderRadius: 20,
+                background: localPlayer.barsikMeowCooldown > 0
+                  ? 'rgba(80,80,80,0.7)' : 'rgba(255,153,0,0.85)',
+                border: '1px solid rgba(255,200,0,0.5)',
+                color: '#fff', fontSize: 12, fontWeight: 'bold',
+                cursor: localPlayer.barsikMeowCooldown > 0 ? 'not-allowed' : 'pointer',
+                boxShadow: '0 2px 10px rgba(0,0,0,0.5)',
+              }}
+            >
+              😺 МЯУ!{localPlayer.barsikMeowCooldown > 0 ? ` ${Math.ceil(localPlayer.barsikMeowCooldown)}с` : ''}
+            </button>
+          )}
+          {localPlayer.neutralRole === 'policeman' && (
+            <button
+              onClick={() => investigateBody(gs.localPlayerId)}
+              style={{
+                padding: '7px 14px', borderRadius: 20,
+                background: 'rgba(0,100,200,0.8)',
+                border: '1px solid rgba(100,180,255,0.5)',
+                color: '#fff', fontSize: 12, fontWeight: 'bold', cursor: 'pointer',
+                boxShadow: '0 2px 10px rgba(0,0,0,0.5)',
+              }}
+            >
+              🕵️ Расследовать тело
+            </button>
+          )}
+          {localPlayer.neutralRole === 'janitor' && (
+            <button
+              onClick={() => janitorCollectCanister(gs.localPlayerId)}
+              style={{
+                padding: '7px 14px', borderRadius: 20,
+                background: 'rgba(0,140,50,0.8)',
+                border: '1px solid rgba(100,255,130,0.4)',
+                color: '#fff', fontSize: 12, fontWeight: 'bold', cursor: 'pointer',
+                boxShadow: '0 2px 10px rgba(0,0,0,0.5)',
+              }}
+            >
+              🧹 Подобрать канистру ({localPlayer.canistersCollected}/3)
+            </button>
+          )}
         </div>
       )}
 

@@ -806,10 +806,13 @@ function drawPlayers(
     ctx.ellipse(x, y + 14, 12, 5, 0, 0, Math.PI * 2);
     ctx.fill();
 
+    // §3.1.3 Барсик character is slightly smaller
+    const playerRadius = player.character === 'barsik' ? 10 : 14;
+
     // Body
     ctx.fillStyle = charDef.color;
     ctx.beginPath();
-    ctx.arc(x, y, 14, 0, Math.PI * 2);
+    ctx.arc(x, y, playerRadius, 0, Math.PI * 2);
     ctx.fill();
 
     // Outline
@@ -819,8 +822,9 @@ function drawPlayers(
 
     // Facing direction indicator
     ctx.fillStyle = '#fff';
-    const fx = x + Math.cos(player.facingAngle) * 10;
-    const fy = y + Math.sin(player.facingAngle) * 10;
+    const facingDist = player.character === 'barsik' ? 7 : 10;
+    const fx = x + Math.cos(player.facingAngle) * facingDist;
+    const fy = y + Math.sin(player.facingAngle) * facingDist;
     ctx.beginPath();
     ctx.arc(fx, fy, 3, 0, Math.PI * 2);
     ctx.fill();

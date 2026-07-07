@@ -1056,6 +1056,7 @@ export function callMeeting(callerId: string, reason: 'alarm' | 'body' | 'draine
     ejectedId: null,
     ejectionText: null,
     chatMessages: [],
+    skipDiscussionVotes: [],
   };
 
   audio.play('meeting_horn');
@@ -1071,7 +1072,7 @@ export function callMeeting(callerId: string, reason: 'alarm' | 'body' | 'draine
   } else {
     systemMsg = `${callerName} созвал(а) собрание.`;
   }
-  gs.meeting.chatMessages.push({
+  gs.meeting!.chatMessages.push({
     playerId: callerId,
     playerName: callerName,
     text: systemMsg,
@@ -1199,6 +1200,22 @@ export function submitVote(voterId: string, targetId: string | null): void {
   if (gs.meeting.votes.some(v => v.voterId === voterId)) return;
   gs.meeting.votes.push({ voterId, targetId });
   audio.play('vote_cast');
+}
+
+export function submitSkipDiscussion(voterId: string): void {
+  if (!gs.meeting || gs.meeting.phase !== 'discussion') return;
+  if (gs.meeting.skipDiscussionVotes.includes(voterId)) return;
+  gs.meeting.skipDiscussionVotes.push(voterId);
+  const caller = gs.players.find(p => p.id === voterId);
+  if (caller) {
+    gs.meeting.chatMessages.push({
+      playerId: voterId,
+      playerName: caller.name,
+      text: 'Предлагаю перейти к голосованию!',
+      timestamp: Date.now(),
+    });
+  }
+  audio.play('ui_click');
 }
 
 function endMeeting(): void {

@@ -7,9 +7,10 @@ import {
   BOT_DIFFICULTY_SETTINGS,
 } from './types';
 import { TASK_DEFS } from '../data/tasks';
-import { isInsideBuilding, clampToMap, dist, DUMPSTER_POSITIONS, isInFlowerBed } from '../data/map';
+import { isInsideBuilding, clampToMap, dist, DUMPSTER_POSITIONS, isInFlowerBed, VALVE_POSITIONS } from '../data/map';
 import type { SabotageKey } from './types';
 import { callMeeting, triggerBotSabotage, isSabotageActive } from './logic';
+import { VALVE_FIX_TIME, VALVE_INTERACT_RADIUS } from './types';
 import { audio } from './audio';
 
 // ─── §4.3 Suspicion helpers ────────────────────────────────────────────────────
@@ -59,6 +60,35 @@ export function updateBots(dt: number): void {
 function updateKhozainBot(bot: Player, dt: number): void {
   decaySuspicion(bot, dt);
   const diff = BOT_DIFFICULTY_SETTINGS[gs.botDifficulty];
+
+  // 0. Fix pipe_burst sabotage — highest priority for khozain bots
+  const pipeBurst = gs.activeSabotages.find(s => s.key === 'pipe_burst' && !s.isResolved);
+  if (pipeBurst) {
+    // Find nearest valve that still needs fixing
+    let targetValveIdx = -1;
+    let bestValveDist = Infinity;
+    for (let v = 0; v < VALVE_POSITIONS.length; v++) {
+      const prog = v === 0 ? pipeBurst.valve1Progress : pipeBurst.valve2Progress;
+      if (prog >= VALVE_FIX_TIME) continue; // already fixed
+      const d = dist(bot.pos, VALVE_POSITIONS[v]);
+      if (d < bestValveDist) { bestValveDist = d; targetValveIdx = v; }
+    }
+    if (targetValveIdx >= 0) {
+      const valvePos = VALVE_POSITIONS[targetValveIdx];
+      bot.botState = 'fix_sabotage';
+      if (bestValveDist > VALVE_INTERACT_RADIUS) {
+        moveBot(bot, valvePos, dt);
+      } else {
+        // At valve — increment progress
+        if (targetValveIdx === 0) {
+          pipeBurst.valve1Progress = Math.min(VALVE_FIX_TIME, pipeBurst.valve1Progress + dt);
+        } else {
+          pipeBurst.valve2Progress = Math.min(VALVE_FIX_TIME, pipeBurst.valve2Progress + dt);
+        }
+      }
+      return;
+    }
+  }
 
   // 1. Flee if siphoner nearby
   const nearSiphoner = gs.players.find(
@@ -159,6 +189,9 @@ function updateKhozainBot(bot: Player, dt: number): void {
           task.respawnTimer = TASK_RESPAWN_TIME;
           audio.play('task_complete');
           gs.unityMeter = Math.min(100, gs.unityMeter + taskDef.unityReward);
+          // §2.1 Bot task completion also extends match time
+          gs.matchTimeLimit = Math.min(gs.matchTimeLimit + 30, 600);
+          bot.tasksCompleted++;
           bot.botState = 'idle'; bot.botTaskId = null;
           bot.botCooldown = 0.5 + Math.random() * 2;
         }

@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import type { GameState } from '../game/types';
 import { gs } from '../game/state';
 import { triggerEmote } from '../game/logic';
-import { submitVote } from '../game/gameActions';
+import { submitVote, submitSkipDiscussion } from '../game/gameActions';
 import { CHARACTERS } from '../data/characters';
 import { audio } from '../game/audio';
 
@@ -281,6 +281,38 @@ export default function MeetingScreen({ state }: MeetingScreenProps) {
               );
             })}
           </div>
+
+          {/* §2.7.4 Skip discussion — majority vote to move to voting */}
+          {meeting.phase === 'discussion' && (() => {
+            const aliveCount = state.players.filter(p => p.isAlive).length;
+            const skipCount = meeting.skipDiscussionVotes.length;
+            const hasSkipped = meeting.skipDiscussionVotes.includes(state.localPlayerId);
+            const needed = Math.floor(aliveCount / 2) + 1;
+            return (
+              <div style={{
+                padding: '6px 10px',
+                borderBottom: '1px solid rgba(255,255,255,0.06)',
+                display: 'flex', alignItems: 'center', gap: 8,
+              }}>
+                <button
+                  onClick={() => !hasSkipped && submitSkipDiscussion(state.localPlayerId)}
+                  disabled={hasSkipped}
+                  style={{
+                    flex: 1, padding: '6px', borderRadius: 8,
+                    background: hasSkipped ? 'rgba(255,255,255,0.03)' : 'rgba(255,152,0,0.25)',
+                    border: `1px solid ${hasSkipped ? 'rgba(255,255,255,0.08)' : 'rgba(255,152,0,0.5)'}`,
+                    color: hasSkipped ? '#666' : '#FFB300',
+                    cursor: hasSkipped ? 'default' : 'pointer', fontSize: 11,
+                  }}
+                >
+                  {hasSkipped ? '✓ Вы хотите перейти к голосованию' : '⏭️ К голосованию'}
+                </button>
+                <div style={{ fontSize: 10, color: '#888', whiteSpace: 'nowrap' }}>
+                  {skipCount}/{needed}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Quick-chat panel */}
           {meeting.phase === 'discussion' && (

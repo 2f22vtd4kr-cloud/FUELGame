@@ -1,4 +1,4 @@
-import type { GameState, Player, Car, TaskInstance, ImmunityTicket } from './types';
+import type { GameState, Player, Car, TaskInstance, ImmunityTicket, NeutralRole } from './types';
 import { CAR_SPAWNS, TASK_SPAWNS, PLAYER_SPAWNS, DUMPSTER_POSITIONS } from '../data/map';
 import { CHARACTERS, CHARACTER_KEYS } from '../data/characters';
 import { SPRINT_MAX } from './types';
@@ -33,6 +33,7 @@ export function createInitialState(): GameState {
     activeMiniGame: null,
     activeSabotages: [],
     briefingTimer: 0,
+    matchTimeLimit: 300,
     botDifficulty: 'medium',
     immunityTickets: [],
   };
@@ -96,6 +97,11 @@ export function startGame(
       suspectedTimer: 0,
       speedBoostTimer: 0,
       hasImmunityTicket: false,
+      neutralRole: null,
+      canistersCollected: 0,
+      barsikMeowCooldown: 0,
+      fuelSiphoned: 0,
+      tasksCompleted: 0,
       suspicion: {},
       botState: 'idle',
       botTarget: null,
@@ -140,6 +146,25 @@ export function startGame(
     });
   }
 
+  // §3.1.3 Neutral role assignment — in 6+ player games, one khozain gets a neutral role
+  if (playerCount >= 6) {
+    const neutralRoles: NeutralRole[] = ['barsik', 'policeman', 'janitor'];
+    // Pick a random khozain to receive a neutral role
+    const khozainIndices = players
+      .map((p, i) => ({ p, i }))
+      .filter(({ p }) => p.role === 'khozain')
+      .map(({ i }) => i);
+    if (khozainIndices.length > 0) {
+      // Prefer assigning 'barsik' neutral to whoever picked the barsik character
+      const barsikIdx = players.findIndex(p => p.character === 'barsik' && p.role === 'khozain');
+      const targetIdx = barsikIdx >= 0 ? barsikIdx : khozainIndices[Math.floor(Math.random() * khozainIndices.length)];
+      const pickedRole = barsikIdx >= 0
+        ? 'barsik'
+        : neutralRoles[Math.floor(Math.random() * neutralRoles.length)];
+      players[targetIdx].neutralRole = pickedRole;
+    }
+  }
+
   gs.phase = 'briefing';
   gs.briefingTimer = 5;
   gs.players = players;
@@ -153,6 +178,7 @@ export function startGame(
   gs.winReason = '';
   gs.localPlayerId = 'player_human';
   gs.time = 0;
+  gs.matchTimeLimit = 300; // §2.1: 5-minute play phase, extended by tasks
   gs.meetingCooldown = 5;
   gs.promptText = null;
   gs.promptTimer = 0;

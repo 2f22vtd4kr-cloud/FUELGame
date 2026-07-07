@@ -2,7 +2,8 @@
 
 export type Phase = 'lobby' | 'briefing' | 'play' | 'meeting' | 'results';
 export type Role = 'khozain' | 'slivshchik';
-export type BotBehavior = 'idle' | 'moving' | 'interacting' | 'fleeing' | 'at_meeting' | 'fake_task';
+export type NeutralRole = 'barsik' | 'policeman' | 'janitor';
+export type BotBehavior = 'idle' | 'moving' | 'interacting' | 'fleeing' | 'at_meeting' | 'fake_task' | 'fix_sabotage';
 
 export interface Vec2 { x: number; y: number; }
 
@@ -190,6 +191,13 @@ export interface Player {
   speedBoostTimer: number;        // remaining seconds of speed boost
   // §10.2 Immunity Ticket
   hasImmunityTicket: boolean;     // player is holding a ticket
+  // §3.1.3 Neutral role
+  neutralRole: NeutralRole | null;
+  canistersCollected: number;
+  barsikMeowCooldown: number;
+  // Per-player stats
+  fuelSiphoned: number;
+  tasksCompleted: number;
   // §4.3 Bot suspicion vector (khozain bots only)
   suspicion: Record<string, number>;
   // Bot AI
@@ -240,6 +248,7 @@ export interface MeetingState {
   ejectedId: string | null;
   ejectionText: string | null;
   chatMessages: ChatMessage[];
+  skipDiscussionVotes: string[];
 }
 
 export interface ChatMessage {
@@ -336,6 +345,8 @@ export interface GameState {
   activeSabotages: SabotageInstance[];
   // §2.1 Briefing phase
   briefingTimer: number;
+  // §2.1 Match time limit
+  matchTimeLimit: number;
   // §4.2 Bot difficulty
   botDifficulty: BotDifficulty;
   // §10.2 Immunity tickets on the ground

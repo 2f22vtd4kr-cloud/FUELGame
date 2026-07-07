@@ -9,6 +9,7 @@
 
 import {
   submitVote as _submitVote,
+  submitSkipDiscussion as _submitSkipDiscussion,
   onMiniGameTap as _tap,
   onMiniGameDigitTap as _digit,
   cancelMiniGame as _cancel,
@@ -24,6 +25,15 @@ let activeNetwork: NetworkProxy | null = null;
 
 export function setActiveNetwork(net: NetworkProxy | null): void {
   activeNetwork = net;
+}
+
+export function submitSkipDiscussion(voterId: string): void {
+  if (activeNetwork) {
+    activeNetwork.sendAction('skip_discussion', { voterId });
+    _submitSkipDiscussion(voterId);
+  } else {
+    _submitSkipDiscussion(voterId);
+  }
 }
 
 export function submitVote(voterId: string, targetId: string | null): void {

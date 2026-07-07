@@ -2,7 +2,7 @@ import type { WebSocket } from 'ws';
 import type { InputState } from './types';
 import { gs, setGs, startGameMultiplayer, createInitialState } from './state';
 import type { HumanPlayerInfo } from './state';
-import { tickGameMulti, submitVote, onMiniGameTap, onMiniGameDigitTap, cancelMiniGame, triggerEmote } from './logic';
+import { tickGameMulti, submitVote, submitSkipDiscussion, onMiniGameTap, onMiniGameDigitTap, cancelMiniGame, triggerEmote } from './logic';
 import type { LobbyPlayer } from './network-types';
 
 export interface ClientInfo {
@@ -149,6 +149,9 @@ export class GameRoom {
     switch (type) {
       case 'vote':
         submitVote(playerId, (payload['targetId'] as string | null) ?? null);
+        break;
+      case 'skip_discussion':
+        submitSkipDiscussion(playerId);
         break;
       case 'minigame_tap':
         onMiniGameTap();

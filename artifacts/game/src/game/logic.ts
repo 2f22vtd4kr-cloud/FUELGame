@@ -82,6 +82,16 @@ export function tickGame(dt: number, input: InputState): void {
     gs.time += dt;
     gs.meetingCooldown = Math.max(0, gs.meetingCooldown - dt);
 
+    // §2.1 Match time limit countdown
+    gs.matchTimeLimit = Math.max(0, gs.matchTimeLimit - dt);
+    if (gs.matchTimeLimit <= 0 && !gs.winner) {
+      gs.winner = 'slivshchiki';
+      gs.winReason = 'Время вышло! Сливщики пережили двор.';
+      gs.phase = 'results';
+      audio.play('win_slivshchiki');
+      return;
+    }
+
     updateHumanPlayer(dt, input);
     updateBots(dt);
     updateMiniGame(dt, input);
@@ -92,6 +102,7 @@ export function tickGame(dt: number, input: InputState): void {
     updatePrompt(dt);
     updateTicker(dt);
     updateEmotes(dt);
+    updateNeutralMechanics(dt);
     checkWinConditions();
   } else if (gs.phase === 'meeting') {
     if (gs.meeting) tickMeeting(dt);
@@ -381,6 +392,134 @@ export function onMiniGameDigitTap(digit: number): void {
   }
 }
 
+// ─── §3.1.3 Neutral mechanics ─────────────────────────────────────────────────
+
+function updateNeutralMechanics(dt: number): void {
+  for (const player of gs.players) {
+    if (!player.isAlive || !player.neutralRole) continue;
+    if (player.barsikMeowCooldown > 0) player.barsikMeowCooldown -= dt;
+
+    // §3.1.3 Барсик neutral: auto-meow when witnessing active siphon within 200px
+    if (player.neutralRole === 'barsik' && player.barsikMeowCooldown <= 0) {
+      const witnessedSiphon = gs.cars.find(car => {
+        if (car.siphonPhase !== 2) return false;
+        const dx = car.pos.x - player.pos.x;
+        const dy = car.pos.y - player.pos.y;
+        return Math.sqrt(dx * dx + dy * dy) < 200;
+      });
+      if (witnessedSiphon) {
+        // Меow! Audible alert + canister knock (cancels siphon + creates evidence)
+        player.barsikMeowCooldown = 12;
+        player.emote = '😺';
+        player.emoteTimer = 3;
+        audio.play('alarm_button');
+
+        // Knock the canister — interrupt the siphon, leaving evidence
+        const siphoner = gs.players.find(p => p.id === witnessedSiphon.siphoner);
+        if (siphoner) {
+          dropCanister(siphoner, witnessedSiphon, false);
+          stopSiphon(witnessedSiphon, siphoner, 'interrupt');
+          // Add to meeting chat if meeting is active, else add system message
+          const meowMsg = {
+            playerId: player.id,
+            playerName: player.name,
+            text: 'МЯУ! (перевернул канистру у машины!)',
+            timestamp: Date.now(),
+          };
+          if (gs.meeting) {
+            gs.meeting.chatMessages.push(meowMsg);
+          }
+          // Raise suspicion for all khozain bots
+          for (const watcher of gs.players) {
+            if (watcher.role === 'khozain' && !watcher.isHuman) {
+              watcher.suspicion[siphoner.id] = Math.min(1, (watcher.suspicion[siphoner.id] ?? 0) + 0.4);
+            }
+          }
+        }
+        if (player.isHuman) {
+          setPrompt('😺 МЯУ! Барсик перевернул канистру — улика!', 3);
+        }
+      }
+    }
+
+    // §3.1.3 Дворник neutral: count canisters collected (tracked in interaction logic)
+  }
+}
+
+/** Called from HUD — Барсик manual meow ability */
+export function triggerBarsikMeow(playerId: string): void {
+  const player = gs.players.find(p => p.id === playerId);
+  if (!player || !player.isAlive || player.neutralRole !== 'barsik') return;
+  if (player.barsikMeowCooldown > 0) return;
+  player.barsikMeowCooldown = 15;
+  player.emote = '😺';
+  player.emoteTimer = 4;
+  audio.play('alarm_button');
+  if (gs.meeting) {
+    gs.meeting.chatMessages.push({
+      playerId,
+      playerName: player.name,
+      text: 'МЯУ!',
+      timestamp: Date.now(),
+    });
+  }
+  setPrompt('😺 МЯУ! Весь двор услышал.', 3);
+}
+
+/** Called from HUD — Участковый investigate body ability */
+export function investigateBody(playerId: string): void {
+  const player = gs.players.find(p => p.id === playerId);
+  if (!player || !player.isAlive || player.neutralRole !== 'policeman') return;
+  const nearBody = gs.bodies.find(b => {
+    const dx = b.pos.x - player.pos.x;
+    const dy = b.pos.y - player.pos.y;
+    return Math.sqrt(dx * dx + dy * dy) < 100;
+  });
+  if (!nearBody) {
+    setPrompt('🕵️ Подойди к телу для расследования.', 2);
+    return;
+  }
+  // CSI clue — satirical, cosmetic
+  const clues = [
+    'Удар нанесён левой рукой. Подозреваемый: левша.',
+    'Запах бензина от жертвы. Канистра рядом.',
+    'Следы подошвы размера 43. Записал в протокол.',
+    'Жертва держала шаверму. Последний обед.',
+  ];
+  const clue = clues[Math.floor(Math.random() * clues.length)];
+  setPrompt(`🕵️ Расследование: ${clue}`, 5);
+  if (gs.meeting) {
+    gs.meeting.chatMessages.push({
+      playerId,
+      playerName: player.name,
+      text: `Расследование: ${clue}`,
+      timestamp: Date.now(),
+    });
+  }
+}
+
+/** Called from HUD — Дворник collect canister ability */
+export function janitorCollectCanister(playerId: string): void {
+  const player = gs.players.find(p => p.id === playerId);
+  if (!player || !player.isAlive || player.neutralRole !== 'janitor') return;
+  // Find nearest canister within reach
+  const near = gs.canisters.find(c => {
+    const dx = c.pos.x - player.pos.x;
+    const dy = c.pos.y - player.pos.y;
+    return Math.sqrt(dx * dx + dy * dy) < 100;
+  });
+  if (!near) {
+    setPrompt('🧹 Канистр рядом нет. Метите дальше, Ахмет.', 2);
+    return;
+  }
+  // Remove canister from world — janitor disposes it, no carry state needed
+  const idx = gs.canisters.indexOf(near);
+  gs.canisters.splice(idx, 1);
+  player.canistersCollected++;
+  // Note: do NOT set isCarryingCanister (that's slivshchik-only mechanics)
+  setPrompt(`🧹 Канистра убрана! ${player.canistersCollected}/3`, 3);
+}
+
 /** Cancel the active mini-game (called by React cancel button or logic) */
 export function cancelMiniGame(): void {
   if (!gs.activeMiniGame) return;
@@ -400,12 +539,15 @@ function completeTask(task: TaskInstance, player: Player): void {
 
   if (player.role === 'khozain') {
     gs.unityMeter = Math.min(100, gs.unityMeter + taskDef.unityReward);
+    // §2.1 Task completion extends match time by 30 seconds
+    gs.matchTimeLimit = Math.min(gs.matchTimeLimit + 30, 600); // cap at 10 min total
+    player.tasksCompleted++;
     // §2.4 Shawarma speed boost — buying shawarma gives 10s speed boost
     if (task.defKey === 'shawarma') {
       player.speedBoostTimer = SHAWARMA_SPEED_BOOST_DURATION;
-      setPrompt(`🌯 Шаверма куплена! +${taskDef.unityReward}% единства. Скорость ×1.35 на 10с! 🏃`, 3);
+      setPrompt(`🌯 Шаверма куплена! +${taskDef.unityReward}% единства. Скорость ×1.35 на 10с! +30с времени! 🏃`, 3);
     } else {
-      setPrompt(`✅ ${taskDef.label} — +${taskDef.unityReward}% единства!`, 3);
+      setPrompt(`✅ ${taskDef.label} — +${taskDef.unityReward}% единства! +30с`, 3);
     }
   } else {
     // Slivshchik faking tasks
@@ -518,6 +660,14 @@ function updateSabotages(dt: number, input: InputState): void {
           }
         }
       }
+    }
+
+    // ── Bot-driven resolution check (valves can be advanced by bots without player input) ──
+    if (sab.key === 'pipe_burst' && !sab.isResolved &&
+        sab.valve1Progress >= VALVE_FIX_TIME && sab.valve2Progress >= VALVE_FIX_TIME) {
+      sab.isResolved = true;
+      setPrompt('✅ Труба починена!', 3);
+      audio.play('task_complete');
     }
 
     // ── Timer expiry ──
@@ -743,6 +893,25 @@ function updateInteractions(dt: number, input: InputState): void {
     }
   }
 
+  // ── 4d. Canister-carrying Сливщик visible → Хозяин can call meeting ──────
+  // §2.4: "If a Хозяин sees a Сливщик carrying a canister, they can call a сходка immediately."
+  if (player.role === 'khozain' && !player.isCarryingCanister && gs.meetingCooldown <= 0 && !chatOffline) {
+    const canisterSlivshchik = gs.players.find(p =>
+      p.id !== player.id && p.isAlive && p.role === 'slivshchik' && p.isCarryingCanister &&
+      dist(player.pos, p.pos) < 280
+    );
+    if (canisterSlivshchik) {
+      setPrompt(`⚡ [E] Созвать сходку — видел ${canisterSlivshchik.name} с канистрой!`, 0.2);
+      if (input.interact && !input.prevInteract) {
+        audio.play('alarm_button');
+        callMeeting(player.id, 'alarm');
+        return;
+      }
+      clearTaskDoer(player.id);
+      return;
+    }
+  }
+
   // ── 5. Alarm button ────────────────────────────────────────────────────────
   const alarmDist = dist(player.pos, ENTRANCE_POS);
   if (alarmDist < ALARM_RADIUS && gs.meetingCooldown <= 0) {
@@ -957,7 +1126,10 @@ function updateSiphoning(dt: number): void {
         }
       }
     } else if (car.siphonPhase === 2) {
+      const fuelBefore = car.fuel;
       car.fuel = Math.max(0, car.fuel - SIPHON_RATE * dt);
+      // §9.1 Track per-player fuel siphoned stat
+      if (siphoner) siphoner.fuelSiphoned += (fuelBefore - car.fuel);
       if (car.fuel <= 0) {
         if (siphoner.isHuman) audio.play('siphon_complete');
         dropCanister(siphoner, car, true);
@@ -1056,6 +1228,7 @@ export function callMeeting(callerId: string, reason: 'alarm' | 'body' | 'draine
     ejectedId: null,
     ejectionText: null,
     chatMessages: [],
+    skipDiscussionVotes: [],
   };
 
   audio.play('meeting_horn');
@@ -1086,7 +1259,10 @@ function tickMeeting(dt: number): void {
   m.timer -= dt;
 
   if (m.phase === 'discussion') {
-    if (m.timer <= 0) {
+    // §2.7.4 Skip discussion by majority vote
+    const aliveCount = gs.players.filter(p => p.isAlive).length;
+    const skipCount = m.skipDiscussionVotes.length;
+    if (m.timer <= 0 || (aliveCount >= 2 && skipCount > aliveCount / 2)) {
       m.phase = 'voting';
       m.timer = 30;
       castBotVotes();
@@ -1201,6 +1377,24 @@ export function submitVote(voterId: string, targetId: string | null): void {
   audio.play('vote_cast');
 }
 
+/** §2.7.4 Vote to skip discussion phase and move to voting early */
+export function submitSkipDiscussion(voterId: string): void {
+  if (!gs.meeting || gs.meeting.phase !== 'discussion') return;
+  if (gs.meeting.skipDiscussionVotes.includes(voterId)) return;
+  gs.meeting.skipDiscussionVotes.push(voterId);
+  // Add chat message
+  const caller = gs.players.find(p => p.id === voterId);
+  if (caller) {
+    gs.meeting.chatMessages.push({
+      playerId: voterId,
+      playerName: caller.name,
+      text: 'Предлагаю перейти к голосованию!',
+      timestamp: Date.now(),
+    });
+  }
+  audio.play('ui_click');
+}
+
 function endMeeting(): void {
   gs.phase = 'play';
   gs.meeting = null;
@@ -1286,6 +1480,22 @@ function checkWinConditions(): void {
     gs.phase = 'results';
     audio.play('win_owners');
     return;
+  }
+
+  // §3.1.3 Neutral win conditions
+  for (const player of gs.players) {
+    if (!player.neutralRole || !player.isAlive) continue;
+    if (player.neutralRole === 'janitor' && player.canistersCollected >= 3) {
+      // Janitor wins by collecting 3 canisters — doesn't end the match, just personal victory
+      if (player.isHuman) {
+        setPrompt('🧹 Ахмет-дворник победил! 3 канистры убраны.', 5);
+      }
+      player.neutralRole = null; // consumed — role fulfilled
+    }
+    if (player.neutralRole === 'barsik' && !player.isAlive) {
+      // Barsik loses if voted out (shouldn't happen per lore but might)
+      if (player.isHuman) setPrompt('😿 Барсика выгнали... Несправедливость.', 5);
+    }
   }
 }
 

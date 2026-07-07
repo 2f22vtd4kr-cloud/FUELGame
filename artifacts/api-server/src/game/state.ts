@@ -38,6 +38,7 @@ export function createInitialState(): GameState {
     activeMiniGame: null,
     activeSabotages: [],
     briefingTimer: 0,
+    matchTimeLimit: 300,
     botDifficulty: 'medium',
     immunityTickets: [],
   };
@@ -99,6 +100,11 @@ export function startGame(
       suspectedTimer: 0,
       speedBoostTimer: 0,
       hasImmunityTicket: false,
+      neutralRole: null,
+      canistersCollected: 0,
+      barsikMeowCooldown: 0,
+      fuelSiphoned: 0,
+      tasksCompleted: 0,
       suspicion: {},
       botState: 'idle',
       botTarget: null,
@@ -154,6 +160,7 @@ export function startGame(
   gs.winReason = '';
   gs.localPlayerId = 'player_human';
   gs.time = 0;
+  gs.matchTimeLimit = 300;
   gs.meetingCooldown = 5;
   gs.promptText = null;
   gs.promptTimer = 0;
@@ -207,6 +214,11 @@ function makePlayer(
     suspectedTimer: 0,
     speedBoostTimer: 0,
     hasImmunityTicket: false,
+    neutralRole: null,
+    canistersCollected: 0,
+    barsikMeowCooldown: 0,
+    fuelSiphoned: 0,
+    tasksCompleted: 0,
     suspicion: {},
     botState: 'idle',
     botTarget: null,
