@@ -328,9 +328,9 @@ function startMiniGame(taskId: string, defKey: string, type: MiniGameType): void
     requiredHits: defKey === 'shawarma' ? 3 : 2,
     // rapid_tap / dog_walk
     tapCount: 0,
-    requiredTaps: defKey === 'pigeons' ? 15 : defKey === 'fix_swing' ? 8 : defKey === 'water_lawn' ? 12 : type === 'dog_walk' ? 5 : 12,
-    timeLimit: defKey === 'pigeons' ? 7 : defKey === 'fix_swing' ? 6 : defKey === 'water_lawn' ? 6 : type === 'dog_walk' ? 10 : 5,
-    timeLimitMax: defKey === 'pigeons' ? 7 : defKey === 'fix_swing' ? 6 : defKey === 'water_lawn' ? 6 : type === 'dog_walk' ? 10 : 5,
+    requiredTaps: defKey === 'pigeons' ? 15 : defKey === 'fix_swing' ? 8 : defKey === 'water_lawn' ? 12 : defKey === 'flowers' ? 10 : type === 'dog_walk' ? 5 : 12,
+    timeLimit: defKey === 'pigeons' ? 7 : defKey === 'fix_swing' ? 6 : defKey === 'water_lawn' ? 6 : defKey === 'flowers' ? 5 : type === 'dog_walk' ? 10 : 5,
+    timeLimitMax: defKey === 'pigeons' ? 7 : defKey === 'fix_swing' ? 6 : defKey === 'water_lawn' ? 6 : defKey === 'flowers' ? 5 : type === 'dog_walk' ? 10 : 5,
     // sequence — check_meter generates ascending 4-digit reading
     sequence: (() => {
       const seq = [
@@ -841,6 +841,30 @@ function completeTask(task: TaskInstance, player: Player): void {
   task.respawnTimer = TASK_RESPAWN_TIME;
   audio.play('task_complete');
 
+  // §2.5 Task completion flavor texts — one per task key
+  const TASK_FLAVOR: Partial<Record<string, string>> = {
+    shawarma:     '🌯 Шаверма за 180₽. С остреньким.',
+    grandma:      '👵 Бабушка в восторге. Рассказала про внука-айтишника.',
+    window:       '🔌 Кто-то опять спёр медь.',             // turnstile
+    intercom:     '📡 ЖК-чат: «У кого Ростелеком?»',        // router
+    flowers:      '🌸 Тётя Люба из 4 подъезда будет довольна.',
+    dog_walk:     '🐕 Бакс доволен. Снова потянул к мусоркам.',
+    flower_match: '💐 Тётя Люба любит ромашки. Все это знают. Кроме вас, видимо.',
+    drunk_calm:   '🍻 Вася из 2 подъезда. Опять.',
+    mailbox:      '📬 С 1 августа тариф на ЖКХ повышается на 14%.',
+    taxi_order:   '🚕 Яндекс GO. Подача 3 минуты. Сюрприз: 8 минут.',
+    trash:        '🗑️ Опять пять пакетов вместо одного.',
+    help_bags:    '🛍️ Соседка Люда с рынка. Тяжёлые сумки.',
+    pigeons:      '🕊️ Голуби наелись. Голуби наедятся ещё.',
+    find_cat:     '🐱 Барсик найден! Барсик совершенно невозмутим.',
+    fix_swing:    '🛺 Качели скрипят меньше. Дети не скажут спасибо.',
+    sweep:        '🧹 Метёт, как Ахмет учил.',
+    water_lawn:   '💧 Газон полит. Жара не отступает.',
+    check_meter:  '📊 Счётчик проверен. Цифры тревожные.',
+    kvass:        '🍺 Квас за 60₽. Прохладный.',
+    close_tap:    '🔧 Кран закрыт. Вода не льётся.',
+  };
+
   if (player.role === 'khozain') {
     gs.unityMeter = Math.min(100, gs.unityMeter + taskDef.unityReward);
     // §2.1 Task completion extends match time by 30 seconds
@@ -850,9 +874,14 @@ function completeTask(task: TaskInstance, player: Player): void {
     if (task.defKey === 'shawarma') {
       player.speedBoostTimer = SHAWARMA_SPEED_BOOST_DURATION;
       audio.play('shawarma_buy');
-      setPrompt(`🌯 Шаверма куплена! +${taskDef.unityReward}% единства. Скорость ×1.35 на 10с! +30с времени! 🏃`, 3);
+      const flavorText = TASK_FLAVOR.shawarma ?? '';
+      setPrompt(`${flavorText} +${taskDef.unityReward}% единства. Скорость ×1.35 на 10с! 🏃`, 3);
     } else {
-      setPrompt(`✅ ${taskDef.label} — +${taskDef.unityReward}% единства! +30с`, 3);
+      const flavor = TASK_FLAVOR[task.defKey];
+      setPrompt(flavor
+        ? `✅ ${flavor} +${taskDef.unityReward}% единства! +30с`
+        : `✅ ${taskDef.label} — +${taskDef.unityReward}% единства! +30с`,
+        3);
     }
   } else {
     // Slivshchik faking tasks

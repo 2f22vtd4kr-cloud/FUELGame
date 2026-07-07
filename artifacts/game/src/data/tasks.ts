@@ -11,33 +11,33 @@ export const TASK_DEFS: Record<TaskDefKey, TaskDef> = {
   },
   intercom: {
     key: 'intercom',
-    label: 'Почини домофон',
-    emoji: '📟',
-    duration: 6,
+    label: 'Разобрать роутер',   // §2.5 Task 04 — Reboot the router (dial mechanic)
+    emoji: '📡',
+    duration: 8,
     unityReward: 8,
     color: '#2196F3',
   },
   trash: {
     key: 'trash',
-    label: 'Вынеси мусор',
+    label: 'Вынести мусор',      // §2.5 Task 11 — walk trash bag to dumpsters
     emoji: '🗑️',
-    duration: 5,
+    duration: 7,
     unityReward: 8,
     color: '#795548',
   },
   window: {
     key: 'window',
-    label: 'Помой окно',
-    emoji: '🪟',
-    duration: 7,
+    label: 'Починить турникет',  // §2.5 Task 03 — Fix the turnstile (wire_drag)
+    emoji: '🔌',
+    duration: 6,
     unityReward: 8,
     color: '#00BCD4',
   },
   grandma: {
     key: 'grandma',
-    label: 'Проводи бабушку',
+    label: 'Проводить бабушку',  // §2.5 Task 02 — Escort grandma (dog_walk)
     emoji: '👵',
-    duration: 9,
+    duration: 10,
     unityReward: 10,
     color: '#9C27B0',
   },

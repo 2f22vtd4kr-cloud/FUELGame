@@ -66,16 +66,19 @@ export type MiniGameType =
 export const TASK_MINIGAME_MAP: Partial<Record<TaskDefKey, MiniGameType>> = {
   shawarma:     'tap_timing',
   kvass:        'tap_timing',
-  intercom:     'sequence',
+  intercom:     'dial',         // §2.5 Task 04 — router dial, 3 stops
   pigeons:      'rapid_tap',
   sweep:        'rapid_tap',
-  window:       'wire_drag',
+  flowers:      'rapid_tap',   // §2.5 Task 05 — figure-8 watering pattern
+  window:       'wire_drag',   // §2.5 Task 03 — turnstile wire drag
   mailbox:      'letter',
+  grandma:      'dog_walk',    // §2.5 Task 02 — escort grandma to arch
+  trash:        'dog_walk',    // §2.5 Task 11 — walk trash to dumpsters
   dog_walk:     'dog_walk',
   flower_match: 'flower_match',
   drunk_calm:   'drunk_calm',
   taxi_order:   'taxi_order',
-  // §2.5 Tasks 11-20
+  // §2.5 Tasks 12-20
   help_bags:    'dog_walk',
   find_cat:     'dog_walk',
   fix_swing:    'rapid_tap',

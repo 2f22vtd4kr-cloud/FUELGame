@@ -149,7 +149,7 @@ function RapidTap({ mg }: { mg: MiniGameState }) {
           fontWeight: 'bold',
         }}
       >
-        {mg.feedback === 'miss' ? '⏱ Сначала!' : '[E] БЫМ!'}
+        {mg.feedback === 'miss' ? '⏱ Сначала!' : mg.defKey === 'flowers' ? '💧 Поливаем!' : mg.defKey === 'fix_swing' ? '🔨 Починяем!' : '[E] БЫМ!'}
       </button>
     </div>
   );
@@ -256,7 +256,7 @@ function Dial({ mg }: { mg: MiniGameState }) {
         }} />
       </div>
       <div style={{ fontSize: 11, color: '#aaa', marginBottom: 12 }}>
-        {inZone ? '🟢 В зелёной зоне!' : 'Удерживай E → крути, отпусти в зелёной зоне'}
+        {inZone ? '🟢 В зелёной зоне!' : (mg.defKey === 'intercom' ? 'ЖК-чат: «У кого Ростелеком?» Крути до зелёной.' : 'Удерживай E → крути, отпусти в зелёной зоне')}
       </div>
       <div style={{ fontSize: 10, color: '#666' }}>
         {mg.feedback === 'hit' ? '✅ Стоп!' : mg.feedback === 'miss' ? '❌ Мимо!' : `Позиция: ${Math.round(mg.dialAngle)}°`}
@@ -296,18 +296,24 @@ function Letter({ mg }: { mg: MiniGameState }) {
 // ─── §2.5 Dog Walk ────────────────────────────────────────────────────────────
 
 function DogWalk({ mg }: { mg: MiniGameState }) {
-  // Labels and icons differ by task
-  const isHelpBags = mg.defKey === 'help_bags';
-  const isFindCat  = mg.defKey === 'find_cat';
+  // Labels and icons differ by task — §2.5 Tasks 02, 06, 11, 12, 14
+  const isHelpBags  = mg.defKey === 'help_bags';
+  const isFindCat   = mg.defKey === 'find_cat';
+  const isGrandma   = mg.defKey === 'grandma';
+  const isTrash     = mg.defKey === 'trash';
   const waypoints = isHelpBags
     ? ['К лифту', 'К выходу', 'До двери 🚪']
     : isFindCat
       ? ['У мусорок', 'За скамейкой', 'В кустах 🌿']
-      : ['Детская площадка', 'Мусорки', 'Домой 🏠'];
-  const icon = isHelpBags ? '🛍️' : isFindCat ? '🐱' : '🐕';
-  const actionLabel = isHelpBags ? 'Держим сумки!' : isFindCat ? 'Ищем Барсика!' : 'Держать поводок!';
-  const progressLabel = isHelpBags ? 'несём сумки' : isFindCat ? 'ищем кота' : 'держим поводок';
-  const doneLabel = isHelpBags ? '✅ Сумки доставлены!' : isFindCat ? '✅ Барсик найден!' : '✅ Прогулка завершена!';
+      : isGrandma
+        ? ['Взяли за руку', 'Через двор', 'До арки 🏛️']
+        : isTrash
+          ? ['Взяли пакет', 'К мусоркам', 'Выброшено 🗑️']
+          : ['Детская площадка', 'Мусорки', 'Домой 🏠'];
+  const icon = isHelpBags ? '🛍️' : isFindCat ? '🐱' : isGrandma ? '👵' : isTrash ? '🗑️' : '🐕';
+  const actionLabel = isHelpBags ? 'Держим сумки!' : isFindCat ? 'Ищем Барсика!' : isGrandma ? 'Ведём бабушку!' : isTrash ? 'Несём мусор!' : 'Держать поводок!';
+  const progressLabel = isHelpBags ? 'несём сумки' : isFindCat ? 'ищем кота' : isGrandma ? 'ведём бабушку' : isTrash ? 'несём мусор' : 'держим поводок';
+  const doneLabel = isHelpBags ? '✅ Сумки доставлены!' : isFindCat ? '✅ Барсик найден!' : isGrandma ? '✅ Бабушка довольна!' : isTrash ? '✅ Мусор выброшен!' : '✅ Прогулка завершена!';
 
   const tapProgress = mg.requiredTaps > 0 ? (mg.tapCount / mg.requiredTaps) * 100 : 0;
 
@@ -337,7 +343,7 @@ function DogWalk({ mg }: { mg: MiniGameState }) {
       {mg.dogWaypoint < mg.dogRequired ? (
         <>
           <div style={{ fontSize: 12, color: '#FFB74D', marginBottom: 10 }}>
-            {icon} {isFindCat ? 'Ищем у: ' : isHelpBags ? 'Несём к: ' : 'Бакс тянет к '}{waypoints[mg.dogWaypoint]}
+            {icon} {isFindCat ? 'Ищем у: ' : isHelpBags ? 'Несём к: ' : isGrandma ? 'Ведём к: ' : isTrash ? 'Несём к: ' : 'Бакс тянет к '}{waypoints[mg.dogWaypoint]}
           </div>
           {/* Tap progress bar */}
           <div style={{ marginBottom: 10 }}>
