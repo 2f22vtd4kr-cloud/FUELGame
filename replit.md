@@ -1,61 +1,66 @@
 # 95-Й Бакстаб
 
-Social deduction game set in a 2026 Russian residential complex — players secretly assigned as Owners (protect cars) or Siphoners (drain fuel) — built with React + Canvas 2D, fully client-side.
-
-## Run & Operate
-
-- Game runs at `/` — workflow `artifacts/game: web` (port 24631)
-- `pnpm --filter @workspace/game run dev` — run the game dev server
-- `pnpm --filter @workspace/game run typecheck` — typecheck the game
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/db run push` — push DB schema changes (requires `DATABASE_URL`)
+A Russian-themed social deduction game (similar to Among Us) built with React, Vite, and Canvas 2D. Players are split into Хозяева (hosts) and Сливщики (traitors) in a courtyard setting.
 
 ## Stack
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- Game: React 19 + Canvas 2D + Vite 7 (no WebGL, no game engine)
-- State: mutable singleton `gs` (no Zustand/Redux) — React HUD snapshots at 10Hz
-- API: Express 5 (artifact: `artifacts/api-server`) — not yet wired to game
-- DB: PostgreSQL + Drizzle ORM (schema written, not yet pushed)
-- Validation: Zod (`zod/v4`), `drizzle-zod`
+- **Frontend/Game**: React 19 + Vite 7, Canvas 2D renderer, TypeScript
+- **Monorepo**: pnpm workspace (`pnpm-workspace.yaml`)
+- **Packages**:
+  - `artifacts/game` — main game client
+  - `artifacts/api-server` — backend API server
+  - `lib/api-spec` — OpenAPI spec + Orval codegen
+  - `lib/api-client-react` — generated React Query hooks
+  - `lib/api-zod` — generated Zod schemas
 
-## Where things live
+## Running the project
 
-- `artifacts/game/src/` — all game code
-  - `game/` — state, logic, botAI, renderer, types
-  - `data/` — characters, tasks, map, ticker (news headlines)
-  - `components/` — Lobby, GameCanvas, HUD, VirtualJoystick, MeetingScreen, GameResults
-- `lib/db/src/schema/index.ts` — DB schema (users, rooms, match_history, leaderboard)
-- `attached_assets/1_Game_DOC_1783414439610.md` — full game design bible (1992 lines)
-- `HANDOFF.md` — session-by-session progress log and next steps
+```bash
+pnpm install          # install all workspace dependencies
+```
 
-## Architecture decisions
+The game runs via the managed workflow **`artifacts/game: web`**:
 
-- **No Zustand/Redux**: `gs` in `state.ts` is mutated every frame; React HUD gets `{ ...gs }` snapshots at 10Hz via accumulator in RAF
-- **Canvas 2D not WebGL**: simpler, mobile-friendly, no dependencies
-- **Game loop owns meeting timer**: `tickGame` → `tickMeeting`, not `setInterval`
-- **Bot AI is a state machine**: `idle → moving → interacting → fleeing → at_meeting`
-- **Roles randomized across all players** (human included): human can be Slivshchik
+```bash
+PORT=24631 BASE_PATH=/ pnpm --filter @workspace/game run dev
+```
 
-## Product
+The game is then available at the Replit preview URL (root path `/`).
 
-Phase 1 (current): single-device offline game — up to 8 players (bots), character select, WASD + virtual joystick, tasks, siphoning, meeting/vote, win conditions.
+## Key game files
 
-Phase 2 (planned): WebSocket multiplayer, room codes, Telegram Mini App wrapper.
+- `artifacts/game/src/game/state.ts` — singleton `gs`; `startGame()` initializes
+- `artifacts/game/src/game/logic.ts` — `tickGame`, all interactions, win-conditions
+- `artifacts/game/src/game/renderer.ts` — Canvas 2D draw loop + fog-of-war
+- `artifacts/game/src/game/vision.ts` — §2.3 raycasting fog-of-war
+- `artifacts/game/src/game/botAI.ts` — bot behavior trees
+- `artifacts/game/src/game/audio.ts` — Web Audio API SFX
+- `artifacts/game/src/data/map.ts` — zones, cars, tasks, decorations
+- `artifacts/game/src/data/tasks.ts` — 20 task definitions
+- `artifacts/game/src/data/characters.ts` — 10 characters with voice lines
+- `artifacts/game/src/components/HUD.tsx` — React HUD overlay (10Hz snapshots)
+- `artifacts/game/src/components/MeetingScreen.tsx` — vote UI
+- `artifacts/game/src/components/Lobby.tsx` — character select + game settings
+- `artifacts/game/src/components/GameCanvas.tsx` — mounts canvas, drives RAF loop
+
+## Design bible
+
+`attached_assets/1_Game_DOC_1783421374443.md` — 1992-line source of truth for all mechanics.
+
+## Type-checking
+
+```bash
+pnpm --filter @workspace/game run typecheck
+```
+
+## Architecture notes
+
+- Game state lives in a singleton `gs` mutated at 60fps — **no Zustand**
+- React HUD reads a shallow snapshot of `gs` at 10Hz to avoid re-render overhead
+- Coordinate system: 1200×900 canvas pixels (`MAP_W`, `MAP_H` in `types.ts`)
+- `VISION_RADIUS=420px ≈ 12m`, `INTERACT_RADIUS=65px ≈ 1.5m`
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
-
-## Gotchas
-
-- DB not set up — game works without it (Phase 1 is fully client-side)
-- `api-server` and `mockup-sandbox` artifacts exist but are not used yet
-- Port 24631 is fixed for the game dev server (set via `PORT` env in workflow)
-- See `HANDOFF.md` for known issues and session-by-session progress
-
-## Pointers
-
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
-- Full game design bible: `attached_assets/1_Game_DOC_1783414439610.md`
+- Keep the existing monorepo structure and pnpm workspace conventions
+- Do not restructure or migrate the stack without asking first
