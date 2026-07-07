@@ -1,5 +1,8 @@
 import type { Vec2, TaskDefKey } from '../game/types';
 
+// §2.4 Persistent Бабушка NPC (always present at bench area)
+export const BABUSHKA_NPC_POS: Vec2 = { x: 920, y: 660 };
+
 // ─── Map layout (world units 1200×900) ───────────────────────────────────────
 
 export const MAP_W = 1200;
@@ -74,6 +77,11 @@ export const TASK_SPAWNS: TaskSpawnDef[] = [
   { id: 'task_flowers',  defKey: 'flowers',  pos: { x: 850, y: 560 } },
   { id: 'task_kvass',    defKey: 'kvass',    pos: { x: 1050, y: 530 } },
   { id: 'task_sweep',    defKey: 'sweep',    pos: { x: 800, y: 700 } },
+  // §2.5 Tasks 06, 07, 08, 10
+  { id: 'task_dog_walk',     defKey: 'dog_walk',     pos: { x: 870, y: 630 } },
+  { id: 'task_flower_match', defKey: 'flower_match', pos: { x: 510, y: 790 } },
+  { id: 'task_drunk_calm',   defKey: 'drunk_calm',   pos: { x: 1050, y: 660 } },
+  { id: 'task_taxi_order',   defKey: 'taxi_order',   pos: { x: 750, y: 390 } },
 ];
 
 // ─── Sabotage positions (§2.9) ────────────────────────────────────────────────

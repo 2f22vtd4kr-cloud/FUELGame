@@ -175,42 +175,49 @@ function updateHumanPlayer(dt: number, input: InputState): void {
 // ─── §2.5 Task Mini-Games ─────────────────────────────────────────────────────
 
 function startMiniGame(taskId: string, defKey: string, type: MiniGameType): void {
+  let choiceOptions: string[] = [];
+  let choiceCorrect = 0;
+  let letterText = LETTER_TEXTS[Math.floor(Math.random() * LETTER_TEXTS.length)];
+
+  if (type === 'flower_match') {
+    const flowers = ['🌼', '🌹', '🌻', '🌷', '💐', '🌺'];
+    shuffleArr(flowers);
+    choiceOptions = flowers.slice(0, 3);
+    choiceCorrect = Math.floor(Math.random() * 3);
+  } else if (type === 'drunk_calm') {
+    const drunkRounds = [
+      { dialogue: '«Слушайте... ик... это не я!»', options: ['Точно ты!', 'Вася, понимаем', 'Иди проспись'], correct: 1 },
+      { dialogue: '«Братан... дай денег...»', options: ['Ни за что', 'Конечно, держи', 'Ты пьяный'], correct: 2 },
+    ];
+    const r = drunkRounds[Math.floor(Math.random() * drunkRounds.length)];
+    choiceOptions = r.options; choiceCorrect = r.correct; letterText = r.dialogue;
+  }
+
   gs.activeMiniGame = {
     taskId,
     defKey: defKey as import('./types').TaskDefKey,
     type,
-    // tap_timing
-    markerPos: 0.5,
-    markerDir: 1,
-    markerSpeed: 0.65,
-    hits: 0,
-    requiredHits: defKey === 'shawarma' ? 3 : 2,
-    // rapid_tap
+    markerPos: 0.5, markerDir: 1, markerSpeed: 0.65,
+    hits: 0, requiredHits: defKey === 'shawarma' ? 3 : 2,
     tapCount: 0,
-    requiredTaps: defKey === 'pigeons' ? 15 : 12,
-    timeLimit: defKey === 'pigeons' ? 7 : 5,
-    timeLimitMax: defKey === 'pigeons' ? 7 : 5,
-    // sequence
+    requiredTaps: defKey === 'pigeons' ? 15 : type === 'dog_walk' ? 5 : 12,
+    timeLimit:    defKey === 'pigeons' ? 7  : type === 'dog_walk' ? 7 : 5,
+    timeLimitMax: defKey === 'pigeons' ? 7  : type === 'dog_walk' ? 7 : 5,
     sequence: [
       Math.floor(Math.random() * 9) + 1,
       Math.floor(Math.random() * 9) + 1,
       Math.floor(Math.random() * 9) + 1,
       Math.floor(Math.random() * 9) + 1,
     ],
-    seqIndex: 0,
-    seqWrong: false,
-    // dial
-    dialAngle: 0,
-    dialTarget: Math.floor(Math.random() * 360),
-    dialGreenWidth: 22,
-    dialStops: 0,
-    dialRequiredStops: 3,
-    // letter
-    letterText: LETTER_TEXTS[Math.floor(Math.random() * LETTER_TEXTS.length)],
-    // shared
-    feedback: 'none',
-    feedbackTimer: 0,
-    done: false,
+    seqIndex: 0, seqWrong: false,
+    dialAngle: 0, dialTarget: Math.floor(Math.random() * 360),
+    dialGreenWidth: 22, dialStops: 0, dialRequiredStops: 3,
+    letterText,
+    choiceOptions, choiceCorrect, choiceSelected: -1,
+    choiceRound: 0, choiceRequired: 3,
+    dogWaypoint: 0, dogRequired: 3,
+    taxiPhase: 'order', taxiWaitTimer: 0,
+    feedback: 'none', feedbackTimer: 0, done: false,
   };
 }
 
@@ -341,6 +348,17 @@ export function onMiniGameTap(): void {
   } else if (mg.type === 'rapid_tap') {
     mg.tapCount++;
     if (mg.tapCount >= mg.requiredTaps) mg.done = true;
+  } else if (mg.type === 'dog_walk') {
+    mg.tapCount++;
+    if (mg.tapCount >= mg.requiredTaps) {
+      mg.tapCount = 0;
+      mg.timeLimit = mg.timeLimitMax;
+      mg.dogWaypoint++;
+      mg.feedback = 'hit';
+      mg.feedbackTimer = 0.4;
+      audio.play('task_complete');
+      if (mg.dogWaypoint >= mg.dogRequired) mg.done = true;
+    }
   } else if (mg.type === 'tap_timing') {
     const inZone = mg.markerPos >= 0.4 && mg.markerPos <= 0.6;
     if (inZone) {
@@ -378,6 +396,50 @@ export function onMiniGameDigitTap(digit: number): void {
     mg.seqWrong = true;
     mg.feedback = 'miss';
     mg.feedbackTimer = 0.4;
+  }
+}
+
+/** §2.5 Choice-based mini-game (flower_match, drunk_calm) */
+export function onMiniGameChoice(index: number): void {
+  const mg = gs.activeMiniGame;
+  if (!mg || mg.feedbackTimer > 0) return;
+  if (mg.type !== 'flower_match' && mg.type !== 'drunk_calm') return;
+  if (index < 0 || index >= mg.choiceOptions.length) return;
+  const player = gs.players.find(p => p.id === gs.localPlayerId);
+  const task = gs.tasks.find(t => t.id === mg.taskId);
+  if (!player || !task || dist(player.pos, task.pos) > INTERACT_RADIUS * 1.6) {
+    cancelMiniGame(); return;
+  }
+  mg.choiceSelected = index;
+  if (index === mg.choiceCorrect) {
+    mg.hits++;
+    mg.feedback = 'hit';
+    mg.feedbackTimer = 0.7;
+    audio.play('task_complete');
+    if (mg.hits >= mg.choiceRequired) mg.done = true;
+  } else {
+    mg.feedback = 'miss';
+    mg.feedbackTimer = 0.55;
+    mg.hits = Math.max(0, mg.hits - 1);
+  }
+}
+
+/** §2.5 Taxi order mini-game: advance through phases */
+export function onMiniGameTaxiTap(): void {
+  const mg = gs.activeMiniGame;
+  if (!mg || mg.type !== 'taxi_order') return;
+  const player = gs.players.find(p => p.id === gs.localPlayerId);
+  const task = gs.tasks.find(t => t.id === mg.taskId);
+  if (!player || !task || dist(player.pos, task.pos) > INTERACT_RADIUS * 1.6) {
+    cancelMiniGame(); return;
+  }
+  if (mg.taxiPhase === 'order') {
+    mg.taxiPhase = 'wait';
+    mg.taxiWaitTimer = 0;
+    audio.play('ui_click');
+  } else if (mg.taxiPhase === 'confirm') {
+    mg.done = true;
+    audio.play('task_complete');
   }
 }
 

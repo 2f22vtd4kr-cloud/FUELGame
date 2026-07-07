@@ -13,12 +13,13 @@ import {
   FLOWERBED_SLOW_MULT, VENT_COOLDOWN,
   SHAWARMA_SPEED_BOOST_MULT, SHAWARMA_SPEED_BOOST_DURATION,
   IMMUNITY_TICKET_DURATION,
+  KHOZAIN_LOCK_DURATION, KHOZAIN_LOCK_COOLDOWN, KHOZAIN_LOCK_HOLD_TIME,
   BOT_DIFFICULTY_SETTINGS,
 } from './types';
 import { TASK_DEFS } from '../data/tasks';
 import {
   ENTRANCE_POS, DUMPSTER_POSITIONS, MEETING_SPAWNS, dist, clampToMap, isInsideBuilding,
-  VALVE_POSITIONS, BABUSHKA_CERBERUS_POS, isInFlowerBed,
+  VALVE_POSITIONS, BABUSHKA_CERBERUS_POS, BABUSHKA_NPC_POS, isInFlowerBed,
 } from '../data/map';
 import { CHARACTERS } from '../data/characters';
 import { NEWS_HEADLINES, TICKER_INTERVAL } from '../data/ticker';
@@ -62,6 +63,61 @@ function getEjectionText(charKey: string, isSlivshchik: boolean): string {
     return EJECTED_AS_SLIVSHCHIK[charKey] ?? `${charKey} был Сливщиком. Это было очевидно.`;
   }
   return EJECTED_AS_INNOCENT[charKey] ?? `${charKey} не был Сливщиком. Двор скорбит.`;
+}
+
+// ─── Drunk calm dialogue rounds ───────────────────────────────────────────────
+
+const DRUNK_ROUNDS = [
+  {
+    dialogue: '«Слушайте... ик... это не я!.. Машина сама...»',
+    options: ['Точно ты!', 'Вася, мы понимаем', 'Иди проспись'],
+    correct: 1,
+  },
+  {
+    dialogue: '«Братан... ик... дай денег на такси... или пешком...»',
+    options: ['Ни за что', 'Конечно, держи', 'Ты пьяный, Вася'],
+    correct: 2,
+  },
+  {
+    dialogue: '«Я... ик... всё вижу насквозь...»',
+    options: ['Спокойно, Вася', 'А ты видишь бордюр?', 'ЗА МНОЙ НЕ СЛЕДИТЬ!'],
+    correct: 0,
+  },
+  {
+    dialogue: '«Ик... А если опять подорожает завтра... ик...»',
+    options: ['Да, тяжёлые времена', 'Иди спать уже', 'Купи талоны!'],
+    correct: 0,
+  },
+];
+
+function getDrunkRound(): { dialogue: string; options: string[]; correct: number } {
+  return DRUNK_ROUNDS[Math.floor(Math.random() * DRUNK_ROUNDS.length)];
+}
+
+// ─── Persistent Бабушка NPC witness hint ──────────────────────────────────────
+
+function getBabushkaHint(): string {
+  const drainedCar = gs.cars.find(c => c.fuel < 40);
+  if (drainedCar && Math.random() < 0.55) {
+    const colorRu = drainedCar.color === '#E53935' ? 'красной' :
+                    drainedCar.color === '#1565C0' ? 'синей' :
+                    drainedCar.color === '#2E7D32' ? 'зелёной' : 'той';
+    const hints = [
+      `Видела кого-то у ${colorRu} машины... крутился долго.`,
+      `Был тут кто-то. Шлангом что-то делал. Я не спрашивала.`,
+      `Слышала бульканье у парковки. Ваши дела.`,
+    ];
+    return hints[Math.floor(Math.random() * hints.length)];
+  }
+  const innocent = [
+    'Коты опять лазили по машинам. Только коты.',
+    'Ничего не видела. Сериал смотрела.',
+    'Денис куда-то бегал. Или не он. Все одинаковые в темноте.',
+    'Мне 78 лет. Я вижу всё. Но говорю не всем.',
+    'У меня талоны. Мне не страшно.',
+    'Спрашивай у Барсика, не у меня.',
+  ];
+  return innocent[Math.floor(Math.random() * innocent.length)];
 }
 
 // ─── Letter texts for mailbox mini-game ──────────────────────────────────────
@@ -208,6 +264,8 @@ function updateHumanPlayer(dt: number, input: InputState): void {
   if (player.ambushCooldown > 0) player.ambushCooldown -= dt;
   if (player.siphonCooldown > 0) player.siphonCooldown -= dt;
   if (player.suspectedTimer > 0) player.suspectedTimer -= dt;
+  if (player.khozainLockCooldown > 0) player.khozainLockCooldown = Math.max(0, player.khozainLockCooldown - dt);
+  if (!input.interact && player.khozainLockProgress > 0) player.khozainLockProgress = 0;
 
   // §8.2 Footstep sounds (not while crouching, not while standing still)
   if (isMoving && !player.isCrouching) {
@@ -229,6 +287,23 @@ function updateHumanPlayer(dt: number, input: InputState): void {
 // ─── §2.5 Task Mini-Games ─────────────────────────────────────────────────────
 
 function startMiniGame(taskId: string, defKey: string, type: MiniGameType): void {
+  // ── Type-specific initial data ──
+  let choiceOptions: string[] = [];
+  let choiceCorrect = 0;
+  let letterText = LETTER_TEXTS[Math.floor(Math.random() * LETTER_TEXTS.length)];
+
+  if (type === 'flower_match') {
+    const flowers = ['🌼', '🌹', '🌻', '🌷', '💐', '🌺'];
+    shuffleArr(flowers);
+    choiceOptions = flowers.slice(0, 3);
+    choiceCorrect = Math.floor(Math.random() * 3);
+  } else if (type === 'drunk_calm') {
+    const round = getDrunkRound();
+    choiceOptions = round.options;
+    choiceCorrect = round.correct;
+    letterText = round.dialogue;
+  }
+
   gs.activeMiniGame = {
     taskId,
     defKey: defKey as import('./types').TaskDefKey,
@@ -239,11 +314,11 @@ function startMiniGame(taskId: string, defKey: string, type: MiniGameType): void
     markerSpeed: 0.65,
     hits: 0,
     requiredHits: defKey === 'shawarma' ? 3 : 2,
-    // rapid_tap
+    // rapid_tap / dog_walk
     tapCount: 0,
-    requiredTaps: defKey === 'pigeons' ? 15 : 12,
-    timeLimit: defKey === 'pigeons' ? 7 : 5,
-    timeLimitMax: defKey === 'pigeons' ? 7 : 5,
+    requiredTaps: defKey === 'pigeons' ? 15 : type === 'dog_walk' ? 5 : 12,
+    timeLimit: defKey === 'pigeons' ? 7 : type === 'dog_walk' ? 7 : 5,
+    timeLimitMax: defKey === 'pigeons' ? 7 : type === 'dog_walk' ? 7 : 5,
     // sequence
     sequence: [
       Math.floor(Math.random() * 9) + 1,
@@ -260,7 +335,19 @@ function startMiniGame(taskId: string, defKey: string, type: MiniGameType): void
     dialStops: 0,
     dialRequiredStops: 3,
     // letter
-    letterText: LETTER_TEXTS[Math.floor(Math.random() * LETTER_TEXTS.length)],
+    letterText,
+    // choice (flower_match & drunk_calm)
+    choiceOptions,
+    choiceCorrect,
+    choiceSelected: -1,
+    choiceRound: 0,
+    choiceRequired: 3,
+    // dog_walk
+    dogWaypoint: 0,
+    dogRequired: 3,
+    // taxi_order
+    taxiPhase: 'order',
+    taxiWaitTimer: 0,
     // shared
     feedback: 'none',
     feedbackTimer: 0,
@@ -376,6 +463,107 @@ function updateMiniGame(dt: number, input: InputState): void {
       if (justPressed) mg.done = true;
       break;
     }
+
+    case 'dog_walk': {
+      mg.timeLimit = Math.max(0, mg.timeLimit - dt);
+      if (justPressed) {
+        mg.tapCount++;
+        if (mg.tapCount >= mg.requiredTaps) {
+          mg.tapCount = 0;
+          mg.timeLimit = mg.timeLimitMax;
+          mg.dogWaypoint++;
+          mg.feedback = 'hit';
+          mg.feedbackTimer = 0.4;
+          audio.play('task_complete');
+          if (mg.dogWaypoint >= mg.dogRequired) mg.done = true;
+        }
+      }
+      if (mg.timeLimit <= 0 && !mg.done) {
+        mg.tapCount = 0;
+        mg.timeLimit = mg.timeLimitMax;
+        mg.feedback = 'miss';
+        mg.feedbackTimer = 0.5;
+      }
+      break;
+    }
+
+    case 'flower_match':
+    case 'drunk_calm': {
+      // When feedbackTimer expires after player made a choice, advance to next round
+      if (mg.feedbackTimer <= 0 && mg.choiceSelected >= 0 && !mg.done) {
+        if (mg.type === 'flower_match') {
+          const flowers = ['🌼', '🌹', '🌻', '🌷', '💐', '🌺'];
+          shuffleArr(flowers);
+          mg.choiceOptions = flowers.slice(0, 3);
+          mg.choiceCorrect = Math.floor(Math.random() * 3);
+        } else {
+          const round = getDrunkRound();
+          mg.letterText = round.dialogue;
+          mg.choiceOptions = round.options;
+          mg.choiceCorrect = round.correct;
+        }
+        mg.choiceSelected = -1;
+        mg.choiceRound++;
+        mg.feedback = 'none';
+      }
+      break;
+    }
+
+    case 'taxi_order': {
+      if (mg.taxiPhase === 'wait') {
+        mg.taxiWaitTimer += dt;
+        if (mg.taxiWaitTimer >= 3) {
+          mg.taxiPhase = 'confirm';
+          audio.play('ui_hover');
+        }
+      }
+      break;
+    }
+  }
+}
+
+/** §2.5 Choice-based mini-game (flower_match, drunk_calm): tap one of the displayed options */
+export function onMiniGameChoice(index: number): void {
+  const mg = gs.activeMiniGame;
+  if (!mg || mg.feedbackTimer > 0) return;
+  if (mg.type !== 'flower_match' && mg.type !== 'drunk_calm') return;
+  const player = gs.players.find(p => p.id === gs.localPlayerId);
+  const task = gs.tasks.find(t => t.id === mg.taskId);
+  if (!player || !task || dist(player.pos, task.pos) > INTERACT_RADIUS * 1.6) {
+    cancelMiniGame(); return;
+  }
+
+  if (index < 0 || index >= mg.choiceOptions.length) return; // bounds guard
+  mg.choiceSelected = index;
+  if (index === mg.choiceCorrect) {
+    mg.hits++;
+    mg.feedback = 'hit';
+    mg.feedbackTimer = 0.7;
+    audio.play('task_complete');
+    if (mg.hits >= mg.choiceRequired) mg.done = true;
+  } else {
+    mg.feedback = 'miss';
+    mg.feedbackTimer = 0.55;
+    mg.hits = Math.max(0, mg.hits - 1);
+  }
+}
+
+/** §2.5 Taxi order mini-game: tap button to advance through phases */
+export function onMiniGameTaxiTap(): void {
+  const mg = gs.activeMiniGame;
+  if (!mg || mg.type !== 'taxi_order') return;
+  const player = gs.players.find(p => p.id === gs.localPlayerId);
+  const task = gs.tasks.find(t => t.id === mg.taskId);
+  if (!player || !task || dist(player.pos, task.pos) > INTERACT_RADIUS * 1.6) {
+    cancelMiniGame(); return;
+  }
+  if (mg.taxiPhase === 'order') {
+    mg.taxiPhase = 'wait';
+    mg.taxiWaitTimer = 0;
+    audio.play('ui_click');
+  } else if (mg.taxiPhase === 'confirm') {
+    mg.done = true;
+    audio.play('task_complete');
   }
 }
 
@@ -395,6 +583,17 @@ export function onMiniGameTap(): void {
   } else if (mg.type === 'rapid_tap') {
     mg.tapCount++;
     if (mg.tapCount >= mg.requiredTaps) mg.done = true;
+  } else if (mg.type === 'dog_walk') {
+    mg.tapCount++;
+    if (mg.tapCount >= mg.requiredTaps) {
+      mg.tapCount = 0;
+      mg.timeLimit = mg.timeLimitMax;
+      mg.dogWaypoint++;
+      mg.feedback = 'hit';
+      mg.feedbackTimer = 0.4;
+      audio.play('task_complete');
+      if (mg.dogWaypoint >= mg.dogRequired) mg.done = true;
+    }
   } else if (mg.type === 'tap_timing') {
     const inZone = mg.markerPos >= 0.4 && mg.markerPos <= 0.6;
     if (inZone) {
@@ -956,6 +1155,62 @@ function updateInteractions(dt: number, input: InputState): void {
         audio.play('alarm_button');
         callMeeting(player.id, 'alarm');
         return;
+      }
+      clearTaskDoer(player.id);
+      return;
+    }
+  }
+
+  // ── 4e. Persistent Бабушка NPC witness interaction ──────────────────────────
+  const npcDist = dist(player.pos, BABUSHKA_NPC_POS);
+  if (npcDist < INTERACT_RADIUS) {
+    setPrompt('👵 [E] Спросить бабушку (что видела?)', 0.2);
+    if (input.interact && !input.prevInteract) {
+      const hint = getBabushkaHint();
+      setPrompt(`👵 Бабушка: ${hint}`, 5);
+      audio.play('grandma_escort');
+    }
+    clearTaskDoer(player.id);
+    return;
+  }
+
+  // ── 4f. Хозяин car interactions: Проверить бак + Запереть бак ───────────────
+  if (player.role === 'khozain') {
+    const nearCar = gs.cars.find(c => dist(player.pos, c.pos) < INTERACT_RADIUS);
+    if (nearCar) {
+      const fuelStatus = nearCar.fuel > 60 ? '✅' : nearCar.fuel > 25 ? '⚠️' : '🔴';
+      const canLock = player.khozainLockCooldown <= 0 && !nearCar.hasImmunity && nearCar.fuel > 5;
+
+      if (canLock) {
+        const holdPct = Math.round((player.khozainLockProgress / KHOZAIN_LOCK_HOLD_TIME) * 100);
+        setPrompt(`${fuelStatus} ${Math.round(nearCar.fuel)}% | [удерживай E] Запереть бак ${holdPct > 0 ? holdPct + '%' : ''}`, 0.2);
+        if (input.interact) {
+          player.khozainLockProgress = Math.min(KHOZAIN_LOCK_HOLD_TIME, player.khozainLockProgress + dt);
+          if (player.khozainLockProgress >= KHOZAIN_LOCK_HOLD_TIME) {
+            nearCar.hasImmunity = true;
+            nearCar.immunityTimer = KHOZAIN_LOCK_DURATION;
+            player.khozainLockCooldown = KHOZAIN_LOCK_COOLDOWN;
+            player.khozainLockProgress = 0;
+            audio.play('fuel_lock');
+            setPrompt(`🔒 Бак заперт на ${KHOZAIN_LOCK_DURATION}с! Сливщики в панике.`, 4);
+            clearTaskDoer(player.id);
+            return;
+          }
+        } else {
+          player.khozainLockProgress = 0;
+        }
+      } else {
+        const lockNote = nearCar.hasImmunity
+          ? ` 🔒 ${Math.ceil(nearCar.immunityTimer)}с`
+          : player.khozainLockCooldown > 0
+          ? ` (кд ${Math.ceil(player.khozainLockCooldown)}с)`
+          : '';
+        setPrompt(`${fuelStatus} Проверить бак: ${Math.round(nearCar.fuel)}%${lockNote}`, 0.2);
+        if (input.interact && !input.prevInteract) {
+          setPrompt(`🚗 Бак: ${Math.round(nearCar.fuel)}%${nearCar.hasImmunity ? ' — заперт, слить нельзя' : ''}`, 3);
+          clearTaskDoer(player.id);
+          return;
+        }
       }
       clearTaskDoer(player.id);
       return;

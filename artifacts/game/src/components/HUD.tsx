@@ -5,6 +5,7 @@ import { NEWS_HEADLINES } from '../data/ticker';
 import { CHARACTERS } from '../data/characters';
 import { triggerSabotage, triggerEmote, PLAY_EMOTES, triggerBarsikMeow, investigateBody, janitorCollectCanister } from '../game/logic';
 import { gs } from '../game/state';
+import { audio } from '../game/audio';
 import TaskMiniGame from './TaskMiniGame';
 
 interface HUDProps {
@@ -17,6 +18,7 @@ export default function HUD({ state }: HUDProps) {
   const [showSabotageMenu, setShowSabotageMenu] = useState(false);
   const [showEmoteWheel, setShowEmoteWheel] = useState(false);
   const [showObjective, setShowObjective] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   const localPlayer = state.players.find(p => p.id === state.localPlayerId);
   if (!localPlayer) return null;
@@ -156,7 +158,9 @@ export default function HUD({ state }: HUDProps) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             {state.cars.map(car => {
               const fuelPct = car.fuel;
-              const color = fuelPct > 40 ? '#4CAF50' : fuelPct > 20 ? '#FF9800' : '#F44336';
+              const color = state.colorblindMode
+                ? fuelPct > 40 ? '#2196F3' : fuelPct > 20 ? '#FF9800' : '#FF5722'
+                : fuelPct > 40 ? '#4CAF50' : fuelPct > 20 ? '#FF9800' : '#F44336';
               return (
                 <div key={car.id} style={{ display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' }}>
                   <div style={{ fontSize: 9, color: '#ccc', minWidth: 24 }}>
@@ -585,6 +589,82 @@ export default function HUD({ state }: HUDProps) {
           </button>
         </div>
       )}
+
+      {/* ── §13.1 Settings (volume + colorblind mode) ── */}
+      <div style={{ position: 'absolute', bottom: 100, left: 12, pointerEvents: 'all' }}>
+        {showSettings && (
+          <div style={{
+            position: 'absolute', bottom: 42, left: 0,
+            background: 'rgba(10,10,20,0.97)', border: '1px solid rgba(255,255,255,0.15)',
+            borderRadius: 14, padding: '14px 16px', minWidth: 230,
+            boxShadow: '0 4px 24px rgba(0,0,0,0.8)',
+            display: 'flex', flexDirection: 'column', gap: 11,
+          }}>
+            <div style={{ fontSize: 11, color: '#90A4AE', fontWeight: 'bold' }}>⚙️ НАСТРОЙКИ</div>
+
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <span style={{ fontSize: 10, color: '#aaa' }}>🔊 Мастер: {Math.round(state.volumeMaster * 100)}%</span>
+              <input type="range" min={0} max={1} step={0.05}
+                defaultValue={state.volumeMaster}
+                onChange={e => {
+                  const v = parseFloat(e.target.value);
+                  gs.volumeMaster = v;
+                  audio.setMasterVolume(v);
+                }}
+                style={{ width: '100%', accentColor: '#4CAF50' }}
+              />
+            </label>
+
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <span style={{ fontSize: 10, color: '#aaa' }}>🎵 Музыка: {Math.round(state.volumeMusic * 100)}%</span>
+              <input type="range" min={0} max={1} step={0.05}
+                defaultValue={state.volumeMusic}
+                onChange={e => {
+                  const v = parseFloat(e.target.value);
+                  gs.volumeMusic = v;
+                  audio.setMusicVolume(v);
+                }}
+                style={{ width: '100%', accentColor: '#2196F3' }}
+              />
+            </label>
+
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <span style={{ fontSize: 10, color: '#aaa' }}>💥 Эффекты: {Math.round(state.volumeSfx * 100)}%</span>
+              <input type="range" min={0} max={1} step={0.05}
+                defaultValue={state.volumeSfx}
+                onChange={e => {
+                  const v = parseFloat(e.target.value);
+                  gs.volumeSfx = v;
+                  audio.setSfxVolume(v);
+                }}
+                style={{ width: '100%', accentColor: '#FF9800' }}
+              />
+            </label>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <input type="checkbox"
+                defaultChecked={state.colorblindMode}
+                onChange={e => { gs.colorblindMode = e.target.checked; }}
+                style={{ accentColor: '#2196F3', width: 14, height: 14 }}
+              />
+              <span style={{ fontSize: 11, color: '#aaa' }}>🎨 Режим для дальтоников</span>
+            </label>
+          </div>
+        )}
+        <button
+          onClick={() => setShowSettings(v => !v)}
+          style={{
+            width: 36, height: 36, borderRadius: 18,
+            background: showSettings ? 'rgba(80,120,180,0.85)' : 'rgba(0,0,0,0.65)',
+            border: '1px solid rgba(255,255,255,0.18)',
+            color: '#90A4AE', fontSize: 15, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+          title="Настройки"
+        >
+          ⚙️
+        </button>
+      </div>
 
       {/* ── §10.2 Immunity Ticket HUD badge ── */}
       {localPlayer.hasImmunityTicket && (

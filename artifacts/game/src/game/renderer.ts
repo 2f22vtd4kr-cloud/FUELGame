@@ -1,7 +1,7 @@
 import type { GameState, Vec2 } from './types';
 import { ALARM_RADIUS, MAP_W, MAP_H, CROUCH_VISIBILITY_MULT } from './types';
 import { TASK_DEFS } from '../data/tasks';
-import { DECORATIONS, ENTRANCE_POS, DUMPSTER_POSITIONS, VISION_BUILDINGS, VALVE_POSITIONS, BABUSHKA_CERBERUS_POS } from '../data/map';
+import { DECORATIONS, ENTRANCE_POS, DUMPSTER_POSITIONS, VISION_BUILDINGS, VALVE_POSITIONS, BABUSHKA_CERBERUS_POS, BABUSHKA_NPC_POS } from '../data/map';
 import { CHARACTERS } from '../data/characters';
 import {
   computeVisionPolygon,
@@ -91,6 +91,7 @@ export function renderGame(
   drawValveMarkers(ctx, state);    // §2.9 valve fix markers
   drawPlayers(ctx, state, visionPoly, crouchCheckPoly);
   drawBabushkaNPC(ctx, state);     // §2.9 babushka cerberus NPC
+  drawPersistentGrandma(ctx, state); // §2.4 always-present bench grandma
   drawAlarmButton(ctx, state);
   drawEntrance(ctx);
   drawUI(ctx, state, localPlayer);
@@ -104,6 +105,7 @@ export function renderGame(
   // Must be drawn AFTER the fog so it is always visible to local slivshchik
   // regardless of walls or darkness. Same design intent as Among Us impostor glow.
   drawTeammateOutlines(ctx, state);
+  drawJanitorCanisterHighlight(ctx, state); // §3.1.3 janitor sees canisters through fog
 
   ctx.restore();
 }
@@ -179,6 +181,86 @@ function drawTeammateOutlines(ctx: CanvasRenderingContext2D, state: GameState): 
     ctx.globalAlpha = 0.9;
     ctx.fillText('СЛ', x, y - 30);
     ctx.globalAlpha = 1;
+  }
+}
+
+// ─── §2.4 Persistent Бабушка NPC at bench ────────────────────────────────────
+
+function drawPersistentGrandma(ctx: CanvasRenderingContext2D, state: GameState): void {
+  if (state.phase !== 'play') return;
+  const { x, y } = BABUSHKA_NPC_POS;
+
+  // Bench slats
+  ctx.fillStyle = '#6D4C41';
+  ctx.fillRect(x - 24, y + 8, 48, 7);
+  ctx.fillStyle = '#5D4037';
+  ctx.fillRect(x - 22, y + 4, 6, 11);
+  ctx.fillRect(x + 16, y + 4, 6, 11);
+
+  // NPC circle
+  ctx.beginPath();
+  ctx.arc(x, y, 11, 0, Math.PI * 2);
+  ctx.fillStyle = '#7B1FA2';
+  ctx.fill();
+  ctx.strokeStyle = '#CE93D8';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Emoji
+  ctx.font = '12px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('👵', x, y + 1);
+  ctx.textBaseline = 'alphabetic';
+
+  // Hover label
+  ctx.font = '8px sans-serif';
+  ctx.fillStyle = '#E1BEE7';
+  ctx.textAlign = 'center';
+  ctx.fillText('[E] Спросить', x, y - 17);
+}
+
+// ─── §3.1.3 Post-fog janitor canister X-ray ──────────────────────────────────
+
+function drawJanitorCanisterHighlight(ctx: CanvasRenderingContext2D, state: GameState): void {
+  const local = state.players.find(p => p.id === state.localPlayerId);
+  if (!local || local.neutralRole !== 'janitor') return;
+  if (state.canisters.length === 0) return;
+
+  const t = Date.now();
+  for (const can of state.canisters) {
+    const { x, y } = can.pos;
+
+    ctx.save();
+    ctx.globalAlpha = 0.75 + 0.25 * Math.sin(t / 280);
+
+    // Outer glow
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, 24);
+    grad.addColorStop(0, 'rgba(255,152,0,0.65)');
+    grad.addColorStop(1, 'rgba(255,152,0,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(x, y, 24, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Core circle
+    ctx.globalAlpha = 0.92;
+    ctx.beginPath();
+    ctx.arc(x, y, 9, 0, Math.PI * 2);
+    ctx.fillStyle = '#FF6D00';
+    ctx.fill();
+    ctx.strokeStyle = '#FFD740';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Icon
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🪣', x, y + 1);
+    ctx.textBaseline = 'alphabetic';
+
+    ctx.restore();
   }
 }
 

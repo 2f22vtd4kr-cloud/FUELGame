@@ -36,6 +36,10 @@ export function createInitialState(): GameState {
     matchTimeLimit: 300,
     botDifficulty: 'medium',
     immunityTickets: [],
+    colorblindMode: false,
+    volumeMaster: 0.55,
+    volumeMusic: 1.0,
+    volumeSfx: 1.0,
   };
 }
 
@@ -103,6 +107,8 @@ export function startGame(
       fuelSiphoned: 0,
       tasksCompleted: 0,
       suspicion: {},
+      khozainLockCooldown: 0,
+      khozainLockProgress: 0,
       botState: 'idle',
       botTarget: null,
       botTaskId: null,

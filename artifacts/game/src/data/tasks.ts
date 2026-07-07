@@ -81,6 +81,42 @@ export const TASK_DEFS: Record<TaskDefKey, TaskDef> = {
     unityReward: 8,
     color: '#8BC34A',
   },
+  // §2.5 Task 06 — Walk the dog
+  dog_walk: {
+    key: 'dog_walk',
+    label: 'Выгулять Бакса',
+    emoji: '🐕',
+    duration: 15,
+    unityReward: 10,
+    color: '#8D6E63',
+  },
+  // §2.5 Task 07 — Buy flowers (match correct bouquet)
+  flower_match: {
+    key: 'flower_match',
+    label: 'Купить цветы',
+    emoji: '💐',
+    duration: 5,
+    unityReward: 8,
+    color: '#E91E63',
+  },
+  // §2.5 Task 08 — Calm the drunk (dialogue tree)
+  drunk_calm: {
+    key: 'drunk_calm',
+    label: 'Успокоить Васю',
+    emoji: '🍻',
+    duration: 10,
+    unityReward: 9,
+    color: '#F57C00',
+  },
+  // §2.5 Task 10 — Order a taxi (phone UI)
+  taxi_order: {
+    key: 'taxi_order',
+    label: 'Заказать такси',
+    emoji: '📱',
+    duration: 5,
+    unityReward: 7,
+    color: '#FFD600',
+  },
 };
 
 export function getTaskDef(key: TaskDefKey): TaskDef {

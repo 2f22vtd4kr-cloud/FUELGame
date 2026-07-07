@@ -12,6 +12,8 @@ import {
   submitSkipDiscussion as _submitSkipDiscussion,
   onMiniGameTap as _tap,
   onMiniGameDigitTap as _digit,
+  onMiniGameChoice as _choice,
+  onMiniGameTaxiTap as _taxiTap,
   cancelMiniGame as _cancel,
   triggerEmote as _emote,
 } from './logic';
@@ -59,6 +61,24 @@ export function onMiniGameDigitTap(digit: number): void {
     _digit(digit);
   } else {
     _digit(digit);
+  }
+}
+
+export function onMiniGameChoice(index: number): void {
+  if (activeNetwork) {
+    activeNetwork.sendAction('minigame_choice', { index });
+    _choice(index);
+  } else {
+    _choice(index);
+  }
+}
+
+export function onMiniGameTaxiTap(): void {
+  if (activeNetwork) {
+    activeNetwork.sendAction('minigame_taxi_tap');
+    _taxiTap();
+  } else {
+    _taxiTap();
   }
 }
 

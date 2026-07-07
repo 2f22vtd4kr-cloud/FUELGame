@@ -55,7 +55,8 @@ export interface TaskInstance {
 
 // ─── Task Mini-Games (§2.5) ───────────────────────────────────────────────────
 
-export type MiniGameType = 'tap_timing' | 'rapid_tap' | 'sequence' | 'dial' | 'letter';
+export type MiniGameType = 'tap_timing' | 'rapid_tap' | 'sequence' | 'dial' | 'letter'
+  | 'dog_walk' | 'flower_match' | 'drunk_calm' | 'taxi_order';
 
 /** Which mini-game type each task uses. Unmapped tasks use the hold-timer. */
 export const TASK_MINIGAME_MAP: Partial<Record<TaskDefKey, MiniGameType>> = {
@@ -95,11 +96,27 @@ export interface MiniGameState {
   dialRequiredStops: number;
   // ── letter: read a satirical notice ──
   letterText: string;
+  // ── choice (flower_match & drunk_calm) ──
+  choiceOptions: string[];
+  choiceCorrect: number;
+  choiceSelected: number;    // -1 = none chosen yet
+  choiceRound: number;
+  choiceRequired: number;
+  // ── dog_walk: rapid-tap per waypoint ──
+  dogWaypoint: number;
+  dogRequired: number;
+  // ── taxi_order: 3-phase phone interaction ──
+  taxiPhase: 'order' | 'wait' | 'confirm';
+  taxiWaitTimer: number;
   // ── shared feedback ──
   feedback: 'none' | 'hit' | 'miss';
   feedbackTimer: number;
   done: boolean;
 }
+
+export const KHOZAIN_LOCK_DURATION  = 30;   // seconds car stays locked
+export const KHOZAIN_LOCK_COOLDOWN  = 120;  // seconds before Хозяин can lock again
+export const KHOZAIN_LOCK_HOLD_TIME = 2;    // seconds E must be held to lock
 
 // ─── Sabotage System (§2.9) ───────────────────────────────────────────────────
 
@@ -198,6 +215,9 @@ export interface Player {
   // Per-player stats
   fuelSiphoned: number;
   tasksCompleted: number;
+  // §13.1 Хозяин car lock ability
+  khozainLockCooldown: number;
+  khozainLockProgress: number;
   // §4.3 Bot suspicion vector (khozain bots only)
   suspicion: Record<string, number>;
   // Bot AI

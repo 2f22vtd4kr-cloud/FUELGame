@@ -31,7 +31,8 @@ export interface CharacterDef {
 
 export type TaskDefKey =
   | 'shawarma' | 'intercom' | 'trash' | 'window' | 'grandma'
-  | 'mailbox' | 'pigeons' | 'flowers' | 'kvass' | 'sweep';
+  | 'mailbox' | 'pigeons' | 'flowers' | 'kvass' | 'sweep'
+  | 'dog_walk' | 'flower_match' | 'drunk_calm' | 'taxi_order';
 
 export interface TaskDef {
   key: TaskDefKey;
@@ -55,17 +56,23 @@ export interface TaskInstance {
 
 // ─── Task Mini-Games (§2.5) ───────────────────────────────────────────────────
 
-export type MiniGameType = 'tap_timing' | 'rapid_tap' | 'sequence' | 'dial' | 'letter';
+export type MiniGameType =
+  | 'tap_timing' | 'rapid_tap' | 'sequence' | 'dial' | 'letter'
+  | 'dog_walk' | 'flower_match' | 'drunk_calm' | 'taxi_order';
 
 /** Which mini-game type each task uses. Unmapped tasks use the hold-timer. */
 export const TASK_MINIGAME_MAP: Partial<Record<TaskDefKey, MiniGameType>> = {
-  shawarma: 'tap_timing',
-  kvass:    'tap_timing',
-  intercom: 'sequence',
-  pigeons:  'rapid_tap',
-  sweep:    'rapid_tap',
-  window:   'dial',
-  mailbox:  'letter',
+  shawarma:     'tap_timing',
+  kvass:        'tap_timing',
+  intercom:     'sequence',
+  pigeons:      'rapid_tap',
+  sweep:        'rapid_tap',
+  window:       'dial',
+  mailbox:      'letter',
+  dog_walk:     'dog_walk',
+  flower_match: 'flower_match',
+  drunk_calm:   'drunk_calm',
+  taxi_order:   'taxi_order',
 };
 
 export interface MiniGameState {
@@ -78,7 +85,7 @@ export interface MiniGameState {
   markerSpeed: number;      // units/sec
   hits: number;
   requiredHits: number;
-  // ── rapid_tap: mash button N times ──
+  // ── rapid_tap / dog_walk: mash button N times ──
   tapCount: number;
   requiredTaps: number;
   timeLimit: number;        // remaining seconds
@@ -95,6 +102,18 @@ export interface MiniGameState {
   dialRequiredStops: number;
   // ── letter: read a satirical notice ──
   letterText: string;
+  // ── choice (flower_match & drunk_calm) ──
+  choiceOptions: string[];  // 3 display strings
+  choiceCorrect: number;    // index of correct choice
+  choiceSelected: number;   // -1 = none, ≥0 = player picked this index
+  choiceRound: number;      // current round index (0→)
+  choiceRequired: number;   // rounds to win (3)
+  // ── dog_walk ──
+  dogWaypoint: number;      // waypoints reached (0-2)
+  dogRequired: number;      // 3
+  // ── taxi_order ──
+  taxiPhase: 'order' | 'wait' | 'confirm';
+  taxiWaitTimer: number;    // seconds waited during 'wait' phase
   // ── shared feedback ──
   feedback: 'none' | 'hit' | 'miss';
   feedbackTimer: number;
@@ -189,6 +208,9 @@ export interface Player {
   suspectedTimer: number;     // red outline when ambush interrupted
   // §2.4 Shawarma speed boost
   speedBoostTimer: number;        // remaining seconds of speed boost
+  // §2.4 Хозяин car lock ("Запереть бак")
+  khozainLockCooldown: number;  // cooldown between car lock uses (120s)
+  khozainLockProgress: number;  // hold-timer progress toward locking (0-2s)
   // §10.2 Immunity Ticket
   hasImmunityTicket: boolean;     // player is holding a ticket
   // §3.1.3 Neutral role
@@ -290,6 +312,9 @@ export const CROUCH_VISIBILITY_MULT = 0.7;  // §2.2 crouching: others see you w
 export const SHAWARMA_SPEED_BOOST_MULT     = 1.35; // §2.4 shawarma speed boost multiplier
 export const SHAWARMA_SPEED_BOOST_DURATION = 10;   // seconds
 export const IMMUNITY_TICKET_DURATION = 60; // §10.2 immunity ticket locks car for 60s
+export const KHOZAIN_LOCK_DURATION     = 30; // §2.4 Запереть бак — free lock, 30s
+export const KHOZAIN_LOCK_COOLDOWN     = 120; // §2.4 per-player lock cooldown
+export const KHOZAIN_LOCK_HOLD_TIME    = 2.0; // seconds to hold E to lock car
 
 // ─── Bot Difficulty (§4.2) ────────────────────────────────────────────────────
 
@@ -351,6 +376,11 @@ export interface GameState {
   botDifficulty: BotDifficulty;
   // §10.2 Immunity tickets on the ground
   immunityTickets: ImmunityTicket[];
+  // §13.1 Accessibility settings
+  colorblindMode: boolean;
+  volumeMaster: number;   // 0-1
+  volumeMusic: number;    // 0-1
+  volumeSfx: number;      // 0-1
 }
 
 // ─── Input ────────────────────────────────────────────────────────────────────

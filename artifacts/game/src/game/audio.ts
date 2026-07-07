@@ -62,11 +62,11 @@ class AudioManager {
     this.musicBeatIndex = 0;
     this.musicNextBeatTime = this.c.currentTime + 0.05;
 
-    // Fade in
+    // Fade in — respect user's music volume factor
     const mg = this.musicGain;
     mg.gain.cancelScheduledValues(this.c.currentTime);
     mg.gain.setValueAtTime(0, this.c.currentTime);
-    mg.gain.linearRampToValueAtTime(0.18, this.c.currentTime + 2.0);
+    mg.gain.linearRampToValueAtTime(0.18 * this._musicVolumeFactor, this.c.currentTime + 2.0);
 
     this._scheduleMusicBeats();
     this.musicScheduler = setInterval(() => this._scheduleMusicBeats(), this.MUSIC_INTERVAL);
@@ -1023,6 +1023,39 @@ class AudioManager {
       g.gain.exponentialRampToValueAtTime(0.001, s + 0.2);
       osc.start(s); osc.stop(s + 0.22);
     });
+  }
+
+  // ── §13.1 Volume controls ──────────────────────────────────────────────────
+
+  private _musicVolumeFactor = 1.0;
+
+  /** Set master output volume. v = 0–1 (1 = full/default 0.55 gain). */
+  setMasterVolume(v: number): void {
+    if (!this.ctx) this.init();
+    if (this.masterGain) {
+      this.masterGain.gain.value = Math.max(0, Math.min(1, v)) * 0.55;
+    }
+  }
+
+  /** Set music volume factor. v = 0–1. Takes effect on the currently playing track. */
+  setMusicVolume(v: number): void {
+    this._musicVolumeFactor = Math.max(0, Math.min(1, v));
+    if (!this.ctx) this.init();
+    if (this.musicGain && this.musicTrack && this.ctx) {
+      this.musicGain.gain.cancelScheduledValues(this.ctx.currentTime);
+      this.musicGain.gain.setValueAtTime(
+        0.18 * this._musicVolumeFactor,
+        this.ctx.currentTime,
+      );
+    }
+  }
+
+  /** Set SFX volume. v = 0–1 (1 = default 0.8 gain). */
+  setSfxVolume(v: number): void {
+    if (!this.ctx) this.init();
+    if (this.sfxGain) {
+      this.sfxGain.gain.value = Math.max(0, Math.min(1, v)) * 0.8;
+    }
   }
 }
 

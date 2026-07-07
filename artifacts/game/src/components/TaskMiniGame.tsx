@@ -1,6 +1,6 @@
 import type { MiniGameState, TaskDefKey } from '../game/types';
 import { TASK_DEFS } from '../data/tasks';
-import { onMiniGameTap, onMiniGameDigitTap, cancelMiniGame } from '../game/gameActions';
+import { onMiniGameTap, onMiniGameDigitTap, onMiniGameChoice, onMiniGameTaxiTap, cancelMiniGame } from '../game/gameActions';
 
 interface Props {
   mg: MiniGameState;
@@ -17,7 +17,7 @@ export default function TaskMiniGame({ mg }: Props) {
     border: '2px solid rgba(255,255,255,0.15)',
     borderRadius: 20,
     padding: '24px 28px',
-    minWidth: 320, maxWidth: 380,
+    minWidth: 320, maxWidth: 400,
     boxShadow: '0 8px 40px rgba(0,0,0,0.8)',
     zIndex: 200,
     textAlign: 'center',
@@ -39,6 +39,10 @@ export default function TaskMiniGame({ mg }: Props) {
       {mg.type === 'sequence' && <Sequence mg={mg} />}
       {mg.type === 'dial' && <Dial mg={mg} />}
       {mg.type === 'letter' && <Letter mg={mg} />}
+      {mg.type === 'dog_walk' && <DogWalk mg={mg} />}
+      {mg.type === 'flower_match' && <FlowerMatch mg={mg} />}
+      {mg.type === 'drunk_calm' && <DrunkCalm mg={mg} />}
+      {mg.type === 'taxi_order' && <TaxiOrder mg={mg} />}
 
       {/* Cancel */}
       <button
@@ -58,166 +62,137 @@ export default function TaskMiniGame({ mg }: Props) {
 
 // ─── Tap Timing ───────────────────────────────────────────────────────────────
 
-function TapTiming({ mg }: Props) {
-  const isHit = mg.feedback === 'hit';
-  const isMiss = mg.feedback === 'miss';
-
+function TapTiming({ mg }: { mg: MiniGameState }) {
+  const hitDots = Array.from({ length: mg.requiredHits }).map((_, i) => i < mg.hits);
   return (
     <div>
-      {/* Marker bar */}
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 16 }}>
+        {hitDots.map((hit, i) => (
+          <div key={i} style={{
+            width: 12, height: 12, borderRadius: '50%',
+            background: hit ? '#4CAF50' : 'rgba(255,255,255,0.15)',
+          }} />
+        ))}
+      </div>
+      {/* Track */}
       <div style={{
-        position: 'relative',
-        height: 48, background: 'rgba(255,255,255,0.06)',
-        borderRadius: 8, overflow: 'hidden', marginBottom: 18,
-        border: '1px solid rgba(255,255,255,0.1)',
+        position: 'relative', height: 36,
+        background: 'rgba(255,255,255,0.06)',
+        borderRadius: 18, marginBottom: 16, overflow: 'hidden',
       }}>
-        {/* Green zone (center 20%) */}
+        {/* Green zone */}
         <div style={{
-          position: 'absolute',
-          left: '40%', width: '20%', top: 0, bottom: 0,
-          background: 'rgba(76,175,80,0.35)',
-          borderLeft: '2px solid #4CAF50',
-          borderRight: '2px solid #4CAF50',
+          position: 'absolute', top: 0, bottom: 0,
+          left: '40%', width: '20%',
+          background: 'rgba(76,175,80,0.4)',
         }} />
         {/* Moving marker */}
         <div style={{
-          position: 'absolute',
-          left: `${mg.markerPos * 100}%`,
-          top: 6, bottom: 6,
-          width: 6,
-          background: isHit ? '#FFD700' : isMiss ? '#F44336' : '#fff',
-          borderRadius: 3,
-          transform: 'translateX(-50%)',
-          boxShadow: isHit ? '0 0 10px #FFD700' : isMiss ? '0 0 10px #F44336' : '0 0 6px rgba(255,255,255,0.8)',
+          position: 'absolute', top: 6, bottom: 6,
+          width: 20, borderRadius: 10,
+          left: `calc(${mg.markerPos * 100}% - 10px)`,
+          background: mg.feedback === 'hit' ? '#4CAF50' : mg.feedback === 'miss' ? '#F44336' : '#FFD700',
           transition: 'background 0.1s',
         }} />
-        {/* Hit count dots */}
         <div style={{
-          position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)',
-          display: 'flex', gap: 5,
-        }}>
-          {Array.from({ length: mg.requiredHits }).map((_, i) => (
-            <div key={i} style={{
-              width: 8, height: 8, borderRadius: '50%',
-              background: i < mg.hits ? '#4CAF50' : 'rgba(255,255,255,0.2)',
-              border: '1px solid rgba(255,255,255,0.3)',
-            }} />
-          ))}
-        </div>
+          position: 'absolute', top: 0, bottom: 0, left: '50%',
+          width: 1, background: 'rgba(76,175,80,0.5)',
+        }} />
       </div>
-
-      <div style={{ fontSize: 12, color: '#aaa', marginBottom: 10 }}>
-        {isHit && <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>✓ Попал!</span>}
-        {isMiss && <span style={{ color: '#F44336', fontWeight: 'bold' }}>✗ Мимо!</span>}
-        {!isHit && !isMiss && 'Жди зелёной зоны — жми E'}
-      </div>
-
-      <TapButton label="[E] ТАП" onTap={onMiniGameTap} />
+      <button
+        onClick={onMiniGameTap}
+        style={{
+          width: '100%', padding: '13px',
+          background: mg.feedback === 'hit' ? 'rgba(76,175,80,0.3)' : mg.feedback === 'miss' ? 'rgba(244,67,54,0.3)' : 'rgba(255,215,0,0.15)',
+          border: `2px solid ${mg.feedback === 'hit' ? '#4CAF50' : mg.feedback === 'miss' ? '#F44336' : 'rgba(255,215,0,0.4)'}`,
+          borderRadius: 14, color: '#fff', fontSize: 15, cursor: 'pointer', fontWeight: 'bold',
+        }}
+      >
+        {mg.feedback === 'hit' ? '✅' : mg.feedback === 'miss' ? '❌' : '[E] В зелёную зону!'}
+      </button>
     </div>
   );
 }
 
 // ─── Rapid Tap ────────────────────────────────────────────────────────────────
 
-function RapidTap({ mg }: Props) {
-  const pct = mg.tapCount / mg.requiredTaps;
-  const timePct = mg.timeLimit / mg.timeLimitMax;
-
+function RapidTap({ mg }: { mg: MiniGameState }) {
+  const pct = (mg.tapCount / mg.requiredTaps) * 100;
   return (
     <div>
-      {/* Progress */}
-      <div style={{ fontSize: 32, fontWeight: 'bold', color: '#FFD700', marginBottom: 8 }}>
-        {mg.tapCount} <span style={{ fontSize: 16, color: '#aaa' }}>/ {mg.requiredTaps}</span>
-      </div>
-
-      <div style={{
-        height: 14, background: 'rgba(255,255,255,0.08)',
-        borderRadius: 7, overflow: 'hidden', marginBottom: 6,
-      }}>
+      <div style={{ marginBottom: 14 }}>
         <div style={{
-          height: '100%', width: `${pct * 100}%`,
-          background: 'linear-gradient(90deg, #FFD700, #FF9800)',
-          borderRadius: 7, transition: 'width 0.05s',
-        }} />
-      </div>
-
-      {/* Timer */}
-      <div style={{ fontSize: 11, color: timePct < 0.3 ? '#F44336' : '#888', marginBottom: 14 }}>
-        ⏱ {mg.timeLimit.toFixed(1)}с
-        <div style={{
-          display: 'inline-block', width: 60, height: 4,
-          background: 'rgba(255,255,255,0.08)', borderRadius: 2,
-          overflow: 'hidden', marginLeft: 8, verticalAlign: 'middle',
+          height: 18, background: 'rgba(255,255,255,0.08)',
+          borderRadius: 9, overflow: 'hidden',
         }}>
           <div style={{
-            height: '100%', width: `${timePct * 100}%`,
-            background: timePct < 0.3 ? '#F44336' : '#4CAF50',
-            transition: 'width 0.1s',
+            height: '100%', width: `${pct}%`,
+            background: 'linear-gradient(90deg, #FF9800, #FF5722)',
+            borderRadius: 9, transition: 'width 0.05s',
           }} />
         </div>
+        <div style={{ fontSize: 10, color: '#aaa', marginTop: 6 }}>
+          {mg.tapCount} / {mg.requiredTaps} нажатий
+        </div>
       </div>
-
-      <TapButton label="[E] ЖАТЬ!" onTap={onMiniGameTap} big />
+      <div style={{ fontSize: 10, color: mg.timeLimit < 2 ? '#F44336' : '#888', marginBottom: 12 }}>
+        ⏱ {Math.ceil(mg.timeLimit)}с
+      </div>
+      <button
+        onClick={onMiniGameTap}
+        style={{
+          width: '100%', padding: '16px',
+          background: mg.feedback === 'miss' ? 'rgba(244,67,54,0.3)' : 'rgba(255,152,0,0.2)',
+          border: `2px solid ${mg.feedback === 'miss' ? '#F44336' : '#FF9800'}`,
+          borderRadius: 14, color: '#fff', fontSize: 16, cursor: 'pointer',
+          fontWeight: 'bold',
+        }}
+      >
+        {mg.feedback === 'miss' ? '⏱ Сначала!' : '[E] БЫМ!'}
+      </button>
     </div>
   );
 }
 
-// ─── Sequence (digit pad) ─────────────────────────────────────────────────────
+// ─── Sequence ─────────────────────────────────────────────────────────────────
 
-function Sequence({ mg }: Props) {
-  const nextDigit = mg.sequence[mg.seqIndex];
-
+function Sequence({ mg }: { mg: MiniGameState }) {
   return (
     <div>
-      {/* Code display */}
-      <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>КОД ДОМОФОНА:</div>
-        <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 8 }}>
-          {mg.sequence.map((d, i) => (
-            <div key={i} style={{
-              width: 36, height: 40,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: i < mg.seqIndex
-                ? 'rgba(76,175,80,0.3)'
-                : i === mg.seqIndex
-                  ? (mg.seqWrong ? 'rgba(244,67,54,0.3)' : 'rgba(255,193,7,0.3)')
-                  : 'rgba(255,255,255,0.05)',
-              border: `1px solid ${i < mg.seqIndex ? '#4CAF50' : i === mg.seqIndex ? (mg.seqWrong ? '#F44336' : '#FFC107') : 'rgba(255,255,255,0.1)'}`,
-              borderRadius: 8,
-              fontSize: 18, fontWeight: 'bold',
-              color: i < mg.seqIndex ? '#4CAF50' : '#fff',
-              transition: 'all 0.15s',
-            }}>
-              {d}
-            </div>
-          ))}
-        </div>
-        <div style={{ fontSize: 11, color: '#aaa' }}>
-          {mg.seqWrong
-            ? <span style={{ color: '#F44336' }}>✗ Неверно — начни сначала</span>
-            : <span>Следующий: <strong style={{ color: '#FFC107' }}>{nextDigit}</strong></span>}
-        </div>
-      </div>
-
-      {/* Numpad */}
       <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6,
-        maxWidth: 220, margin: '0 auto',
+        display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 16,
       }}>
-        {[1,2,3,4,5,6,7,8,9,0].map(d => (
+        {mg.sequence.map((digit, i) => (
+          <div key={i} style={{
+            width: 34, height: 34, borderRadius: 8,
+            background: i < mg.seqIndex ? 'rgba(76,175,80,0.4)' : 'rgba(255,255,255,0.07)',
+            border: `2px solid ${i < mg.seqIndex ? '#4CAF50' : i === mg.seqIndex ? '#FFD700' : 'rgba(255,255,255,0.1)'}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 14, fontWeight: 'bold',
+            color: i < mg.seqIndex ? '#4CAF50' : '#fff',
+          }}>
+            {i < mg.seqIndex ? '✓' : digit}
+          </div>
+        ))}
+      </div>
+      {mg.seqWrong && (
+        <div style={{ color: '#F44336', fontSize: 12, marginBottom: 10 }}>
+          ❌ Неверно — сначала!
+        </div>
+      )}
+      <div style={{
+        display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
+        gap: 8, marginBottom: 8,
+      }}>
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(d => (
           <button
             key={d}
             onClick={() => onMiniGameDigitTap(d)}
             style={{
-              gridColumn: d === 0 ? '2' : undefined,
-              padding: '12px 0',
-              background: nextDigit === d
-                ? 'rgba(255,193,7,0.25)'
-                : 'rgba(255,255,255,0.07)',
-              border: `1px solid ${nextDigit === d ? '#FFC107' : 'rgba(255,255,255,0.12)'}`,
-              borderRadius: 8, color: '#fff',
-              fontSize: 18, fontWeight: 'bold', cursor: 'pointer',
-              transition: 'background 0.1s',
+              padding: '12px', fontSize: 18, fontWeight: 'bold',
+              background: 'rgba(255,255,255,0.07)',
+              border: '1px solid rgba(255,255,255,0.15)',
+              borderRadius: 10, color: '#fff', cursor: 'pointer',
             }}
           >
             {d}
@@ -230,127 +205,354 @@ function Sequence({ mg }: Props) {
 
 // ─── Dial ─────────────────────────────────────────────────────────────────────
 
-function Dial({ mg }: Props) {
-  const isHit = mg.feedback === 'hit';
-  const isMiss = mg.feedback === 'miss';
-
-  // Compute angular difference
-  const diff = ((mg.dialAngle - mg.dialTarget + 540) % 360) - 180;
-  const inZone = Math.abs(diff) <= mg.dialGreenWidth;
+function Dial({ mg }: { mg: MiniGameState }) {
+  const stopDots = Array.from({ length: mg.dialRequiredStops }).map((_, i) => i < mg.dialStops);
+  const needleDeg = mg.dialAngle;
+  const targetDeg = mg.dialTarget;
+  const diff = Math.abs(((needleDeg - targetDeg + 540) % 360) - 180);
+  const inZone = diff <= mg.dialGreenWidth;
 
   return (
     <div>
-      {/* Circular dial visualisation */}
-      <div style={{ position: 'relative', width: 150, height: 150, margin: '0 auto 16px' }}>
-        <svg width={150} height={150} viewBox="0 0 150 150">
-          {/* Dial background */}
-          <circle cx={75} cy={75} r={65} fill="rgba(255,255,255,0.04)"
-            stroke="rgba(255,255,255,0.1)" strokeWidth={2} />
-          {/* Green zone arc */}
-          <GreenArc target={mg.dialTarget} half={mg.dialGreenWidth} />
-          {/* Needle */}
-          <line
-            x1={75} y1={75}
-            x2={75 + 55 * Math.cos((mg.dialAngle - 90) * Math.PI / 180)}
-            y2={75 + 55 * Math.sin((mg.dialAngle - 90) * Math.PI / 180)}
-            stroke={isHit ? '#FFD700' : isMiss ? '#F44336' : inZone ? '#4CAF50' : '#fff'}
-            strokeWidth={3} strokeLinecap="round"
-          />
-          <circle cx={75} cy={75} r={5}
-            fill={isHit ? '#FFD700' : isMiss ? '#F44336' : '#fff'} />
-        </svg>
-
-        {/* Stops indicator */}
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 14 }}>
+        {stopDots.map((done, i) => (
+          <div key={i} style={{
+            width: 10, height: 10, borderRadius: '50%',
+            background: done ? '#4CAF50' : 'rgba(255,255,255,0.2)',
+          }} />
+        ))}
+      </div>
+      {/* Circular dial */}
+      <div style={{
+        position: 'relative', width: 120, height: 120,
+        margin: '0 auto 16px', borderRadius: '50%',
+        background: 'rgba(255,255,255,0.06)',
+        border: `3px solid ${inZone ? '#4CAF50' : 'rgba(255,255,255,0.15)'}`,
+      }}>
+        {/* Target zone arc (simplified as a colored segment label) */}
         <div style={{
-          position: 'absolute', bottom: -8, left: '50%', transform: 'translateX(-50%)',
-          display: 'flex', gap: 5,
-        }}>
-          {Array.from({ length: mg.dialRequiredStops }).map((_, i) => (
-            <div key={i} style={{
-              width: 10, height: 10, borderRadius: '50%',
-              background: i < mg.dialStops ? '#4CAF50' : 'rgba(255,255,255,0.15)',
-              border: '1px solid rgba(255,255,255,0.3)',
-            }} />
-          ))}
-        </div>
+          position: 'absolute', top: '50%', left: '50%',
+          transform: `translate(-50%, -50%) rotate(${targetDeg}deg)`,
+          transformOrigin: 'center',
+          width: 4, height: 50,
+          background: 'rgba(76,175,80,0.6)',
+          borderRadius: 2,
+        }} />
+        {/* Needle */}
+        <div style={{
+          position: 'absolute', top: '50%', left: '50%',
+          transform: `translate(-50%, -100%) rotate(${needleDeg}deg)`,
+          transformOrigin: 'bottom center',
+          width: 3, height: 46,
+          background: inZone ? '#4CAF50' : '#FFD700',
+          borderRadius: 2,
+        }} />
+        <div style={{
+          position: 'absolute', top: '50%', left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: 10, height: 10, borderRadius: '50%',
+          background: '#aaa',
+        }} />
       </div>
-
-      <div style={{ fontSize: 12, color: '#aaa', marginBottom: 10 }}>
-        {isHit && <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>✓ Зафиксировано!</span>}
-        {isMiss && <span style={{ color: '#F44336', fontWeight: 'bold' }}>✗ Мимо зоны</span>}
-        {!isHit && !isMiss && (inZone
-          ? <span style={{ color: '#4CAF50' }}>✓ В зоне — отпусти E!</span>
-          : 'Удерживай E для вращения'
-        )}
+      <div style={{ fontSize: 11, color: '#aaa', marginBottom: 12 }}>
+        {inZone ? '🟢 В зелёной зоне!' : 'Удерживай E → крути, отпусти в зелёной зоне'}
       </div>
-
-      <div style={{ fontSize: 11, color: '#888' }}>
-        Поворотов: {mg.dialStops} / {mg.dialRequiredStops}
+      <div style={{ fontSize: 10, color: '#666' }}>
+        {mg.feedback === 'hit' ? '✅ Стоп!' : mg.feedback === 'miss' ? '❌ Мимо!' : `Позиция: ${Math.round(mg.dialAngle)}°`}
       </div>
     </div>
-  );
-}
-
-function GreenArc({ target, half }: { target: number; half: number }) {
-  const toRad = (deg: number) => (deg - 90) * Math.PI / 180;
-  const start = toRad(target - half);
-  const end = toRad(target + half);
-  const r = 65;
-  const cx = 75, cy = 75;
-  const x1 = cx + r * Math.cos(start), y1 = cy + r * Math.sin(start);
-  const x2 = cx + r * Math.cos(end), y2 = cy + r * Math.sin(end);
-  const largeArc = half * 2 > 180 ? 1 : 0;
-  return (
-    <path
-      d={`M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`}
-      fill="rgba(76,175,80,0.3)"
-      stroke="#4CAF50"
-      strokeWidth={2}
-    />
   );
 }
 
 // ─── Letter ───────────────────────────────────────────────────────────────────
 
-function Letter({ mg }: Props) {
+function Letter({ mg }: { mg: MiniGameState }) {
   return (
     <div>
       <div style={{
-        background: 'rgba(255,255,255,0.04)',
-        border: '1px solid rgba(255,255,255,0.1)',
-        borderRadius: 10, padding: '16px 18px',
-        fontSize: 13, lineHeight: 1.6, color: '#ddd',
-        textAlign: 'left', marginBottom: 16,
-        fontFamily: 'serif',
+        background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
+        borderRadius: 12, padding: '14px 16px', marginBottom: 16,
+        textAlign: 'left', fontSize: 12, color: '#ccc', lineHeight: 1.7,
+        whiteSpace: 'pre-line',
       }}>
         {mg.letterText}
       </div>
-      <TapButton label="[E] Понял(а)" onTap={onMiniGameTap} />
+      <button
+        onClick={onMiniGameTap}
+        style={{
+          width: '100%', padding: '12px',
+          background: 'rgba(33,150,243,0.2)',
+          border: '1px solid rgba(33,150,243,0.4)',
+          borderRadius: 12, color: '#90CAF9', fontSize: 13, cursor: 'pointer',
+        }}
+      >
+        📜 Прочитал, понял, закрыть
+      </button>
     </div>
   );
 }
 
-// ─── Shared tap button ────────────────────────────────────────────────────────
+// ─── §2.5 Dog Walk ────────────────────────────────────────────────────────────
 
-function TapButton({ label, onTap, big }: { label: string; onTap: () => void; big?: boolean }) {
+function DogWalk({ mg }: { mg: MiniGameState }) {
+  const waypoints = ['Детская площадка', 'Мусорки', 'Домой 🏠'];
+  const tapProgress = mg.requiredTaps > 0 ? (mg.tapCount / mg.requiredTaps) * 100 : 0;
+
   return (
-    <button
-      onPointerDown={(e) => { e.preventDefault(); onTap(); }}
-      style={{
-        padding: big ? '14px 40px' : '10px 32px',
-        background: 'rgba(255,193,7,0.2)',
-        border: '2px solid #FFC107',
-        borderRadius: 12,
-        color: '#FFC107',
-        fontSize: big ? 18 : 14,
-        fontWeight: 'bold',
-        cursor: 'pointer',
-        transition: 'background 0.1s',
-        userSelect: 'none',
-        touchAction: 'none',
-      }}
-    >
-      {label}
-    </button>
+    <div>
+      {/* Waypoint dots */}
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 14, marginBottom: 18 }}>
+        {waypoints.map((name, i) => (
+          <div key={i} style={{ textAlign: 'center' }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: '50%',
+              background: i < mg.dogWaypoint ? '#4CAF50' : i === mg.dogWaypoint ? 'rgba(255,152,0,0.3)' : 'rgba(255,255,255,0.08)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 14, margin: '0 auto 6px',
+              border: `2px solid ${i < mg.dogWaypoint ? '#4CAF50' : i === mg.dogWaypoint ? '#FF9800' : 'rgba(255,255,255,0.12)'}`,
+              transition: 'all 0.2s',
+            }}>
+              {i < mg.dogWaypoint ? '✓' : i === mg.dogWaypoint ? '🐕' : '·'}
+            </div>
+            <div style={{ fontSize: 8, color: i === mg.dogWaypoint ? '#FFB74D' : '#666', maxWidth: 60 }}>
+              {name}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {mg.dogWaypoint < mg.dogRequired ? (
+        <>
+          <div style={{ fontSize: 12, color: '#FFB74D', marginBottom: 10 }}>
+            Бакс тянет к {waypoints[mg.dogWaypoint]}...
+          </div>
+          {/* Tap progress bar */}
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ height: 10, background: 'rgba(255,255,255,0.08)', borderRadius: 5, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', width: `${tapProgress}%`,
+                background: '#FF9800', borderRadius: 5, transition: 'width 0.08s',
+              }} />
+            </div>
+            <div style={{ fontSize: 10, color: '#aaa', marginTop: 4 }}>
+              {mg.tapCount}/{mg.requiredTaps} — держим поводок
+            </div>
+          </div>
+          <div style={{ fontSize: 10, color: mg.timeLimit < 2 ? '#F44336' : '#888', marginBottom: 12 }}>
+            ⏱ {Math.ceil(mg.timeLimit)}с
+          </div>
+          <button
+            onClick={onMiniGameTap}
+            style={{
+              width: '100%', padding: '15px',
+              background: mg.feedback === 'hit' ? 'rgba(76,175,80,0.25)' : mg.feedback === 'miss' ? 'rgba(244,67,54,0.25)' : 'rgba(255,152,0,0.2)',
+              border: `2px solid ${mg.feedback === 'hit' ? '#4CAF50' : mg.feedback === 'miss' ? '#F44336' : '#FF9800'}`,
+              borderRadius: 14, color: '#fff', fontSize: 16, cursor: 'pointer', fontWeight: 'bold',
+            }}
+          >
+            🐕 Держать поводок!
+          </button>
+        </>
+      ) : (
+        <div style={{ color: '#4CAF50', fontSize: 14, padding: '16px 0' }}>✅ Прогулка завершена!</div>
+      )}
+    </div>
+  );
+}
+
+// ─── §2.5 Flower Match ────────────────────────────────────────────────────────
+
+function FlowerMatch({ mg }: { mg: MiniGameState }) {
+  const isWaiting = mg.feedbackTimer > 0;
+
+  return (
+    <div>
+      {/* Round progress */}
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 14 }}>
+        {Array.from({ length: mg.choiceRequired }).map((_, i) => (
+          <div key={i} style={{
+            width: 9, height: 9, borderRadius: '50%',
+            background: i < mg.hits ? '#E91E63' : 'rgba(255,255,255,0.18)',
+          }} />
+        ))}
+      </div>
+
+      <div style={{ fontSize: 12, color: '#F48FB1', marginBottom: 16 }}>
+        Раунд {Math.min(mg.choiceRound + 1, mg.choiceRequired)}/{mg.choiceRequired} —
+        выберите правильный букет!
+      </div>
+
+      {/* Bouquet options */}
+      <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginBottom: 12 }}>
+        {mg.choiceOptions.map((opt, i) => {
+          const isSelected = mg.choiceSelected === i;
+          const isCorrect = i === mg.choiceCorrect;
+          let bg = 'rgba(255,255,255,0.06)';
+          let border = 'rgba(255,255,255,0.14)';
+          if (isSelected && mg.feedbackTimer > 0) {
+            bg = isCorrect ? 'rgba(76,175,80,0.3)' : 'rgba(244,67,54,0.3)';
+            border = isCorrect ? '#4CAF50' : '#F44336';
+          }
+          return (
+            <button
+              key={i}
+              onClick={() => !isWaiting && onMiniGameChoice(i)}
+              disabled={isWaiting}
+              style={{
+                flex: 1, padding: '18px 8px', fontSize: 30,
+                background: bg, border: `2px solid ${border}`,
+                borderRadius: 14, cursor: isWaiting ? 'default' : 'pointer',
+                transition: 'all 0.15s',
+              }}
+            >
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+
+      {mg.feedback === 'hit' && <div style={{ color: '#4CAF50', fontSize: 12 }}>💐 Правильный букет!</div>}
+      {mg.feedback === 'miss' && <div style={{ color: '#F44336', fontSize: 12 }}>🥀 Не тот букет!</div>}
+    </div>
+  );
+}
+
+// ─── §2.5 Drunk Calm ─────────────────────────────────────────────────────────
+
+function DrunkCalm({ mg }: { mg: MiniGameState }) {
+  const isWaiting = mg.feedbackTimer > 0;
+
+  return (
+    <div>
+      {/* Round progress */}
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
+        {Array.from({ length: mg.choiceRequired }).map((_, i) => (
+          <div key={i} style={{
+            width: 9, height: 9, borderRadius: '50%',
+            background: i < mg.hits ? '#FF9800' : 'rgba(255,255,255,0.18)',
+          }} />
+        ))}
+      </div>
+
+      {/* Drunk's dialogue */}
+      <div style={{
+        background: 'rgba(255,152,0,0.12)',
+        border: '1px solid rgba(255,152,0,0.3)',
+        borderRadius: 12, padding: '10px 14px', marginBottom: 16,
+        fontSize: 12, color: '#FFB74D', textAlign: 'left', fontStyle: 'italic',
+        lineHeight: 1.5,
+      }}>
+        🍻 Вася: {mg.letterText}
+      </div>
+
+      {/* Response options */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {mg.choiceOptions.map((opt, i) => {
+          const isSelected = mg.choiceSelected === i;
+          const isCorrect = i === mg.choiceCorrect;
+          let bg = 'rgba(255,255,255,0.06)';
+          let border = 'rgba(255,255,255,0.12)';
+          if (isSelected && mg.feedbackTimer > 0) {
+            bg = isCorrect ? 'rgba(76,175,80,0.22)' : 'rgba(244,67,54,0.22)';
+            border = isCorrect ? '#4CAF50' : '#F44336';
+          }
+          return (
+            <button
+              key={i}
+              onClick={() => !isWaiting && onMiniGameChoice(i)}
+              disabled={isWaiting}
+              style={{
+                padding: '10px 14px', textAlign: 'left',
+                background: bg, border: `1px solid ${border}`,
+                borderRadius: 10, color: '#ddd', fontSize: 12,
+                cursor: isWaiting ? 'default' : 'pointer',
+                transition: 'all 0.15s',
+              }}
+            >
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+
+      {mg.feedback === 'hit' && <div style={{ color: '#4CAF50', fontSize: 12, marginTop: 10 }}>✅ Вася немного успокоился</div>}
+      {mg.feedback === 'miss' && <div style={{ color: '#F44336', fontSize: 12, marginTop: 10 }}>😤 Вася расстроился</div>}
+    </div>
+  );
+}
+
+// ─── §2.5 Taxi Order ─────────────────────────────────────────────────────────
+
+function TaxiOrder({ mg }: { mg: MiniGameState }) {
+  const waitPct = Math.min(100, (mg.taxiWaitTimer / 3) * 100);
+
+  return (
+    <div style={{ padding: '4px 0' }}>
+      {/* Phone mockup */}
+      <div style={{
+        background: 'rgba(0,0,0,0.55)', border: '2px solid rgba(255,214,0,0.25)',
+        borderRadius: 20, padding: '20px 24px', marginBottom: 18,
+        minHeight: 110, display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', gap: 8,
+      }}>
+        {mg.taxiPhase === 'order' && (
+          <>
+            <div style={{ fontSize: 30 }}>📱</div>
+            <div style={{ fontSize: 11, color: '#aaa' }}>Яндекс.Бак 2.0</div>
+            <div style={{ fontSize: 11, color: '#ccc' }}>📍 ул. Дворовая, 95</div>
+          </>
+        )}
+        {mg.taxiPhase === 'wait' && (
+          <>
+            <div style={{ fontSize: 30 }}>🚗</div>
+            <div style={{ fontSize: 12, color: '#FFD700', fontWeight: 'bold' }}>Ищем машину...</div>
+            <div style={{ width: '100%', height: 8, background: 'rgba(255,255,255,0.1)', borderRadius: 4, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', width: `${waitPct}%`,
+                background: '#FFD600', borderRadius: 4, transition: 'width 0.3s',
+              }} />
+            </div>
+            <div style={{ fontSize: 10, color: '#aaa' }}>{Math.max(0, Math.ceil(3 - mg.taxiWaitTimer))}с...</div>
+          </>
+        )}
+        {mg.taxiPhase === 'confirm' && (
+          <>
+            <div style={{ fontSize: 30 }}>🚕</div>
+            <div style={{ fontSize: 13, color: '#4CAF50', fontWeight: 'bold' }}>Машина прибыла!</div>
+            <div style={{ fontSize: 10, color: '#aaa' }}>Водитель: Мурат ⭐ 4.9</div>
+          </>
+        )}
+      </div>
+
+      {mg.taxiPhase === 'order' && (
+        <button
+          onClick={onMiniGameTaxiTap}
+          style={{
+            width: '100%', padding: '14px',
+            background: 'rgba(255,214,0,0.22)', border: '2px solid #FFD600',
+            borderRadius: 14, color: '#FFD600', fontSize: 15, fontWeight: 'bold', cursor: 'pointer',
+          }}
+        >
+          📱 Заказать такси
+        </button>
+      )}
+      {mg.taxiPhase === 'wait' && (
+        <div style={{ fontSize: 11, color: '#888', textAlign: 'center', padding: '10px 0' }}>
+          Ожидайте подачи машины...
+        </div>
+      )}
+      {mg.taxiPhase === 'confirm' && (
+        <button
+          onClick={onMiniGameTaxiTap}
+          style={{
+            width: '100%', padding: '14px',
+            background: 'rgba(76,175,80,0.22)', border: '2px solid #4CAF50',
+            borderRadius: 14, color: '#4CAF50', fontSize: 15, fontWeight: 'bold', cursor: 'pointer',
+          }}
+        >
+          ✅ Сесть в машину
+        </button>
+      )}
+    </div>
   );
 }
