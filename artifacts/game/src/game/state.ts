@@ -104,6 +104,7 @@ export function startGame(
       sabotageCooldown: 0,
       isCarryingCanister: false,
       ventCooldown: 0,
+      ventFlashTimer: 0,
       emote: null,
       emoteTimer: 0,
       suspectedTimer: 0,

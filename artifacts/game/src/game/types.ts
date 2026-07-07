@@ -220,6 +220,7 @@ export interface Player {
   // Items
   isCarryingCanister: boolean;
   ventCooldown: number;       // §3.1.2 cooldown after using dumpster vent
+  ventFlashTimer: number;     // §3.1.2 brief visual flash after teleport (0 = off)
   // Visual
   emote: string | null;
   emoteTimer: number;
@@ -326,6 +327,7 @@ export const CANISTER_SLOW_MULT = 0.8;       // speed × 0.8 when carrying canis
 export const FLOWERBED_SLOW_MULT = 0.6;      // §1.2 flower beds reduce speed by 40%
 export const SIPHON_AUDIO_RADIUS = 280;      // §13.1 siphon gurgle audible within 8m (~280px)
 export const VENT_COOLDOWN       = 15;       // §3.1.2 dumpster vent cooldown (seconds)
+export const VENT_FLASH_DURATION = 0.45;     // §3.1.2 visual teleport flash duration (seconds)
 export const CROUCH_VISIBILITY_MULT = 0.7;  // §2.2 crouching: others see you with 30% narrower FOV
 export const SHAWARMA_SPEED_BOOST_MULT     = 1.35; // §2.4 shawarma speed boost multiplier
 export const SHAWARMA_SPEED_BOOST_DURATION = 10;   // seconds

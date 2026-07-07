@@ -10,7 +10,7 @@ import {
   TASK_MINIGAME_MAP,
   SABOTAGE_COOLDOWNS, SABOTAGE_DURATIONS,
   VALVE_FIX_TIME, VALVE_INTERACT_RADIUS,
-  FLOWERBED_SLOW_MULT, VENT_COOLDOWN,
+  FLOWERBED_SLOW_MULT, VENT_COOLDOWN, VENT_FLASH_DURATION,
   SHAWARMA_SPEED_BOOST_MULT, SHAWARMA_SPEED_BOOST_DURATION,
   IMMUNITY_TICKET_DURATION,
   KHOZAIN_LOCK_DURATION, KHOZAIN_LOCK_COOLDOWN, KHOZAIN_LOCK_HOLD_TIME,
@@ -153,6 +153,9 @@ export function tickGame(dt: number, input: InputState): void {
     gs.time += dt;
     gs.meetingCooldown = Math.max(0, gs.meetingCooldown - dt);
 
+    // §1.4 AI-95 price: gentle real-time drift every frame (±5₽ sinusoidal, display-only)
+    gs.ai95Price = 87 + Math.round(3 * Math.sin(gs.time * 0.08) + 2 * Math.sin(gs.time * 0.031));
+
     // §2.1 Match time limit countdown
     gs.matchTimeLimit = Math.max(0, gs.matchTimeLimit - dt);
     if (gs.matchTimeLimit <= 0 && !gs.winner) {
@@ -186,6 +189,7 @@ export function tickGame(dt: number, input: InputState): void {
     updatePrompt(dt);
     updateTicker(dt);
     updateEmotes(dt);
+    updateVentFlash(dt);
     updateNeutralMechanics(dt);
     updateTutorial(dt);
     updateBackstabMoment();
@@ -1205,8 +1209,9 @@ function updateInteractions(dt: number, input: InputState): void {
   // On cooldown: show an informational note but fall through so other nearby
   // interactions (tasks, canisters, etc.) are still reachable.
   // Only block + consume the E press when the vent is actually ready to use.
+  // §3.1.2 Vents: always available for human slivshchik; for bots gated by difficulty
   if (player.role === 'slivshchik' && !player.isCarryingCanister &&
-      BOT_DIFFICULTY_SETTINGS[gs.botDifficulty].useVents) {
+      (player.isHuman || BOT_DIFFICULTY_SETTINGS[gs.botDifficulty].useVents)) {
     const nearDumpIdx = DUMPSTER_POSITIONS.findIndex(d => dist(player.pos, d) < 80);
     if (nearDumpIdx >= 0) {
       if (player.ventCooldown > 0) {
@@ -1231,6 +1236,7 @@ function updateInteractions(dt: number, input: InputState): void {
           }
           player.pos = { ...DUMPSTER_POSITIONS[bestIdx] };
           player.ventCooldown = VENT_COOLDOWN;
+          player.ventFlashTimer = VENT_FLASH_DURATION; // §3.1.2 visual teleport flash
           audio.play('ui_click');
           setPrompt('💨 Нырнул в мусорку! Вынырнул с другой стороны.', 2);
           clearTaskDoer(player.id);
@@ -2052,6 +2058,12 @@ function updateTicker(dt: number): void {
   if (gs.tickerTimer <= 0) {
     gs.tickerIndex = (gs.tickerIndex + 1) % NEWS_HEADLINES.length;
     gs.tickerTimer = TICKER_INTERVAL;
+  }
+}
+
+function updateVentFlash(dt: number): void {
+  for (const p of gs.players) {
+    if (p.ventFlashTimer > 0) p.ventFlashTimer = Math.max(0, p.ventFlashTimer - dt);
   }
 }
 

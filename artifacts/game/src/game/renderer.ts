@@ -1,5 +1,5 @@
 import type { GameState, Vec2 } from './types';
-import { ALARM_RADIUS, MAP_W, MAP_H, CROUCH_VISIBILITY_MULT } from './types';
+import { ALARM_RADIUS, MAP_W, MAP_H, CROUCH_VISIBILITY_MULT, VENT_FLASH_DURATION } from './types';
 import { TASK_DEFS } from '../data/tasks';
 import { DECORATIONS, ENTRANCE_POS, DUMPSTER_POSITIONS, VISION_BUILDINGS, VALVE_POSITIONS, BABUSHKA_CERBERUS_POS, BABUSHKA_NPC_POS } from '../data/map';
 import { CHARACTERS } from '../data/characters';
@@ -940,6 +940,26 @@ function drawPlayers(
       ctx.textBaseline = 'middle';
       ctx.fillText('🪣', x + 16, y - 10);
       ctx.textBaseline = 'alphabetic';
+    }
+
+    // §3.1.2 Vent teleport flash — brief expanding green ring
+    if (player.ventFlashTimer > 0) {
+      const progress = 1 - player.ventFlashTimer / VENT_FLASH_DURATION; // 0→1 over flash duration
+      const radius = 14 + progress * 28;
+      const alpha = 0.85 * (1 - progress);
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = '#00E676';
+      ctx.lineWidth = 3 + (1 - progress) * 4;
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.stroke();
+      // Inner white flash (brightest at start)
+      ctx.globalAlpha = alpha * 0.6;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.arc(x, y, 14 * (1 - progress * 0.7), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
     }
 
     // Emote bubble
