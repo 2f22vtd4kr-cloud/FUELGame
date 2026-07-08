@@ -886,6 +886,15 @@ function drawCars(ctx: CanvasRenderingContext2D, state: GameState): void {
     const { x, y } = car.pos;
     const fuel = car.fuel;
 
+    // Ground shadow — drawn before sprite so sprite renders on top
+    ctx.save();
+    ctx.globalAlpha = 0.28;
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.ellipse(x, y + 32, 34, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
     // §7.3 Car sprite (generated PNG) or primitive-rect fallback
     const carSpriteKey = CAR_SPRITE_MAP[car.id];
     const carSprite = carSpriteKey ? getSprite(carSpriteKey) : null;

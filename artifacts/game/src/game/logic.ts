@@ -31,6 +31,8 @@ import { audio } from './audio';
 // ─── Module-level state ───────────────────────────────────────────────────────
 let _prevPhase: string = '';      // for music phase-transition detection
 let _footstepTimer = 0;           // seconds since last footstep sound
+let _vx = 0;                      // smoothed velocity x (pixels/s)
+let _vy = 0;                      // smoothed velocity y (pixels/s)
 
 // ─── Ejection texts (§2.7.6) ──────────────────────────────────────────────────
 
@@ -279,25 +281,41 @@ function updateHumanPlayer(dt: number, input: InputState): void {
   // §3.1.2 Vent cooldown decay
   if (player.ventCooldown > 0) player.ventCooldown -= dt;
 
-  if (isMoving) {
-    const nx = input.dx / len;
-    const ny = input.dy / len;
-    const speed = player.speed * speedMult;
+  // Target velocity this frame
+  const targetVx = isMoving ? (input.dx / len) * player.speed * speedMult : 0;
+  const targetVy = isMoving ? (input.dy / len) * player.speed * speedMult : 0;
 
-    const newX = player.pos.x + nx * speed * dt;
-    const newY = player.pos.y + ny * speed * dt;
+  // Exponential smoothing — accel in faster than decel for snappy feel
+  const accelFactor = isMoving ? Math.min(1, dt * 14) : Math.min(1, dt * 20);
+  _vx += (targetVx - _vx) * accelFactor;
+  _vy += (targetVy - _vy) * accelFactor;
+
+  // Only move if velocity is meaningful (avoid floating point drift)
+  if (Math.abs(_vx) > 0.5 || Math.abs(_vy) > 0.5) {
+    const newX = player.pos.x + _vx * dt;
+    const newY = player.pos.y + _vy * dt;
     const candidate = clampToMap({ x: newX, y: newY }, 14);
 
     if (!isInsideBuilding(candidate, 14)) {
       player.pos = candidate;
     } else {
       const candX = clampToMap({ x: newX, y: player.pos.y }, 14);
-      if (!isInsideBuilding(candX, 14)) { player.pos = candX; }
-      else {
+      if (!isInsideBuilding(candX, 14)) {
+        player.pos = candX;
+        _vy *= 0.15; // damp velocity component hitting the wall
+      } else {
         const candY = clampToMap({ x: player.pos.x, y: newY }, 14);
-        if (!isInsideBuilding(candY, 14)) { player.pos = candY; }
+        if (!isInsideBuilding(candY, 14)) {
+          player.pos = candY;
+          _vx *= 0.15; // damp velocity component hitting the wall
+        } else {
+          _vx *= 0.1; _vy *= 0.1; // full stop on corner
+        }
       }
     }
+  } else {
+    // Snap to zero to prevent micro-drift
+    _vx = 0; _vy = 0;
   }
 
   if (player.ambushCooldown > 0) player.ambushCooldown -= dt;

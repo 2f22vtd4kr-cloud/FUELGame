@@ -29,6 +29,9 @@ class AudioManager {
   private rumbleOsc: OscillatorNode | null = null;
   private rumbleGain: GainNode | null = null;
 
+  // §8.1 Deferred fade-out timer (ensures pause/reset happens AFTER gain ramp)
+  private _fadeOutTimer: ReturnType<typeof setTimeout> | null = null;
+
   // ── Init ──────────────────────────────────────────────────────────────────
 
   init(): void {
@@ -59,8 +62,13 @@ class AudioManager {
 
   playMusic(track: 'menu' | 'play' | 'meeting'): void {
     this.init(); // always init AudioContext for SFX
+    if (this._fadeOutTimer) { clearTimeout(this._fadeOutTimer); this._fadeOutTimer = null; }
     if (this.musicTrack === track) return;
     this.stopMusic();
+    // stopMusic() arms a deferred-pause timer for the gain fade — cancel it here because
+    // we're immediately starting a new track and bgMusic must keep playing through the
+    // crossfade. The gain was already ramped to 0 by stopMusic; we'll ramp it back up below.
+    if (this._fadeOutTimer) { clearTimeout(this._fadeOutTimer); this._fadeOutTimer = null; }
     this.musicTrack = track;
 
     // Create HTMLAudioElement once
@@ -106,23 +114,29 @@ class AudioManager {
   }
 
   stopMusic(): void {
-    // Stop MP3 playback
-    if (this.bgMusic) {
-      this.bgMusic.pause();
-      this.bgMusic.currentTime = 0;
-    }
+    // Cancel any pending deferred fade-out first
+    if (this._fadeOutTimer) { clearTimeout(this._fadeOutTimer); this._fadeOutTimer = null; }
     // Stop legacy synthesizer scheduler (kept for compatibility)
     if (this.musicScheduler !== null) {
       clearInterval(this.musicScheduler);
       this.musicScheduler = null;
     }
     this.musicTrack = null;
+    // Ramp gain to 0 first, THEN pause/reset after the fade completes
     if (this.c && this.musicGain) {
       const mg = this.musicGain;
       mg.gain.cancelScheduledValues(this.c.currentTime);
       mg.gain.setValueAtTime(mg.gain.value, this.c.currentTime);
       mg.gain.linearRampToValueAtTime(0, this.c.currentTime + 0.8);
     }
+    // Defer pause + seek-to-start until after the 0.8s fade
+    this._fadeOutTimer = setTimeout(() => {
+      if (this.bgMusic) {
+        this.bgMusic.pause();
+        this.bgMusic.currentTime = 0;
+      }
+      this._fadeOutTimer = null;
+    }, 800);
     this.stopRumble();
   }
 

@@ -93,7 +93,7 @@
   background: var(--pp-cream);
   border-bottom: 3px solid var(--pp-black);
   box-shadow: 0 3px 0 rgba(204,43,29,0.6);
-  padding: 6px 10px;
+  padding: 4px 8px;
   display: flex; align-items: center; gap: 8px;
 }
 
@@ -132,7 +132,7 @@
 .pp-ticker-bar {
   background: var(--pp-cream);
   border-top: 3px solid var(--pp-black);
-  padding: 4px 0;
+  padding: 1px 0;
   display: flex; align-items: center; overflow: hidden;
 }
 .pp-ticker-label {
@@ -149,7 +149,7 @@
   display: inline-block;
   white-space: nowrap;
   color: var(--pp-black);
-  font-size: 10px; font-weight: 700;
+  font-size: 9px; font-weight: 700;
   animation: pp-ticker 18s linear infinite;
   padding-left: 100%;
 }

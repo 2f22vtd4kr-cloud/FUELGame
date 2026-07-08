@@ -509,7 +509,7 @@ export default function HUD({ state }: HUDProps) {
       {/* ── Stamina bar (only when active) ── */}
       {(localPlayer.isSprinting || localPlayer.stamina < SPRINT_MAX - 0.1) && (
         <div style={{
-          padding: '3px 10px',
+          padding: '2px 8px',
           background: 'rgba(26,26,26,0.75)',
           borderBottom: '2px solid rgba(229,165,10,0.4)',
           display: 'flex', alignItems: 'center', gap: 7,
