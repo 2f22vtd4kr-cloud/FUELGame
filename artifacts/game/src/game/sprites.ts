@@ -3,6 +3,7 @@
 // Falls back gracefully to the primitive circle/rect renderer when not loaded.
 
 const SPRITE_KEYS = [
+  'courtyard_bg',
   'char_denis',
   'char_anya',
   'char_vova',

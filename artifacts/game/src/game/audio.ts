@@ -11,6 +11,11 @@ class AudioManager {
   private gurgleGain: GainNode | null = null;
   private gurgleLFO: OscillatorNode | null = null;
 
+  // §8.1 MP3 background music element (replaces synthesized music)
+  private bgMusic: HTMLAudioElement | null = null;
+  // MediaElementSource node wires bgMusic into the WebAudio graph (masterGain controls it)
+  private bgMusicSource: MediaElementAudioSourceNode | null = null;
+
   // §8.1 Music scheduler state (Chris Wilson lookahead clock)
   private musicTrack: 'menu' | 'play' | 'meeting' | null = null;
   private musicScheduler: ReturnType<typeof setInterval> | null = null;
@@ -53,26 +58,60 @@ class AudioManager {
   // ── §8.1 Music API ────────────────────────────────────────────────────────
 
   playMusic(track: 'menu' | 'play' | 'meeting'): void {
-    this.init();
-    if (!this.c || !this.musicGain) return;
-    if (this.musicTrack === track) return; // already playing this track
+    this.init(); // always init AudioContext for SFX
+    if (this.musicTrack === track) return;
     this.stopMusic();
     this.musicTrack = track;
-    this.musicBPM = track === 'menu' ? 90 : track === 'play' ? 110 : 60;
-    this.musicBeatIndex = 0;
-    this.musicNextBeatTime = this.c.currentTime + 0.05;
 
-    // Fade in — respect user's music volume factor
-    const mg = this.musicGain;
-    mg.gain.cancelScheduledValues(this.c.currentTime);
-    mg.gain.setValueAtTime(0, this.c.currentTime);
-    mg.gain.linearRampToValueAtTime(0.18 * this._musicVolumeFactor, this.c.currentTime + 2.0);
+    // Create HTMLAudioElement once
+    if (!this.bgMusic) {
+      this.bgMusic = new Audio('/audio/bg.mp3');
+      this.bgMusic.loop = true;
+      this.bgMusic.preload = 'auto';
+    }
 
-    this._scheduleMusicBeats();
-    this.musicScheduler = setInterval(() => this._scheduleMusicBeats(), this.MUSIC_INTERVAL);
+    // Wire into WebAudio graph so masterGain / musicGain control volume (fixes master vol regression)
+    if (this.c && this.musicGain && !this.bgMusicSource) {
+      try {
+        this.bgMusicSource = this.c.createMediaElementSource(this.bgMusic);
+        this.bgMusicSource.connect(this.musicGain);
+        this.bgMusic.volume = 1.0; // volume controlled purely by gain nodes from now on
+      } catch { /* element already captured by a previous context — ignore */ }
+    }
+
+    // Set music gain (meeting is quieter / more tense)
+    const vol = track === 'meeting' ? 0.35 : 0.62;
+    if (this.c && this.musicGain) {
+      const mg = this.musicGain;
+      mg.gain.cancelScheduledValues(this.c.currentTime);
+      mg.gain.setValueAtTime(0, this.c.currentTime);
+      mg.gain.linearRampToValueAtTime(vol * this._musicVolumeFactor, this.c.currentTime + 1.5);
+    } else {
+      // Fallback before WebAudio is ready
+      this.bgMusic.volume = Math.max(0, Math.min(1, vol * this._musicVolumeFactor));
+    }
+
+    // Attempt playback; register one-time gesture-unlock handler if blocked
+    const playPromise = this.bgMusic.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(() => {
+        const unlock = () => {
+          this.c?.resume().catch(() => {});
+          if (this.bgMusic && this.musicTrack) this.bgMusic.play().catch(() => {});
+        };
+        document.addEventListener('click', unlock, { once: true });
+        document.addEventListener('touchstart', unlock, { once: true, passive: true });
+      });
+    }
   }
 
   stopMusic(): void {
+    // Stop MP3 playback
+    if (this.bgMusic) {
+      this.bgMusic.pause();
+      this.bgMusic.currentTime = 0;
+    }
+    // Stop legacy synthesizer scheduler (kept for compatibility)
     if (this.musicScheduler !== null) {
       clearInterval(this.musicScheduler);
       this.musicScheduler = null;
@@ -1083,12 +1122,15 @@ class AudioManager {
   setMusicVolume(v: number): void {
     this._musicVolumeFactor = Math.max(0, Math.min(1, v));
     if (!this.ctx) this.init();
-    if (this.musicGain && this.musicTrack && this.ctx) {
-      this.musicGain.gain.cancelScheduledValues(this.ctx.currentTime);
-      this.musicGain.gain.setValueAtTime(
-        0.18 * this._musicVolumeFactor,
-        this.ctx.currentTime,
-      );
+    if (this.c && this.musicGain && this.musicTrack) {
+      // MP3 routes through musicGain → masterGain so one adjustment covers everything
+      const vol = this.musicTrack === 'meeting' ? 0.35 : 0.62;
+      this.musicGain.gain.cancelScheduledValues(this.c.currentTime);
+      this.musicGain.gain.setValueAtTime(vol * this._musicVolumeFactor, this.c.currentTime);
+    } else if (this.bgMusic && this.musicTrack && !this.bgMusicSource) {
+      // Fallback: not yet wired into WebAudio graph
+      const vol = this.musicTrack === 'meeting' ? 0.35 : 0.62;
+      this.bgMusic.volume = Math.max(0, Math.min(1, vol * this._musicVolumeFactor));
     }
   }
 

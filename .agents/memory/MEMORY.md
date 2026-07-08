@@ -30,3 +30,4 @@
 - [Import setup quirks](import-setup-quirks.md) — after re-import, run `pnpm install`; a duplicate un-removable "artifacts/api-server: API Server" workflow is harmless
 - [Sprite outline + chibi technique](game-sprite-outline-chibi.md) — PixelGrid#outline() + bigger-head proportions fixed "looks like shit" feedback; watch DECOR_SPRITE_META drift when resizing prop canvases
 - [Decor pipeline ordering](game-decor-pipeline.md) — gen:sprites MUST end with process-ai-decor.mjs or AI sprites get clobbered by procedural; HUD useEffects must stay above early returns
+- [95-Y courtyard background + audio MP3](game-bg-audio.md) — AI-generated courtyard_bg.png replaces procedural drawBackground; MP3 routed via MediaElementAudioSourceNode into musicGain so masterGain controls it; HUD action stack is position:fixed z-index:25 bottom:160px to clear joystick zone

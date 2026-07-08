@@ -536,6 +536,20 @@ function seededHash(x: number, y: number): number {
 }
 
 function drawBackground(ctx: CanvasRenderingContext2D): void {
+  // ── AI-generated courtyard background image ──────────────────────────────────
+  const bgImg = getSprite('courtyard_bg');
+  if (bgImg) {
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    // Image is square (1024×1024); world is 4:3 (1200×900).
+    // Crop the vertical centre to produce a 4:3 source rect — no distortion.
+    const srcW = bgImg.width;
+    const srcH = Math.round(bgImg.width * (MAP_H / MAP_W)); // 1024 × (900/1200) ≈ 768
+    const srcY = Math.round((bgImg.height - srcH) / 2);    // crop equally top & bottom
+    ctx.drawImage(bgImg, 0, srcY, srcW, srcH, 0, 0, MAP_W, MAP_H);
+    return;
+  }
+  // ── Fallback: procedural background ─────────────────────────────────────────
   // ── Building strips ──────────────────────────────────────────────────────────
   fillTexturedRect(ctx, 'roof', COLORS.building, 0, 0, 1200, 90);
   fillTexturedRect(ctx, 'roof', COLORS.building, 0, 810, 1200, 90);
@@ -683,6 +697,8 @@ function drawBackground(ctx: CanvasRenderingContext2D): void {
 }
 
 function drawParkingLot(ctx: CanvasRenderingContext2D): void {
+  // Skip if AI courtyard background is loaded (it includes ground, parking, playground)
+  if (getSprite('courtyard_bg')) return;
   // Path from garden to entrance
   fillTexturedRect(ctx, 'path', '#6A5A4A', 560, 780, 80, 30);
 
@@ -1397,11 +1413,16 @@ function drawPlayers(
     // Note: fellow-slivshchik teammate outline is drawn in drawTeammateOutlines()
     // AFTER the fog overlay so it pierces the fog (§3.1.2 team awareness).
 
-    // Shadow
+    // Shadow — radial gradient for a natural ground-shadow look
     const shadowR = player.character === 'barsik' ? 10 : 18;
-    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    const shadowCX = x, shadowCY = y + shadowR + 2;
+    const shadowGrad = ctx.createRadialGradient(shadowCX, shadowCY, 0, shadowCX, shadowCY, shadowR);
+    shadowGrad.addColorStop(0, 'rgba(0,0,0,0.45)');
+    shadowGrad.addColorStop(0.55, 'rgba(0,0,0,0.2)');
+    shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = shadowGrad;
     ctx.beginPath();
-    ctx.ellipse(x, y + shadowR + 2, shadowR, shadowR * 0.38, 0, 0, Math.PI * 2);
+    ctx.ellipse(shadowCX, shadowCY, shadowR, shadowR * 0.36, 0, 0, Math.PI * 2);
     ctx.fill();
 
     // §3.1.3 Барсик character is slightly smaller
