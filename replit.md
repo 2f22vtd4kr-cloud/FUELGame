@@ -43,6 +43,15 @@ The game is then available at the Replit preview URL (root path `/`).
 - `artifacts/game/src/components/Lobby.tsx` — character select + game settings
 - `artifacts/game/src/components/GameCanvas.tsx` — mounts canvas, drives RAF loop
 
+## Denis sprite sheet (in progress)
+
+- `artifacts/mockup-sandbox/src/components/mockups/denis-sprite/DenisSprite.tsx` — pixel-art
+  sprite sheet designer, live on the canvas board. Shows all 4 directions × 4 walk frames at
+  3× zoom with animated preview. **Next session:** export to
+  `artifacts/game/public/sprites/char_denis.png` (256×256 RGBA PNG) using node-canvas or the
+  procedural PNG writer in `scripts/`. See `.agents/memory/denis-sprite-canvas.md` for palette,
+  export plan, and the left↔right orientation swap note.
+
 ## Main menu redesign (in progress)
 
 - `docs/design/main-menu-style-guide.md` — "Propaganda Pop" (Soviet-retro poster) visual style

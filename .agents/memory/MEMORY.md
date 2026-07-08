@@ -26,3 +26,4 @@
 - [95-Y Volume II doc chunking](game-vol2-doc-chunking.md) — 1902-line Vol2 design doc split into docs/vol2/18-*.md…28-*.md; always read docs/vol2/PROGRESS.md first to see per-section done/gap status
 - [95-Y main menu redesign](game-main-menu-redesign.md) — "Propaganda Pop" style approved for Lobby.tsx but NOT yet graduated; style guide at docs/design/main-menu-style-guide.md
 - [95-Y sprite generation workflow](game-sprite-generation-workflow.md) — procedural (Node+zlib, no native deps) directional sprite sheets replacing AI-image+rotation; Denis piloted, see HANDOFF.md for full per-character pattern
+- [Denis sprite canvas design](denis-sprite-canvas.md) — canvas mockup done (DenisSprite.tsx, 4×4 grid, all dirs); next session: export to char_denis.png via node-canvas
