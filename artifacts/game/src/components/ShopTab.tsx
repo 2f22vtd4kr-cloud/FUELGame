@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { HATS, PETS, CAR_SKINS, RARITY_COLORS, type HatDef, type PetDef, type CarSkinDef } from '../data/cosmetics';
 import { loadProfile, saveProfile, XP_PER_TIER } from '../game/profile';
 import { unlockAchievementNow } from '../game/rewards';
+import { syncInventoryItem } from '../game/sync';
 
 interface Props {
   onProfileChange: () => void;
@@ -47,6 +48,7 @@ export default function ShopTab({ onProfileChange }: Props) {
     p.equippedHat = hatId;
     saveProfile(p);
     refresh();
+    syncInventoryItem('hat', hatId, true);
     showToast(`Надета: ${HATS.find(h => h.id === hatId)?.name ?? hatId}`, true);
   }
 
@@ -58,6 +60,7 @@ export default function ShopTab({ onProfileChange }: Props) {
     p.equippedHat = hat.id;
     saveProfile(p);
     refresh();
+    syncInventoryItem('hat', hat.id, true);
     showToast(`Куплено: ${hat.name}!`, true);
   }
 
@@ -79,6 +82,7 @@ export default function ShopTab({ onProfileChange }: Props) {
       }
       saveProfile(p);
       refresh();
+      syncInventoryItem(itemType, item.id, true);
       showToast(`${item.name} куплена за ⭐!`, true);
     };
 
@@ -111,6 +115,7 @@ export default function ShopTab({ onProfileChange }: Props) {
     p.equippedPet = petId;
     saveProfile(p);
     refresh();
+    syncInventoryItem('pet', petId, true);
     showToast(`Питомец: ${PETS.find(pt => pt.id === petId)?.name ?? petId}`, true);
   }
 
@@ -122,6 +127,7 @@ export default function ShopTab({ onProfileChange }: Props) {
     p.equippedPet = pet.id;
     saveProfile(p);
     refresh();
+    syncInventoryItem('pet', pet.id, true);
     showToast(`Питомец «${pet.name}» куплен!`, true);
   }
 
@@ -132,6 +138,7 @@ export default function ShopTab({ onProfileChange }: Props) {
     p.equippedCarSkin = skinId;
     saveProfile(p);
     refresh();
+    syncInventoryItem('car', skinId, true);
     showToast(`Скин: ${CAR_SKINS.find(s => s.id === skinId)?.name ?? skinId}`, true);
   }
 
@@ -143,6 +150,7 @@ export default function ShopTab({ onProfileChange }: Props) {
     p.equippedCarSkin = skin.id;
     saveProfile(p);
     refresh();
+    syncInventoryItem('car', skin.id, true);
     showToast(`Скин «${skin.name}» куплен!`, true);
   }
 
@@ -194,6 +202,9 @@ export default function ShopTab({ onProfileChange }: Props) {
     if (!p.purchasedCarSkins.includes('golden_moskvich')) p.purchasedCarSkins.push('golden_moskvich');
     if (!p.purchasedPets.includes('barsik_pet')) p.purchasedPets.push('barsik_pet');
     saveProfile(p);
+    syncInventoryItem('hat', 'golden_talono', false);
+    syncInventoryItem('car', 'golden_moskvich', false);
+    syncInventoryItem('pet', 'barsik_pet', false);
     // §3.6 "Талоновед" achievement grants its own +1000 babki reward — don't double-pay here.
     unlockAchievementNow('fuel_linked');
     refresh();

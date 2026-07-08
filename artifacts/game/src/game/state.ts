@@ -45,7 +45,7 @@ export function makeDailyRng(): () => number {
 
 function loadSavedAccessibility(): Partial<Pick<GameState,
   'textSize' | 'colorblindMode' | 'highContrastMode' |
-  'volumeMaster' | 'volumeMusic' | 'volumeSfx' | 'autoInteract' | 'simplifiedChatWheel'
+  'volumeMaster' | 'volumeMusic' | 'volumeSfx' | 'autoInteract' | 'simplifiedChatWheel' | 'audioCaptions' | 'language'
 >> {
   try {
     const raw = localStorage.getItem('95y_profile_v1');
@@ -60,6 +60,8 @@ function loadSavedAccessibility(): Partial<Pick<GameState,
     if (typeof p.volumeSfx === 'number')         out.volumeSfx        = p.volumeSfx;
     if (typeof p.autoInteract === 'boolean')     out.autoInteract     = p.autoInteract;
     if (typeof p.simplifiedChatWheel === 'boolean') out.simplifiedChatWheel = p.simplifiedChatWheel;
+    if (typeof p.audioCaptions === 'boolean')    out.audioCaptions    = p.audioCaptions;
+    if (p.language === 'ru' || p.language === 'en') out.language      = p.language;
     return out;
   } catch {
     return {};
@@ -110,6 +112,8 @@ export function createInitialState(): GameState {
     autoInteractTimer: 0,
     textSize: acc.textSize ?? 'medium',
     simplifiedChatWheel: acc.simplifiedChatWheel ?? false,
+    audioCaptions: acc.audioCaptions ?? true,
+    language: acc.language ?? 'ru',
     tutorialStep: 0,
     backstabMoment: null,
     backstabMomentAcked: false,

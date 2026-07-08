@@ -47,6 +47,9 @@ export interface PlayerProfile {
   volumeSfx: number;
   autoInteract: boolean;
   simplifiedChatWheel: boolean;
+  audioCaptions: boolean;
+  // §13.2 Localization — UI chrome language (satire/voice lines stay Russian)
+  language: 'ru' | 'en';
   // §3.6 Cumulative achievement-tracking stats
   totalInnocentEjections: number;   // ejected while not slivshchik, across all matches
   totalEjections: number;           // ejected for any reason, across all matches
@@ -95,6 +98,8 @@ const DEFAULTS: PlayerProfile = {
   volumeSfx: 1.0,
   autoInteract: false,
   simplifiedChatWheel: false,
+  audioCaptions: true,
+  language: 'ru',
   totalInnocentEjections: 0,
   totalEjections: 0,
   winStreak: 0,

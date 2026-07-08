@@ -4,6 +4,7 @@ import type { GameState, Player } from './types';
 import { loadProfile, saveProfile, xpToTier, moscowDateString, moscowYesterdayString, type PlayerProfile } from './profile';
 import { ACHIEVEMENT_MAP, type AchievementDef } from '../data/achievements';
 import { getDailyChallenge, type ChallengeDef } from '../data/dailyChallenges';
+import { syncMatchHistory, syncAchievement } from './sync';
 
 export interface MatchRewards {
   babkiEarned: number;
@@ -183,6 +184,18 @@ export function applyMatchRewards(gs: GameState): MatchRewards {
   // ── §9.3 Submit score to leaderboard (fire-and-forget, no await) ────────────
   submitLeaderboardScore(profile, gs, iWon).catch(() => { /* silent — offline ok */ });
 
+  // ── §6.3 Mirror match result + newly unlocked achievements into Postgres ───
+  // (best-effort, no-ops silently when not running inside Telegram)
+  syncMatchHistory({
+    role: localPlayer?.neutralRole ?? localPlayer?.role ?? 'unknown',
+    result: iWon ? 'win' : 'lose',
+    fuelSiphoned: localPlayer?.fuelSiphoned ?? 0,
+    tasksCompleted: localPlayer?.tasksCompleted ?? 0,
+    survivedSeconds: Math.round(gs.time),
+    character: localPlayer?.character,
+  });
+  for (const ach of newAchievements) syncAchievement(ach.id);
+
   return {
     babkiEarned: babki,
     xpEarned: xp,
@@ -207,6 +220,7 @@ export function unlockAchievementNow(id: string): AchievementDef | null {
   profile.achievements.push(id);
   profile.babki += def.babkiReward;
   saveProfile(profile);
+  syncAchievement(id);
   return def;
 }
 
@@ -282,7 +296,8 @@ function getDailyProgress(
 }
 
 // ── §3.6 Achievement checks (called after profile stats already updated) ───────
-function checkAchievements(
+// Exported for unit testing (§15) — internal callers still use the unqualified name.
+export function checkAchievements(
   gs: GameState,
   player: Player | undefined,
   iWon: boolean,

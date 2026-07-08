@@ -10,6 +10,7 @@ import { gs } from '../game/state';
 import { audio } from '../game/audio';
 import { loadProfile, saveProfile } from '../game/profile';
 import TaskMiniGame from './TaskMiniGame';
+import { t } from '../i18n/strings';
 
 /** Persist current in-game accessibility settings back to the player profile. */
 function saveAccessibilityToProfile(): void {
@@ -22,7 +23,43 @@ function saveAccessibilityToProfile(): void {
   profile.volumeSfx        = gs.volumeSfx;
   profile.autoInteract     = gs.autoInteract;
   profile.simplifiedChatWheel = gs.simplifiedChatWheel;
+  profile.audioCaptions    = gs.audioCaptions;
+  profile.language         = gs.language;
   saveProfile(profile);
+}
+
+// ─── §13.1 Audio captions overlay (visual subtitles for synthesized SFX cues) ─
+function AudioCaptions({ enabled }: { enabled: boolean }) {
+  const [lines, setLines] = useState<{ id: number; text: string }[]>([]);
+
+  useEffect(() => {
+    if (!enabled) { setLines([]); return; }
+    let nextId = 0;
+    const unsubscribe = audio.onCaption(text => {
+      const id = nextId++;
+      setLines(prev => [...prev.slice(-2), { id, text }]);
+      window.setTimeout(() => setLines(prev => prev.filter(l => l.id !== id)), 3000);
+    });
+    return unsubscribe;
+  }, [enabled]);
+
+  if (!enabled || lines.length === 0) return null;
+  return (
+    <div style={{
+      position: 'absolute', left: '50%', bottom: '18%', transform: 'translateX(-50%)',
+      display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center',
+      pointerEvents: 'none', zIndex: 40,
+    }}>
+      {lines.map(l => (
+        <div key={l.id} style={{
+          background: 'rgba(0,0,0,0.72)', color: '#fff', fontSize: 12, fontWeight: 600,
+          padding: '4px 10px', borderRadius: 8, whiteSpace: 'nowrap',
+        }}>
+          {l.text}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 // ─── §13.1 Minimap ───────────────────────────────────────────────────────────
@@ -218,6 +255,8 @@ export default function HUD({ state }: HUDProps) {
         filter: state.highContrastMode ? 'contrast(1.15) brightness(1.05)' : undefined,
       }}
     >
+      <AudioCaptions enabled={state.audioCaptions} />
+
       {/* ── §2.5 Task mini-game overlay (full priority, intercepts pointer events) ── */}
       {state.activeMiniGame && (
         <div style={{
@@ -275,7 +314,7 @@ export default function HUD({ state }: HUDProps) {
         {/* Unity meter */}
         <div style={{ flex: 1, maxWidth: 220 }}>
           <div style={{ fontSize: 10, color: '#aaa', marginBottom: 3, textShadow: '0 1px 2px #000' }}>
-            🤝 ЕДИНСТВО ДВОРА
+            🤝 {t('hud_unity', state.language)}
           </div>
           <div style={{
             height: 14, background: 'rgba(0,0,0,0.55)', borderRadius: 7,
@@ -304,7 +343,7 @@ export default function HUD({ state }: HUDProps) {
             fontSize: 12, fontWeight: 'bold', color: '#fff',
             textShadow: '0 1px 2px rgba(0,0,0,0.8)',
           }}>
-            {isSlivshchik ? '🪣 СЛИВЩИК' : '🏠 ХОЗЯИН'}
+            {isSlivshchik ? t('role_slivshchik', state.language) : t('role_khozain', state.language)}
             {localPlayer.neutralRole === 'barsik' && ' 😺'}
             {localPlayer.neutralRole === 'policeman' && ' 🕵️'}
             {localPlayer.neutralRole === 'janitor' && ' 🧹'}
@@ -936,6 +975,35 @@ export default function HUD({ state }: HUDProps) {
               <span style={{ fontSize: 11, color: '#aaa' }}>💬 Простой чат-круг (6 фраз)</span>
             </label>
 
+            {/* §13.1 Visual subtitles for synthesized audio cues */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <input type="checkbox"
+                checked={state.audioCaptions}
+                onChange={e => { gs.audioCaptions = e.target.checked; saveAccessibilityToProfile(); }}
+                style={{ accentColor: '#9C27B0', width: 14, height: 14 }}
+              />
+              <span style={{ fontSize: 11, color: '#aaa' }}>💬 Субтитры звуков</span>
+            </label>
+
+            {/* §13.2 UI language toggle (satire content stays Russian regardless) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span style={{ fontSize: 10, color: '#aaa' }}>🌐 {t('settings_language', state.language)}</span>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {(['ru', 'en'] as const).map(lng => (
+                  <button key={lng}
+                    onClick={() => { gs.language = lng; saveAccessibilityToProfile(); }}
+                    style={{
+                      flex: 1, padding: '4px', borderRadius: 6, fontSize: 11,
+                      background: state.language === lng ? 'rgba(33,150,243,0.4)' : 'rgba(255,255,255,0.07)',
+                      border: `1px solid ${state.language === lng ? '#2196F3' : 'rgba(255,255,255,0.12)'}`,
+                      color: state.language === lng ? '#fff' : '#aaa', cursor: 'pointer',
+                    }}>
+                    {lng === 'ru' ? 'RU' : 'EN'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* §13.1 High contrast mode */}
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
               <input type="checkbox"
@@ -956,7 +1024,7 @@ export default function HUD({ state }: HUDProps) {
             color: '#90A4AE', fontSize: 15, cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}
-          title="Настройки"
+          title={t('hud_settings', state.language)}
         >
           ⚙️
         </button>

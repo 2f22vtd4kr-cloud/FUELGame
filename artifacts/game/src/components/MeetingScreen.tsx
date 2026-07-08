@@ -5,6 +5,7 @@ import { triggerEmote } from '../game/logic';
 import { submitVote, submitSkipDiscussion } from '../game/gameActions';
 import { CHARACTERS } from '../data/characters';
 import { audio } from '../game/audio';
+import { t } from '../i18n/strings';
 
 // ─── §2.7.6 Ejection Cinematic ────────────────────────────────────────────────
 
@@ -204,7 +205,7 @@ export default function MeetingScreen({ state }: MeetingScreenProps) {
       }}>
         <div>
           <div style={{ fontSize: 18, fontWeight: 'bold' }}>
-            {MEETING_REASON_TEXT[meeting.reason] ?? '📢 СХОДКА'}
+            {MEETING_REASON_TEXT[meeting.reason] ?? t('meeting_title', state.language)}
           </div>
           <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
             {caller?.name} созвал(а) собрание
@@ -409,7 +410,7 @@ export default function MeetingScreen({ state }: MeetingScreenProps) {
                   onClick={() => !hasSkipped && submitSkipDiscussion(state.localPlayerId)}
                   disabled={hasSkipped}
                   style={{
-                    flex: 1, padding: '6px', borderRadius: 8,
+                    flex: 1, minHeight: 44, padding: '6px', borderRadius: 8,
                     background: hasSkipped ? 'rgba(255,255,255,0.03)' : 'rgba(255,152,0,0.25)',
                     border: `1px solid ${hasSkipped ? 'rgba(255,255,255,0.08)' : 'rgba(255,152,0,0.5)'}`,
                     color: hasSkipped ? '#666' : '#FFB300',
@@ -432,7 +433,7 @@ export default function MeetingScreen({ state }: MeetingScreenProps) {
                 <button
                   onClick={() => setShowQuickChat(true)}
                   style={{
-                    width: '100%', padding: '8px', borderRadius: 8,
+                    width: '100%', minHeight: 44, padding: '8px', borderRadius: 8,
                     background: 'rgba(99,102,241,0.3)',
                     border: '1px solid rgba(99,102,241,0.5)',
                     color: '#fff', cursor: 'pointer', fontSize: 12,
@@ -449,14 +450,15 @@ export default function MeetingScreen({ state }: MeetingScreenProps) {
                   </div>
                   <div style={{
                     display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4,
-                    maxHeight: 200, overflowY: 'auto',
+                    maxHeight: 220, overflowY: 'auto',
                   }}>
                     {chatPhrases.map((qc, i) => (
                       <button
                         key={i}
                         onClick={() => handleQuickChat(qc.text)}
                         style={{
-                          padding: '5px 6px', borderRadius: 6, fontSize: 9,
+                          // §13.1 44px minimum touch target
+                          minHeight: 44, padding: '5px 6px', borderRadius: 6, fontSize: 9,
                           background: 'rgba(255,255,255,0.07)',
                           border: '1px solid rgba(255,255,255,0.1)',
                           color: '#ddd', cursor: 'pointer', textAlign: 'left',
@@ -471,7 +473,7 @@ export default function MeetingScreen({ state }: MeetingScreenProps) {
                   <button
                     onClick={() => setShowQuickChat(false)}
                     style={{
-                      marginTop: 5, width: '100%', padding: '4px', fontSize: 9,
+                      marginTop: 5, width: '100%', minHeight: 44, padding: '4px', fontSize: 9,
                       background: 'transparent', border: 'none', color: '#888', cursor: 'pointer',
                     }}
                   >

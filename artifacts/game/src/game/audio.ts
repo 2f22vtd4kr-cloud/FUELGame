@@ -417,10 +417,27 @@ class AudioManager {
     } catch { /* ignore */ }
   }
 
+  // ── §13.1 Visual captions for synthesized audio cues (accessibility) ───────
+  // Listeners are notified whenever a caption-worthy SFX plays so the UI can
+  // render an on-screen subtitle for deaf/hard-of-hearing players.
+  private captionListeners: Array<(text: string) => void> = [];
+
+  onCaption(fn: (text: string) => void): () => void {
+    this.captionListeners.push(fn);
+    return () => { this.captionListeners = this.captionListeners.filter(f => f !== fn); };
+  }
+
+  private emitCaption(name: SoundName): void {
+    const text = CAPTION_TEXT[name];
+    if (!text) return;
+    for (const fn of this.captionListeners) fn(text);
+  }
+
   // ── Trigger a named SFX ───────────────────────────────────────────────────
 
   play(name: SoundName): void {
     this.init();
+    this.emitCaption(name);
     if (!this.c || !this.dest) return;
     try {
       switch (name) {
@@ -1094,5 +1111,26 @@ export type SoundName =
   | 'footstep_asphalt' | 'footstep_grass'
   | 'car_door' | 'engine_start' | 'tesla_zap' | 'grandma_escort'
   | 'trap_trigger';
+
+/** §13.1 Short on-screen captions for the SFX cues that carry gameplay information. */
+const CAPTION_TEXT: Partial<Record<SoundName, string>> = {
+  meeting_horn: '📯 Сигнал сходки',
+  vote_cast: '🗳 Голос подан',
+  vote_skip: '🗳 Голос пропущен',
+  ejection: '🚪 Изгнание',
+  body_found: '💀 Найдено тело',
+  ambush: '⚠️ Засада!',
+  siphon_complete: '⛽ Слив завершён',
+  win_owners: '🏠 Победа хозяев',
+  win_slivshchiki: '🪣 Победа сливщиков',
+  alarm_button: '🚨 Сигнал тревоги',
+  pipe_burst_sfx: '💧 Прорвало трубу',
+  alarm_chaos_sfx: '🚨 Хаос-тревога',
+  babushka_cerberus_sfx: '👵 Бабушка-цербер начеку',
+  fuel_lock: '🔒 Топливо заблокировано',
+  player_death: '☠️ Игрок погиб',
+  trap_trigger: '🪤 Ловушка сработала',
+  tesla_zap: '⚡ Удар током',
+};
 
 export const audio = new AudioManager();

@@ -433,6 +433,10 @@ export interface GameState {
   autoInteractTimer: number;
   textSize: 'small' | 'medium' | 'large';
   simplifiedChatWheel: boolean;
+  // §13.1 Visual subtitles/captions for synthesized audio cues (default on — accessibility requirement)
+  audioCaptions: boolean;
+  // §13.2 UI chrome language (satire content stays Russian regardless)
+  language: 'ru' | 'en';
   // §12.4 Tutorial
   tutorialStep: number; // 0=off, 1=go_shawarma, 2=near_shawarma, 3=done
   // §9.2 Backstab Moment detection

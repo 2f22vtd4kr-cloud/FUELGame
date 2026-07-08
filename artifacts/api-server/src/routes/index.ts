@@ -21,6 +21,10 @@ if (process.env.DATABASE_URL) {
   import("./leaderboard-daily").then(({ default: dailyRouter }) => {
     router.use(dailyRouter);
   });
+  // §6.3 Cross-device sync: match history / inventory / achievements mirror
+  import("./sync").then(({ default: syncRouter }) => {
+    router.use(syncRouter);
+  });
 }
 
 export default router;

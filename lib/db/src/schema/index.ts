@@ -1,4 +1,4 @@
-import { pgTable, text, integer, boolean, timestamp, uuid, bigint, varchar, jsonb, date, serial, index } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, boolean, timestamp, uuid, bigint, varchar, jsonb, date, serial, index, primaryKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -36,7 +36,9 @@ export const inventoryTable = pgTable("inventory", {
   itemId: varchar("item_id", { length: 100 }).notNull(),
   equipped: boolean("equipped").default(false),
   acquiredAt: timestamp("acquired_at").defaultNow(),
-});
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.itemType, t.itemId] }),
+]);
 
 export const insertInventorySchema = createInsertSchema(inventoryTable).omit({ acquiredAt: true });
 export type InsertInventory = z.infer<typeof insertInventorySchema>;
@@ -81,7 +83,9 @@ export const achievementsTable = pgTable("achievements", {
   userId: bigint("user_id", { mode: "number" }).notNull().references(() => usersTable.telegramId),
   achievementId: varchar("achievement_id", { length: 100 }).notNull(),
   unlockedAt: timestamp("unlocked_at").defaultNow(),
-});
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.achievementId] }),
+]);
 
 export const insertAchievementSchema = createInsertSchema(achievementsTable).omit({ unlockedAt: true });
 export type InsertAchievement = z.infer<typeof insertAchievementSchema>;

@@ -7,6 +7,7 @@ import { getDailyChallenge } from '../data/dailyChallenges';
 import { ACHIEVEMENTS } from '../data/achievements';
 import LeaderboardTab from './LeaderboardTab';
 import ShopTab from './ShopTab';
+import { t } from '../i18n/strings';
 
 const LOBBY_FLAVOR_TEXTS = [
   'В подъезде №3 снова сломался лифт. Администрация: «Заявка в работе.»',
@@ -79,10 +80,11 @@ export default function Lobby({ onStart, onMultiplayer }: Props) {
 
   const unlockedAchs = ACHIEVEMENTS.filter(a => profile.achievements.includes(a.id));
 
+  const lang = profile.language;
   const TABS: { id: LobbyTab; label: string; emoji: string }[] = [
-    { id: 'game',        label: 'Игра',    emoji: '🎮' },
-    { id: 'shop',        label: 'Магазин', emoji: '🎩' },
-    { id: 'leaderboard', label: 'Рейтинг', emoji: '🏆' },
+    { id: 'game',        label: t('lobby_tab_game', lang),        emoji: '🎮' },
+    { id: 'shop',        label: t('lobby_tab_shop', lang),        emoji: '🎩' },
+    { id: 'leaderboard', label: t('lobby_tab_leaderboard', lang), emoji: '🏆' },
   ];
 
   return (
@@ -439,7 +441,7 @@ export default function Lobby({ onStart, onMultiplayer }: Props) {
             textTransform: 'uppercase' as const,
             marginBottom: 10,
           }}>
-            🎮 Играть (одиночная)
+            🎮 {lang === 'en' ? t('lobby_start', lang) : 'Играть (одиночная)'}
           </button>
 
           {/* Multiplayer button */}
@@ -451,7 +453,7 @@ export default function Lobby({ onStart, onMultiplayer }: Props) {
             cursor: 'pointer', letterSpacing: 1,
             boxShadow: '0 4px 16px rgba(33,150,243,0.2)',
           }}>
-            🌐 Мультиплеер (с друзьями)
+            🌐 {lang === 'en' ? t('lobby_multiplayer', lang) : 'Мультиплеер (с друзьями)'}
           </button>
 
           {/* §10.2 Integration 03 — "Получить талоны" CTA */}

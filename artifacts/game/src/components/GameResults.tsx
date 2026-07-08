@@ -4,6 +4,7 @@ import { CHARACTERS } from '../data/characters';
 import { HAT_MAP } from '../data/cosmetics';
 import { applyMatchRewards, unlockAchievementNow, type MatchRewards } from '../game/rewards';
 import { loadProfile } from '../game/profile';
+import { t } from '../i18n/strings';
 
 interface Props {
   gs: GameState;
@@ -191,7 +192,7 @@ export default function GameResults({ gs, onPlayAgain }: Props) {
         fontSize: 26, fontWeight: 'bold', color: '#FFF',
         letterSpacing: 2, textAlign: 'center', marginBottom: 4,
       }}>
-        {iWon ? 'ПОБЕДА!' : 'ПОРАЖЕНИЕ'}
+        {iWon ? t('result_win', gs.language) : t('result_lose', gs.language)}
       </div>
 
       {/* §9.1 Per-match title */}
