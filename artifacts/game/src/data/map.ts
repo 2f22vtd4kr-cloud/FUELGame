@@ -30,6 +30,8 @@ export const ENTRANCE_ARCH: Rect = { x: 450, y: 810, w: 300, h: 90 };
 
 export const PARKING_LOT: Rect = { x: 90, y: 90,  w: 1020, h: 380 };
 export const GARDEN: Rect      = { x: 90, y: 470, w: 1020, h: 340 };
+// §01.2 Playground — left side of garden; task zone and hiding spot
+export const PLAYGROUND: Rect  = { x: 270, y: 580, w: 230, h: 190 };
 
 // ─── Dumpster zone (stealth / evidence disposal) ──────────────────────────────
 
@@ -105,7 +107,7 @@ export const BABUSHKA_CERBERUS_POS: Vec2 = { x: 530, y: 790 };
 // ─── Decorations ──────────────────────────────────────────────────────────────
 
 export interface DecorationDef {
-  type: 'bench' | 'dumpster' | 'flowerbed' | 'tree' | 'lamppost' | 'kvass_stand';
+  type: 'bench' | 'dumpster' | 'flowerbed' | 'tree' | 'lamppost' | 'kvass_stand' | 'ev_charger';
   pos: Vec2;
 }
 
@@ -123,6 +125,8 @@ export const DECORATIONS: DecorationDef[] = [
   { type: 'lamppost',   pos: { x: 300, y: 450 } },
   { type: 'lamppost',   pos: { x: 900, y: 450 } },
   { type: 'kvass_stand', pos: { x: 1050, y: 530 } },
+  // §01.2 Broken EV Charger — upper-right parking lot, decorative sabotage target
+  { type: 'ev_charger', pos: { x: 1060, y: 140 } },
 ];
 
 // ─── Player spawns ─────────────────────────────────────────────────────────────

@@ -2,7 +2,7 @@ import type { GameState, Vec2 } from './types';
 import { ALARM_RADIUS, MAP_W, MAP_H, CROUCH_VISIBILITY_MULT, VENT_FLASH_DURATION } from './types';
 import { getSprite, CAR_SPRITE_MAP } from './sprites';
 import { TASK_DEFS } from '../data/tasks';
-import { DECORATIONS, ENTRANCE_POS, DUMPSTER_POSITIONS, VISION_BUILDINGS, VALVE_POSITIONS, BABUSHKA_CERBERUS_POS, BABUSHKA_NPC_POS } from '../data/map';
+import { DECORATIONS, ENTRANCE_POS, DUMPSTER_POSITIONS, VISION_BUILDINGS, VALVE_POSITIONS, BABUSHKA_CERBERUS_POS, BABUSHKA_NPC_POS, PLAYGROUND } from '../data/map';
 import { CHARACTERS } from '../data/characters';
 import {
   computeVisionPolygon,
@@ -499,6 +499,25 @@ function drawParkingLot(ctx: CanvasRenderingContext2D): void {
   // Path from garden to entrance
   ctx.fillStyle = '#6A5A4A';
   ctx.fillRect(560, 780, 80, 30);
+
+  // §01.2 Playground zone — sand-coloured sub-area with faded label
+  ctx.fillStyle = '#C8A96E';
+  ctx.globalAlpha = 0.25;
+  ctx.fillRect(PLAYGROUND.x, PLAYGROUND.y, PLAYGROUND.w, PLAYGROUND.h);
+  ctx.globalAlpha = 1;
+  // Dashed border
+  ctx.strokeStyle = '#8B6914';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([6, 4]);
+  ctx.strokeRect(PLAYGROUND.x, PLAYGROUND.y, PLAYGROUND.w, PLAYGROUND.h);
+  ctx.setLineDash([]);
+  // Zone label
+  ctx.fillStyle = '#6B4F10';
+  ctx.globalAlpha = 0.6;
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('🛝 Детская', PLAYGROUND.x + PLAYGROUND.w / 2, PLAYGROUND.y + PLAYGROUND.h / 2);
+  ctx.globalAlpha = 1;
 }
 
 // ─── Decorations ─────────────────────────────────────────────────────────────
@@ -570,6 +589,42 @@ function drawDecorations(ctx: CanvasRenderingContext2D): void {
         ctx.fillStyle = '#FFC107';
         ctx.fillRect(x - 4, y + 8, 8, 10);
         break;
+      case 'ev_charger': {
+        // §01.2 Broken EV Charger — weathered station with cracked screen + broken cable
+        // Post
+        ctx.fillStyle = '#546E7A';
+        ctx.fillRect(x - 7, y - 36, 14, 48);
+        // Screen (cracked, off)
+        ctx.fillStyle = '#1A237E';
+        ctx.fillRect(x - 12, y - 50, 24, 20);
+        ctx.strokeStyle = '#FF1744';
+        ctx.lineWidth = 1.5;
+        // Crack lines on screen
+        ctx.beginPath();
+        ctx.moveTo(x - 5, y - 48); ctx.lineTo(x + 3, y - 34);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x + 2, y - 46); ctx.lineTo(x - 2, y - 38);
+        ctx.stroke();
+        // Broken cable hanging
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(x + 5, y);
+        ctx.bezierCurveTo(x + 18, y + 8, x + 14, y + 18, x + 10, y + 22);
+        ctx.stroke();
+        // Lightning bolt icon (EV)
+        ctx.fillStyle = '#FFD600';
+        ctx.font = 'bold 9px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('⚡', x, y - 36);
+        // "BROKEN" indicator dot
+        ctx.fillStyle = '#FF1744';
+        ctx.beginPath();
+        ctx.arc(x + 10, y - 46, 3, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
     }
   }
 }

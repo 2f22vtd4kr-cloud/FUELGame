@@ -16,6 +16,7 @@ import {
   KHOZAIN_LOCK_DURATION, KHOZAIN_LOCK_COOLDOWN, KHOZAIN_LOCK_HOLD_TIME,
   BOT_DIFFICULTY_SETTINGS,
   SIPHON_AUDIO_RADIUS,
+  SIPHON_CLICK_RADIUS,
 } from './types';
 import { TASK_DEFS } from '../data/tasks';
 import {
@@ -1474,7 +1475,8 @@ function updateInteractions(dt: number, input: InputState): void {
             nearCar.siphoner = player.id;
             nearCar.siphonPhase = 1;
             nearCar.siphonTimer = 0;
-            audio.play('car_door');
+            // §02.6 Phase 2 (setup): fuel-cap click, audible only within 3m
+            audio.play('siphon_click');
           }
         }
       } else if (nearCar.siphoner === player.id && phase === 1) {

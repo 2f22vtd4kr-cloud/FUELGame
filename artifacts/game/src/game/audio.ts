@@ -432,6 +432,7 @@ class AudioManager {
         case 'body_found':         this._bodyFound(); break;
         case 'ambush':             this._ambush(); break;
         case 'siphon_complete':    this._siphonComplete(); break;
+        case 'siphon_click':       this._siphonClick(); break;
         case 'canister_drop':      this._canisterDrop(); break;
         case 'canister_pickup':    this._canisterPickup(); break;
         case 'win_owners':         this._winOwners(); break;
@@ -582,6 +583,30 @@ class AudioManager {
     ng.gain.setValueAtTime(0.3, t);
     ng.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
     noise.start(t); noise.stop(t + 0.15);
+  }
+
+  /** §02.6 siphon_click — metallic fuel-cap click; subtle, audible only within 3m */
+  private _siphonClick(): void {
+    const ctx = this.c!; const dest = this.dest!;
+    const t = ctx.currentTime;
+    // Sharp metal click transient (high → mid sweep)
+    const click = ctx.createOscillator();
+    const cg = ctx.createGain();
+    click.connect(cg); cg.connect(dest);
+    click.type = 'sine';
+    click.frequency.setValueAtTime(3000, t);
+    click.frequency.exponentialRampToValueAtTime(800, t + 0.025);
+    cg.gain.setValueAtTime(0.22, t);
+    cg.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+    click.start(t); click.stop(t + 0.05);
+    // Quiet metallic ring after click
+    const ring = ctx.createOscillator();
+    const rg = ctx.createGain();
+    ring.connect(rg); rg.connect(dest);
+    ring.type = 'sine'; ring.frequency.value = 1400;
+    rg.gain.setValueAtTime(0.06, t + 0.02);
+    rg.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    ring.start(t + 0.02); ring.stop(t + 0.2);
   }
 
   private _siphonComplete(): void {
@@ -1061,7 +1086,7 @@ class AudioManager {
 
 export type SoundName =
   | 'task_complete' | 'meeting_horn' | 'vote_cast' | 'vote_skip' | 'ejection'
-  | 'body_found' | 'ambush' | 'siphon_complete' | 'canister_drop'
+  | 'body_found' | 'ambush' | 'siphon_complete' | 'siphon_click' | 'canister_drop'
   | 'canister_pickup' | 'win_owners' | 'win_slivshchiki' | 'ui_click' | 'ui_hover'
   | 'alarm_button' | 'pipe_burst_sfx' | 'chat_offline_sfx'
   | 'alarm_chaos_sfx' | 'babushka_cerberus_sfx'

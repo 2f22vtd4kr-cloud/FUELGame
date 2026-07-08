@@ -1,6 +1,8 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import type { InputState } from '../game/types';
+import { SIPHON_CLICK_RADIUS } from '../game/types';
 import { gs } from '../game/state';
+import { dist } from '../data/map';
 import { tickGame, checkBackstabMoment } from '../game/logic';
 import { triggerEmote } from '../game/gameActions';
 import { renderGame } from '../game/renderer';
@@ -40,6 +42,8 @@ export default function GameCanvas({ onStateSnapshot, network, myPlayerId }: Gam
   const sprintToggleRef = useRef(false);  // keyboard sprint toggle state
   const prevBackstabMomentRef = useRef<string | null>(null); // §9.2 frame capture
   const prevPhaseRef = useRef<string>('');                   // §9.2 phase tracking for frame buffer
+  // §02.6 multiplayer: track previous siphon phases to detect 0→1 transitions
+  const prevCarSiphonPhaseRef = useRef<Record<string, number>>({});
 
   const [showEmoteWheel, setShowEmoteWheel] = useState(false);
 
@@ -122,10 +126,24 @@ export default function GameCanvas({ onStateSnapshot, network, myPlayerId }: Gam
         network.sendInput(inp);
 
         // §5.3 Apply server state with remote-player interpolation
+        // Snapshot siphon phases BEFORE applying new state to detect transitions
+        const prevPhases = prevCarSiphonPhaseRef.current;
         network.applyLatestState(performance.now());
 
         // After applying server state, restore our localPlayerId
         if (myPlayerId) gs.localPlayerId = myPlayerId;
+
+        // §02.6 Detect siphon setup start (phase 0→1) for click SFX in multiplayer
+        const localP = gs.players.find(p => p.id === gs.localPlayerId);
+        for (const car of gs.cars) {
+          const prev = prevPhases[car.id] ?? 0;
+          if (prev === 0 && car.siphonPhase === 1 && localP) {
+            if (dist(car.pos, localP.pos) < SIPHON_CLICK_RADIUS) {
+              audio.play('siphon_click');
+            }
+          }
+          prevPhases[car.id] = car.siphonPhase;
+        }
 
         // §9.2 Run backstab detection on the multiplayer path too
         // (single-player path runs it inside tickGame → updateBackstabMoment)

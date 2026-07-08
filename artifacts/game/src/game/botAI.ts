@@ -1,7 +1,7 @@
 import { gs } from './state';
 import type { Player, Vec2 } from './types';
 import {
-  SIPHON_RADIUS, BOT_FLEE_RADIUS,
+  SIPHON_RADIUS, BOT_FLEE_RADIUS, SIPHON_CLICK_RADIUS,
   CANISTER_RADIUS, TASK_RESPAWN_TIME,
   FLOWERBED_SLOW_MULT,
   BOT_DIFFICULTY_SETTINGS,
@@ -532,6 +532,11 @@ function updateSlivshchikBot(bot: Player, dt: number): void {
         car.siphoner = bot.id;
         car.siphonPhase = 1;
         car.siphonTimer = 0;
+        // §02.6 Click audible within 3m of the car for the local human player
+        const localPlayer = gs.players.find(p => p.id === gs.localPlayerId);
+        if (localPlayer && dist(car.pos, localPlayer.pos) < SIPHON_CLICK_RADIUS) {
+          audio.play('siphon_click');
+        }
       }
       bot.botState = 'interacting';
     }

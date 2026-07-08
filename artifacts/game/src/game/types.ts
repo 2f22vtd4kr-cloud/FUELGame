@@ -332,6 +332,7 @@ export const SPRINT_REGEN_RATE  = 0.625;     // stamina per second resting (8s t
 export const CANISTER_SLOW_MULT = 0.8;       // speed × 0.8 when carrying canister
 export const FLOWERBED_SLOW_MULT = 0.6;      // §1.2 flower beds reduce speed by 40%
 export const SIPHON_AUDIO_RADIUS = 280;      // §13.1 siphon gurgle audible within 8m (~280px)
+export const SIPHON_CLICK_RADIUS = 102;      // §02.6 fuel-cap click audible within 3m (~102px)
 export const VENT_COOLDOWN       = 15;       // §3.1.2 dumpster vent cooldown (seconds)
 export const VENT_FLASH_DURATION = 0.45;     // §3.1.2 visual teleport flash duration (seconds)
 export const CROUCH_VISIBILITY_MULT = 0.7;  // §2.2 crouching: others see you with 30% narrower FOV
