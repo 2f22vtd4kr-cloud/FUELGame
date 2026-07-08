@@ -9,14 +9,13 @@ import { GameNetwork } from './game/network';
 import { audio } from './game/audio';
 import Lobby from './components/Lobby';
 import MultiplayerLobby from './components/MultiplayerLobby';
-import Tutorial from './components/Tutorial';
 import GameCanvas from './components/GameCanvas';
 import HUD from './components/HUD';
 import MeetingScreen from './components/MeetingScreen';
 import GameResults from './components/GameResults';
 import { loadProfile } from './game/profile';
 
-type AppPhase = 'lobby' | 'multiplayer' | 'tutorial' | 'briefing' | 'play' | 'meeting' | 'results';
+type AppPhase = 'lobby' | 'multiplayer' | 'briefing' | 'play' | 'meeting' | 'results';
 
 /** Extract room code from Telegram startapp param "ROOM_XXXX" → "XXXX" */
 function getTelegramStartRoomCode(): string | null {
@@ -55,16 +54,14 @@ export default function App() {
     });
   }, []);
 
-  // ── Single-player start (shows tutorial first for new players) ───────────
+  // ── Single-player start ────────────────────────────────────────────────────
+  // New-player onboarding is handled by the in-game interactive shawarma
+  // tutorial (§12.4) that activates automatically during the play phase,
+  // replacing the old card-overlay Tutorial.tsx.
   const handleGameStart = useCallback(() => {
     setMyPlayerId(null);
     setActiveNetwork(null);
-    const profile = loadProfile();
-    if (!profile.seenTutorial) {
-      setAppPhase('tutorial');
-    } else {
-      setAppPhase('briefing');
-    }
+    setAppPhase('briefing');
   }, []);
 
   // ── Multiplayer: game started (server tells us) ───────────────────────────
@@ -128,11 +125,6 @@ export default function App() {
           onStart={handleGameStart}
           onMultiplayer={() => setAppPhase('multiplayer')}
         />
-      )}
-
-      {/* ── §12.4 First-time tutorial ── */}
-      {appPhase === 'tutorial' && (
-        <Tutorial onComplete={() => setAppPhase('briefing')} />
       )}
 
       {/* ── Multiplayer lobby ── */}

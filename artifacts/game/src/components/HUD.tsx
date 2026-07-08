@@ -8,7 +8,22 @@ import { MAP_W, MAP_H } from '../data/map';
 import { triggerSabotage, triggerEmote, PLAY_EMOTES, triggerBarsikMeow, investigateBody, janitorCollectCanister } from '../game/logic';
 import { gs } from '../game/state';
 import { audio } from '../game/audio';
+import { loadProfile, saveProfile } from '../game/profile';
 import TaskMiniGame from './TaskMiniGame';
+
+/** Persist current in-game accessibility settings back to the player profile. */
+function saveAccessibilityToProfile(): void {
+  const profile = loadProfile();
+  profile.textSize         = gs.textSize;
+  profile.colorblindMode   = gs.colorblindMode;
+  profile.highContrastMode = gs.highContrastMode;
+  profile.volumeMaster     = gs.volumeMaster;
+  profile.volumeMusic      = gs.volumeMusic;
+  profile.volumeSfx        = gs.volumeSfx;
+  profile.autoInteract     = gs.autoInteract;
+  profile.simplifiedChatWheel = gs.simplifiedChatWheel;
+  saveProfile(profile);
+}
 
 // ─── §13.1 Minimap ───────────────────────────────────────────────────────────
 const MM_W = 90;  // minimap display width px
@@ -158,21 +173,25 @@ export default function HUD({ state }: HUDProps) {
   // §13.1 Text size scale factor
   const textScale = state.textSize === 'small' ? 0.82 : state.textSize === 'large' ? 1.22 : 1.0;
 
-  // §12.4 Tutorial: show on first-ever play
+  // §12.4 Tutorial: show on first-ever play (check both localStorage key and profile flag)
   useEffect(() => {
     if (state.phase === 'play' && gs.tutorialStep === 0) {
-      const done = localStorage.getItem('95Y_tutorial') === 'done';
-      if (!done) gs.tutorialStep = 1;
+      const lsDone = localStorage.getItem('95Y_tutorial') === 'done';
+      const profileDone = loadProfile().seenTutorial;
+      if (!lsDone && !profileDone) gs.tutorialStep = 1;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.phase]);
 
-  // Tutorial step 3: auto-dismiss after 3 s and save to localStorage
+  // Tutorial step 3: auto-dismiss after 3 s, persist completion to profile + localStorage
   useEffect(() => {
     if (state.tutorialStep !== 3) return;
     const t = window.setTimeout(() => {
       gs.tutorialStep = 0;
       localStorage.setItem('95Y_tutorial', 'done');
+      const profile = loadProfile();
+      profile.seenTutorial = true;
+      saveProfile(profile);
     }, 3000);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -675,7 +694,11 @@ export default function HUD({ state }: HUDProps) {
             </>
           )}
           <button
-            onClick={() => { gs.tutorialStep = 0; localStorage.setItem('95Y_tutorial', 'done'); }}
+            onClick={() => {
+              gs.tutorialStep = 0;
+              localStorage.setItem('95Y_tutorial', 'done');
+              const prof = loadProfile(); prof.seenTutorial = true; saveProfile(prof);
+            }}
             style={{
               marginTop: 10, padding: '4px 14px', borderRadius: 8,
               background: 'transparent', border: '1px solid rgba(255,255,255,0.2)',
@@ -830,6 +853,7 @@ export default function HUD({ state }: HUDProps) {
                   const v = parseFloat(e.target.value);
                   gs.volumeMaster = v;
                   audio.setMasterVolume(v);
+                  saveAccessibilityToProfile();
                 }}
                 style={{ width: '100%', accentColor: '#4CAF50' }}
               />
@@ -843,6 +867,7 @@ export default function HUD({ state }: HUDProps) {
                   const v = parseFloat(e.target.value);
                   gs.volumeMusic = v;
                   audio.setMusicVolume(v);
+                  saveAccessibilityToProfile();
                 }}
                 style={{ width: '100%', accentColor: '#2196F3' }}
               />
@@ -856,6 +881,7 @@ export default function HUD({ state }: HUDProps) {
                   const v = parseFloat(e.target.value);
                   gs.volumeSfx = v;
                   audio.setSfxVolume(v);
+                  saveAccessibilityToProfile();
                 }}
                 style={{ width: '100%', accentColor: '#FF9800' }}
               />
@@ -864,7 +890,7 @@ export default function HUD({ state }: HUDProps) {
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
               <input type="checkbox"
                 defaultChecked={state.colorblindMode}
-                onChange={e => { gs.colorblindMode = e.target.checked; }}
+                onChange={e => { gs.colorblindMode = e.target.checked; saveAccessibilityToProfile(); }}
                 style={{ accentColor: '#2196F3', width: 14, height: 14 }}
               />
               <span style={{ fontSize: 11, color: '#aaa' }}>🎨 Режим для дальтоников</span>
@@ -876,7 +902,7 @@ export default function HUD({ state }: HUDProps) {
               <div style={{ display: 'flex', gap: 4 }}>
                 {(['small', 'medium', 'large'] as const).map(sz => (
                   <button key={sz}
-                    onClick={() => { gs.textSize = sz; }}
+                    onClick={() => { gs.textSize = sz; saveAccessibilityToProfile(); }}
                     style={{
                       flex: 1, padding: '4px', borderRadius: 6,
                       fontSize: sz === 'small' ? 9 : sz === 'large' ? 13 : 11,
@@ -894,7 +920,7 @@ export default function HUD({ state }: HUDProps) {
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
               <input type="checkbox"
                 checked={state.autoInteract}
-                onChange={e => { gs.autoInteract = e.target.checked; gs.autoInteractTimer = 0; }}
+                onChange={e => { gs.autoInteract = e.target.checked; gs.autoInteractTimer = 0; saveAccessibilityToProfile(); }}
                 style={{ accentColor: '#4CAF50', width: 14, height: 14 }}
               />
               <span style={{ fontSize: 11, color: '#aaa' }}>🖐️ Авто-взаимодействие (2 с)</span>
@@ -904,7 +930,7 @@ export default function HUD({ state }: HUDProps) {
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
               <input type="checkbox"
                 checked={state.simplifiedChatWheel}
-                onChange={e => { gs.simplifiedChatWheel = e.target.checked; }}
+                onChange={e => { gs.simplifiedChatWheel = e.target.checked; saveAccessibilityToProfile(); }}
                 style={{ accentColor: '#FF9800', width: 14, height: 14 }}
               />
               <span style={{ fontSize: 11, color: '#aaa' }}>💬 Простой чат-круг (6 фраз)</span>
@@ -914,7 +940,7 @@ export default function HUD({ state }: HUDProps) {
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
               <input type="checkbox"
                 checked={state.highContrastMode}
-                onChange={e => { gs.highContrastMode = e.target.checked; }}
+                onChange={e => { gs.highContrastMode = e.target.checked; saveAccessibilityToProfile(); }}
                 style={{ accentColor: '#FFD700', width: 14, height: 14 }}
               />
               <span style={{ fontSize: 11, color: '#aaa' }}>🔆 Высокий контраст</span>

@@ -2,6 +2,7 @@ import { WebSocketServer } from 'ws';
 import type { WebSocket } from 'ws';
 import type { IncomingMessage } from 'http';
 import type { Duplex } from 'stream';
+import { encode, decode } from '@msgpack/msgpack';
 import { GameRoom } from './room';
 import { logger } from '../lib/logger';
 import { loadAllRooms } from './roomStore';
@@ -62,13 +63,13 @@ const QUICK_MATCH_SIZE = 4;
 
 /** Send current queue depth to everyone waiting. */
 function broadcastQueueStatus(): void {
-  const msg = JSON.stringify({
+  const buf = Buffer.from(encode({
     type: 'queue_update',
     count: matchmakingQueue.length,
     total: QUICK_MATCH_SIZE,
-  });
+  }));
   for (const entry of matchmakingQueue) {
-    if ((entry.ws.readyState as number) === 1) entry.ws.send(msg);
+    if ((entry.ws.readyState as number) === 1) entry.ws.send(buf);
   }
 }
 
@@ -99,12 +100,12 @@ function tryFlushQueue(): void {
       });
       // Tell each matched player their room code + ID.
       if ((entry.ws.readyState as number) === 1) {
-        entry.ws.send(JSON.stringify({
+        entry.ws.send(Buffer.from(encode({
           type: 'room_joined',
           roomCode,
           playerId: entry.playerId,
           isQuickPlay: true,
-        }));
+        })));
       }
     }
 
@@ -152,10 +153,10 @@ wss.on('connection', (ws) => {
 
   ws.on('message', (data) => {
     try {
-      const msg = JSON.parse(data.toString()) as Record<string, unknown>;
+      const msg = decode(data as Buffer) as Record<string, unknown>;
       handleMsg(msg);
     } catch {
-      send({ type: 'error', message: 'Invalid JSON' });
+      send({ type: 'error', message: 'Invalid message' });
     }
   });
 
@@ -185,7 +186,7 @@ wss.on('connection', (ws) => {
   });
 
   function send(msg: object): void {
-    if ((ws.readyState as number) === 1) ws.send(JSON.stringify(msg));
+    if ((ws.readyState as number) === 1) ws.send(Buffer.from(encode(msg)));
   }
 
   function handleMsg(msg: Record<string, unknown>): void {

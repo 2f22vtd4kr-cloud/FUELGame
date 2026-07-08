@@ -21,3 +21,4 @@
 - [95-Y sprite art system](game-sprite-art.md) — 10 char + 6 car PNGs in public/sprites/; sprites.ts loader; renderer falls back to circles if not loaded; rotation = facingAngle + PI/2
 - [Redis persistence + daily leaderboard](redis-persistence.md) — ioredis room snapshots; game loops resume on first reconnect (not on restore); removeClient takes ws param to prevent reconnect-race eviction; knownPlayerIds set for reconnect auth
 - [95-Y A* pathfinding](game-pathfinding.md) — §4.5 grid A* in pathfinder.ts (both packages); heap sized N×8 + closed set; start+dest snapped to walkable; LOS enforces diagonal corner-clearance; LOD at 240wu
+- [95-Y accessibility + msgpack](game-vol1-accessibility-protocol.md) — §13.1 accessibility persisted in profile; §12.4 card tutorial removed (in-game shawarma tutorial only); §05.2 WS is binary msgpack (never JSON)

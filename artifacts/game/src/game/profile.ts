@@ -38,6 +38,15 @@ export interface PlayerProfile {
   deviceId: string;               // stable UUID for leaderboard upsert
   // §12.4 Tutorial
   seenTutorial: boolean;          // true after first-time tutorial is dismissed
+  // §13.1 Accessibility settings (persisted across sessions)
+  textSize: 'small' | 'medium' | 'large';
+  colorblindMode: boolean;
+  highContrastMode: boolean;
+  volumeMaster: number;
+  volumeMusic: number;
+  volumeSfx: number;
+  autoInteract: boolean;
+  simplifiedChatWheel: boolean;
 }
 
 const DEFAULTS: PlayerProfile = {
@@ -63,6 +72,14 @@ const DEFAULTS: PlayerProfile = {
   playerName: '',
   deviceId: '',
   seenTutorial: false,
+  textSize: 'medium',
+  colorblindMode: false,
+  highContrastMode: false,
+  volumeMaster: 0.55,
+  volumeMusic: 1.0,
+  volumeSfx: 1.0,
+  autoInteract: false,
+  simplifiedChatWheel: false,
 };
 
 function genDeviceId(): string {

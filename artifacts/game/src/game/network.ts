@@ -1,3 +1,4 @@
+import { encode, decode } from '@msgpack/msgpack';
 import type { InputState, GameState } from './types';
 import { gs } from './state';
 import type { LobbyPlayer } from './network-types';
@@ -94,9 +95,12 @@ export class GameNetwork {
       this.pendingMsgs = [];
     });
 
+    this.ws.binaryType = 'arraybuffer';
+
     this.ws.addEventListener('message', (e: MessageEvent) => {
       try {
-        const msg = JSON.parse(e.data as string) as Record<string, unknown>;
+        const buf = e.data instanceof ArrayBuffer ? new Uint8Array(e.data) : (e.data as Uint8Array);
+        const msg = decode(buf) as Record<string, unknown>;
         this.handleMsg(msg);
       } catch { /* ignore malformed */ }
     });
@@ -323,7 +327,7 @@ export class GameNetwork {
 
   private _sendNow(msg: object): void {
     if (this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(msg));
+      this.ws.send(encode(msg));
     }
   }
 }

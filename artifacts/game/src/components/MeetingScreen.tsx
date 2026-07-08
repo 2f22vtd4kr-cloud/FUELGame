@@ -499,25 +499,28 @@ export default function MeetingScreen({ state }: MeetingScreenProps) {
         const last = meeting.chatMessages[meeting.chatMessages.length - 1];
         const sender = state.players.find(p => p.id === last.playerId);
         const charDef = sender ? CHARACTERS[sender.character] : null;
+        const tScale = state.textSize === 'large' ? 1.3 : state.textSize === 'small' ? 0.82 : 1.0;
+        const avatarSz = Math.round(22 * tScale);
         return (
           <div style={{
-            padding: '6px 20px',
-            background: 'rgba(0,0,0,0.4)',
+            padding: `${Math.round(6 * tScale)}px 20px`,
+            background: state.textSize === 'large' ? 'rgba(0,0,0,0.75)' : 'rgba(0,0,0,0.4)',
             borderTop: '1px solid rgba(255,255,255,0.06)',
             display: 'flex', alignItems: 'center', gap: 8,
           }}>
             <div style={{
-              width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+              width: avatarSz, height: avatarSz, borderRadius: '50%', flexShrink: 0,
               background: charDef?.color ?? '#555',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: Math.round(11 * tScale),
             }}>
               {charDef?.emoji ?? '?'}
             </div>
             <div style={{ flex: 1 }}>
-              <span style={{ fontSize: 10, color: charDef?.color ?? '#aaa', fontWeight: 'bold' }}>
+              <span style={{ fontSize: Math.round(11 * tScale), color: charDef?.color ?? '#aaa', fontWeight: 'bold' }}>
                 {last.playerName}:{' '}
               </span>
-              <span style={{ fontSize: 11, color: '#eee' }}>{last.text}</span>
+              <span style={{ fontSize: Math.round(13 * tScale), color: '#eee' }}>{last.text}</span>
             </div>
           </div>
         );

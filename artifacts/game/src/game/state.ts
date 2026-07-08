@@ -41,6 +41,31 @@ export function makeDailyRng(): () => number {
   return mulberry32(fnv1a(getMoscowDateString()));
 }
 
+// ─── Load persisted accessibility settings (read-once at startup) ────────────
+
+function loadSavedAccessibility(): Partial<Pick<GameState,
+  'textSize' | 'colorblindMode' | 'highContrastMode' |
+  'volumeMaster' | 'volumeMusic' | 'volumeSfx' | 'autoInteract' | 'simplifiedChatWheel'
+>> {
+  try {
+    const raw = localStorage.getItem('95y_profile_v1');
+    if (!raw) return {};
+    const p = JSON.parse(raw) as Record<string, unknown>;
+    const out: ReturnType<typeof loadSavedAccessibility> = {};
+    if (p.textSize === 'small' || p.textSize === 'medium' || p.textSize === 'large') out.textSize = p.textSize;
+    if (typeof p.colorblindMode === 'boolean')   out.colorblindMode   = p.colorblindMode;
+    if (typeof p.highContrastMode === 'boolean') out.highContrastMode = p.highContrastMode;
+    if (typeof p.volumeMaster === 'number')      out.volumeMaster     = p.volumeMaster;
+    if (typeof p.volumeMusic === 'number')       out.volumeMusic      = p.volumeMusic;
+    if (typeof p.volumeSfx === 'number')         out.volumeSfx        = p.volumeSfx;
+    if (typeof p.autoInteract === 'boolean')     out.autoInteract     = p.autoInteract;
+    if (typeof p.simplifiedChatWheel === 'boolean') out.simplifiedChatWheel = p.simplifiedChatWheel;
+    return out;
+  } catch {
+    return {};
+  }
+}
+
 // ─── Singleton mutable game state ────────────────────────────────────────────
 // Mutated at 60fps by the game loop. NOT React state.
 // React HUD reads a shallow snapshot at 10Hz via GameCanvas.
@@ -48,6 +73,7 @@ export function makeDailyRng(): () => number {
 export let gs: GameState = createInitialState();
 
 export function createInitialState(): GameState {
+  const acc = loadSavedAccessibility();
   return {
     phase: 'lobby',
     players: [],
@@ -75,15 +101,15 @@ export function createInitialState(): GameState {
     botDifficulty: 'medium',
     immunityTickets: [],
     immunityTicketsUsedThisMatch: 0,
-    colorblindMode: false,
-    highContrastMode: false,
-    volumeMaster: 0.55,
-    volumeMusic: 1.0,
-    volumeSfx: 1.0,
-    autoInteract: false,
+    colorblindMode: acc.colorblindMode ?? false,
+    highContrastMode: acc.highContrastMode ?? false,
+    volumeMaster: acc.volumeMaster ?? 0.55,
+    volumeMusic: acc.volumeMusic ?? 1.0,
+    volumeSfx: acc.volumeSfx ?? 1.0,
+    autoInteract: acc.autoInteract ?? false,
     autoInteractTimer: 0,
-    textSize: 'medium',
-    simplifiedChatWheel: false,
+    textSize: acc.textSize ?? 'medium',
+    simplifiedChatWheel: acc.simplifiedChatWheel ?? false,
     tutorialStep: 0,
     backstabMoment: null,
     backstabMomentAcked: false,

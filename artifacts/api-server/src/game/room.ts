@@ -1,4 +1,5 @@
 import type { WebSocket } from 'ws';
+import { encode } from '@msgpack/msgpack';
 import type { InputState } from './types';
 import { gs, setGs, startGameMultiplayer, createInitialState } from './state';
 import type { HumanPlayerInfo } from './state';
@@ -310,17 +311,17 @@ export class GameRoom {
   }
 
   broadcast(msg: object): void {
-    const json = JSON.stringify(msg);
+    const buf = Buffer.from(encode(msg));
     for (const client of this.clients.values()) {
       if ((client.ws.readyState as number) === 1 /* OPEN */) {
-        client.ws.send(json);
+        client.ws.send(buf);
       }
     }
   }
 
   sendTo(ws: WebSocket, msg: object): void {
     if ((ws.readyState as number) === 1) {
-      ws.send(JSON.stringify(msg));
+      ws.send(Buffer.from(encode(msg)));
     }
   }
 }
