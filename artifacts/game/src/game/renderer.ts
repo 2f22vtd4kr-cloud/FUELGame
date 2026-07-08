@@ -529,18 +529,77 @@ function fillTexturedRect(
   ctx.fillRect(x, y, w, h);
 }
 
-function drawBackground(ctx: CanvasRenderingContext2D): void {
-  // Top sky strip
-  ctx.fillStyle = '#C8D8E8';
-  ctx.fillRect(0, 0, 1200, 90);
+// Deterministic "random" for consistent per-window lighting — no Math.random()
+function seededHash(x: number, y: number): number {
+  const n = (x * 374761393 + y * 668265263) | 0;
+  return Math.abs(((n ^ (n >> 13)) * 1274126177) | 0) / 2147483647;
+}
 
-  // Buildings — courtyard apartment rooftop texture
+function drawBackground(ctx: CanvasRenderingContext2D): void {
+  // ── Building strips ──────────────────────────────────────────────────────────
   fillTexturedRect(ctx, 'roof', COLORS.building, 0, 0, 1200, 90);
   fillTexturedRect(ctx, 'roof', COLORS.building, 0, 810, 1200, 90);
   fillTexturedRect(ctx, 'roof', COLORS.building, 0, 90, 90, 720);
   fillTexturedRect(ctx, 'roof', COLORS.building, 1110, 90, 90, 720);
 
-  // Building edges/lines
+  // ── Apartment windows ────────────────────────────────────────────────────────
+  const WIN_COLORS_LIT  = ['#FFD54F', '#FFF9C4', '#B3E5FC', '#FFECB3', '#E8F5E9'];
+  const WIN_COLORS_DARK = ['#1A237E', '#263238', '#212121', '#1B5E20', '#37474F'];
+  const CURTAIN         = 'rgba(200,180,150,0.6)';
+
+  function drawWindow(wx: number, wy: number, ww: number, wh: number, seed: number) {
+    const lit   = seed > 0.35; // 65 % of windows lit
+    const hasCurtain = lit && seed > 0.75;
+    // Frame
+    ctx.fillStyle = '#5D7080';
+    ctx.fillRect(wx, wy, ww, wh);
+    // Pane
+    ctx.fillStyle = lit ? WIN_COLORS_LIT[Math.floor(seed * WIN_COLORS_LIT.length)] : WIN_COLORS_DARK[Math.floor(seed * WIN_COLORS_DARK.length)];
+    ctx.fillRect(wx + 2, wy + 2, ww - 4, wh - 4);
+    // Divider
+    ctx.fillStyle = '#5D7080';
+    ctx.fillRect(wx + Math.floor(ww / 2) - 1, wy + 2, 2, wh - 4);
+    // Horizontal divider
+    ctx.fillRect(wx + 2, wy + Math.floor(wh * 0.45), ww - 4, 1);
+    // Curtain overlay
+    if (hasCurtain) {
+      ctx.fillStyle = CURTAIN;
+      ctx.fillRect(wx + 2, wy + 2, Math.floor((ww - 4) * 0.45), wh - 4);
+    }
+  }
+
+  // Top building strip — 2 rows of windows
+  for (const wy of [8, 50]) {
+    for (let wx = 105; wx < 1100; wx += 60) {
+      const skip = (wx > 420 && wx < 760 && wy === 50); // entrance gap at bottom row
+      if (!skip) drawWindow(wx, wy, 30, 28, seededHash(wx, wy));
+    }
+  }
+
+  // Bottom building strip — 2 rows of windows (above entrance)
+  for (const wy of [816, 858]) {
+    for (let wx = 105; wx < 420; wx += 60)  drawWindow(wx, wy, 30, 22, seededHash(wx, wy));
+    for (let wx = 760; wx < 1100; wx += 60) drawWindow(wx, wy, 30, 22, seededHash(wx, wy));
+  }
+
+  // Left strip — windows on the inward-facing facade
+  for (let wy = 120; wy < 790; wy += 80) {
+    for (const wx of [8, 52]) drawWindow(wx, wy, 26, 34, seededHash(wx, wy));
+    // Balcony railing between window rows
+    ctx.strokeStyle = '#546E7A';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(4, wy + 38, 82, 10);
+  }
+
+  // Right strip — same
+  for (let wy = 120; wy < 790; wy += 80) {
+    for (const wx of [1114, 1158]) drawWindow(wx, wy, 26, 34, seededHash(wx, wy));
+    ctx.strokeStyle = '#546E7A';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(1114, wy + 38, 82, 10);
+  }
+
+  // Building edge shadow lines
   ctx.strokeStyle = COLORS.buildingEdge;
   ctx.lineWidth = 2;
   ctx.strokeRect(0, 0, 1200, 90);
@@ -548,28 +607,79 @@ function drawBackground(ctx: CanvasRenderingContext2D): void {
   ctx.strokeRect(0, 90, 90, 720);
   ctx.strokeRect(1110, 90, 90, 720);
 
-  // Entrance arch gap (bottom centre)
-  ctx.fillStyle = '#3A3A4A';
+  // ── Security cameras (top corners & above entrance) ──────────────────────────
+  function drawCamera(cx: number, cy: number, flip: boolean) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    if (flip) ctx.scale(-1, 1);
+    ctx.fillStyle = '#37474F';
+    ctx.fillRect(-4, -4, 8, 10);   // mount bracket
+    ctx.fillRect(0, 0, 18, 8);     // camera body
+    ctx.fillStyle = '#263238';
+    ctx.beginPath();
+    ctx.arc(16, 4, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#B71C1C';
+    ctx.beginPath();
+    ctx.arc(20, 2, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  drawCamera(130, 92, false);
+  drawCamera(1070, 92, true);
+  drawCamera(130, 808, false);
+  drawCamera(1070, 808, true);
+
+  // ── Entrance arch gap ────────────────────────────────────────────────────────
+  ctx.fillStyle = '#2A2A3A';
   ctx.fillRect(450, 810, 300, 90);
-  ctx.fillStyle = '#555';
-  ctx.fillRect(460, 815, 280, 80);
+  // Road markings in the archway
+  ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([12, 8]);
+  ctx.beginPath(); ctx.moveTo(600, 810); ctx.lineTo(600, 900); ctx.stroke();
+  ctx.setLineDash([]);
 
-  // Grass/garden
-  fillTexturedRect(ctx, 'grass', '#5AAD5A', 90, 470, 1020, 340);
-
-  // Parking/asphalt
+  // ── Parking / asphalt ────────────────────────────────────────────────────────
   fillTexturedRect(ctx, 'asphalt', COLORS.parking, 90, 90, 1020, 380);
 
-  // Parking spots
-  ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-  ctx.lineWidth = 1;
+  // Parking spots with bold markings
+  ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+  ctx.lineWidth = 1.5;
   for (let x = 140; x < 1100; x += 130) {
     ctx.strokeRect(x, 100, 110, 180);
     ctx.strokeRect(x, 290, 110, 170);
   }
 
-  // Garden path
+  // Subtle tile grid on asphalt (big squares)
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 1;
+  for (let gx = 90; gx <= 1110; gx += 50) {
+    ctx.beginPath(); ctx.moveTo(gx, 90); ctx.lineTo(gx, 470); ctx.stroke();
+  }
+  for (let gy = 90; gy <= 470; gy += 50) {
+    ctx.beginPath(); ctx.moveTo(90, gy); ctx.lineTo(1110, gy); ctx.stroke();
+  }
+
+  // ── Garden / grass ────────────────────────────────────────────────────────────
+  fillTexturedRect(ctx, 'grass', '#5AAD5A', 90, 470, 1020, 340);
+
+  // Subtle grass tile grid
+  ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+  ctx.lineWidth = 1;
+  for (let gx = 90; gx <= 1110; gx += 60) {
+    ctx.beginPath(); ctx.moveTo(gx, 470); ctx.lineTo(gx, 810); ctx.stroke();
+  }
+  for (let gy = 470; gy <= 810; gy += 60) {
+    ctx.beginPath(); ctx.moveTo(90, gy); ctx.lineTo(1110, gy); ctx.stroke();
+  }
+
+  // ── Garden path ──────────────────────────────────────────────────────────────
   fillTexturedRect(ctx, 'path', '#7A6A5A', 560, 470, 80, 340);
+  // Path edge shadows
+  ctx.fillStyle = 'rgba(0,0,0,0.12)';
+  ctx.fillRect(560, 470, 4, 340);
+  ctx.fillRect(636, 470, 4, 340);
 }
 
 function drawParkingLot(ctx: CanvasRenderingContext2D): void {
@@ -764,8 +874,10 @@ function drawCars(ctx: CanvasRenderingContext2D, state: GameState): void {
     const carSpriteKey = CAR_SPRITE_MAP[car.id];
     const carSprite = carSpriteKey ? getSprite(carSpriteKey) : null;
     if (carSprite) {
-      // Drawn horizontally (all cars face right in the parking lot).
-      ctx.drawImage(carSprite, x - 42, y - 24, 84, 48);
+      // AI-generated isometric car sprites are square — draw at 90×90
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(carSprite, x - 45, y - 45, 90, 90);
     } else {
       // Fallback primitive rendering
       ctx.fillStyle = car.color;
@@ -778,9 +890,9 @@ function drawCars(ctx: CanvasRenderingContext2D, state: GameState): void {
         .forEach(({ dx, dy }) => ctx.fillRect(x + dx - 2, y + dy - 2, 14, 8));
     }
 
-    // Fuel indicator above car
+    // Fuel indicator above car (positioned above 90×90 isometric sprite)
     const barW = 50; const barH = 5;
-    const bx = x - barW / 2; const by = y - 30;
+    const bx = x - barW / 2; const by = y - 52;
     ctx.fillStyle = '#333';
     ctx.fillRect(bx - 1, by - 1, barW + 2, barH + 2);
     const fuelColor = fuel > 40 ? '#4CAF50' : fuel > 20 ? '#FF9800' : '#F44336';
@@ -1286,40 +1398,39 @@ function drawPlayers(
     // AFTER the fog overlay so it pierces the fog (§3.1.2 team awareness).
 
     // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    const shadowR = player.character === 'barsik' ? 10 : 18;
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
     ctx.beginPath();
-    ctx.ellipse(x, y + 14, 12, 5, 0, 0, Math.PI * 2);
+    ctx.ellipse(x, y + shadowR + 2, shadowR, shadowR * 0.38, 0, 0, Math.PI * 2);
     ctx.fill();
 
     // §3.1.3 Барсик character is slightly smaller
-    const playerRadius = player.character === 'barsik' ? 10 : 14;
+    const isBarsik = player.character === 'barsik';
+    const playerRadius = isBarsik ? 10 : 14;
 
     // §7.3 Character sprite (generated PNG) or primitive-circle fallback
     const charSprite = getSprite(`char_${player.character}`);
     const sheetMeta = SPRITE_SHEETS[`char_${player.character}`];
+    // Display size for the sprite (AI-generated 128×128 originals)
+    const spriteDisplaySize = isBarsik ? 40 : 60;
+
     if (charSprite && sheetMeta) {
-      // Directional walk-cycle sheet: slice the current (row, frame) instead
-      // of rotating a single whole-body image.
+      // Directional walk-cycle sheet: slice the current (row, frame)
       const { row, frame } = updateSpriteAnimation(player, animDt);
-      const spriteSize = player.character === 'barsik' ? 24 : 42;
       ctx.save();
-      ctx.imageSmoothingEnabled = false; // crisp pixel art — no blur/anti-aliasing
+      ctx.imageSmoothingEnabled = false;
       ctx.drawImage(
         charSprite,
         frame * sheetMeta.frameW, row * sheetMeta.frameH, sheetMeta.frameW, sheetMeta.frameH,
-        x - spriteSize / 2, y - spriteSize / 2, spriteSize, spriteSize,
+        x - spriteDisplaySize / 2, y - spriteDisplaySize / 2, spriteDisplaySize, spriteDisplaySize,
       );
       ctx.restore();
     } else if (charSprite) {
-      const spriteSize = player.character === 'barsik' ? 24 : 42;
+      // AI-generated single sprite — face toward viewer, no rotation.
       ctx.save();
-      ctx.translate(x, y);
-      // Rotate sprite so the character's "front" matches their facing direction.
-      // Sprites are authored facing "up" (north = -PI/2 in canvas).
-      // Game angle 0 = east (right). To map north→east we add PI/2.
-      // General formula: rotate by facingAngle + PI/2.
-      ctx.rotate(player.facingAngle + Math.PI / 2);
-      ctx.drawImage(charSprite, -spriteSize / 2, -spriteSize / 2, spriteSize, spriteSize);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(charSprite, x - spriteDisplaySize / 2, y - spriteDisplaySize / 2, spriteDisplaySize, spriteDisplaySize);
       ctx.restore();
     } else {
       // Fallback primitive rendering
@@ -1331,16 +1442,17 @@ function drawPlayers(
     }
 
     // Identification ring — gold for local player, translucent white for others.
-    // Drawn over sprite so it's always visible.
-    ctx.strokeStyle = isLocal ? '#FFD700' : 'rgba(255,255,255,0.75)';
+    // Ring radius matched to sprite size so it wraps just outside the sprite.
+    const ringRadius = charSprite ? spriteDisplaySize / 2 + 3 : playerRadius + 2;
+    ctx.strokeStyle = isLocal ? '#FFD700' : 'rgba(255,255,255,0.55)';
     ctx.lineWidth = isLocal ? 2.5 : 1.5;
     ctx.beginPath();
-    ctx.arc(x, y, playerRadius + (charSprite ? 4 : 0), 0, Math.PI * 2);
+    ctx.arc(x, y, ringRadius, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Facing direction indicator
+    // Facing direction indicator — dot at sprite edge
     ctx.fillStyle = '#fff';
-    const facingDist = player.character === 'barsik' ? 7 : 10;
+    const facingDist = isBarsik ? spriteDisplaySize / 2 + 2 : spriteDisplaySize / 2 + 4;
     const fx = x + Math.cos(player.facingAngle) * facingDist;
     const fy = y + Math.sin(player.facingAngle) * facingDist;
     ctx.beginPath();
@@ -1398,45 +1510,59 @@ function drawPlayers(
       ctx.globalAlpha = 1;
     }
 
-    // Emote bubble
+    // Effective half-size for annotations: sprite edge when sprite loaded, else primitive radius
+    const effectiveHalf = charSprite ? spriteDisplaySize / 2 : playerRadius;
+
+    // Emote bubble — positioned above sprite top
     if (player.emote) {
+      const emoteY = y - effectiveHalf - 28;
       ctx.fillStyle = 'rgba(255,255,255,0.92)';
-      ctx.fillRect(x - 16, y - 52, 32, 26);
-      ctx.font = '16px serif';
+      ctx.beginPath();
+      ctx.roundRect(x - 18, emoteY - 2, 36, 28, 6);
+      ctx.fill();
+      ctx.font = '18px serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(player.emote, x, y - 39);
+      ctx.fillText(player.emote, x, emoteY + 12);
       ctx.textBaseline = 'alphabetic';
     }
 
-    // Name tag
+    // Name tag — offset below sprite bottom
+    const nameTagY = y + effectiveHalf + 12;
     ctx.font = `${isLocal ? 'bold ' : ''}10px sans-serif`;
-    ctx.fillStyle = isLocal ? '#FFD700' : '#fff';
+    ctx.fillStyle = isLocal ? '#FFD700' : '#E8E8E8';
     ctx.textAlign = 'center';
-    ctx.fillText(player.name, x, y + 28);
+    // Dark pill background for readability
+    const nameW = ctx.measureText(player.name).width;
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.beginPath();
+    ctx.roundRect(x - nameW / 2 - 4, nameTagY - 9, nameW + 8, 12, 4);
+    ctx.fill();
+    ctx.font = `${isLocal ? 'bold ' : ''}10px sans-serif`;
+    ctx.fillStyle = isLocal ? '#FFD700' : '#E8E8E8';
+    ctx.fillText(player.name, x, nameTagY);
 
-    // Ambush charge indicator
+    // Ambush charge indicator — ring around sprite
     if (player.ambushChargeTimer > 0) {
       const pct = player.ambushChargeTimer / 1.5;
       ctx.strokeStyle = '#FF1744';
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.arc(x, y, 20, -Math.PI / 2, -Math.PI / 2 + pct * Math.PI * 2);
+      ctx.arc(x, y, ringRadius + 4, -Math.PI / 2, -Math.PI / 2 + pct * Math.PI * 2);
       ctx.stroke();
     }
 
     // §2.3 / §2.4 — ⚠️ siphon-setup warning only shown if the siphoner is
     // visible to the local player (otherwise it would reveal hidden activity).
-    // Full siphon stream (phase 2) is visible from the car even through fog,
-    // which is intentional — you see "something happening" at the car.
     if (playerVisible) {
       const isInSetup = state.cars.some(c => c.siphoner === player.id && c.siphonPhase === 1);
       if (isInSetup) {
+        const warnY = y - effectiveHalf - 14;
         ctx.font = '14px serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.globalAlpha = 0.5 + 0.5 * Math.sin(Date.now() / 180);
-        ctx.fillText('⚠️', x, y - 32);
+        ctx.fillText('⚠️', x, warnY);
         ctx.textBaseline = 'alphabetic';
       }
     }

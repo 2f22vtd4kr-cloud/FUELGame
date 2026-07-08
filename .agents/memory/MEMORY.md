@@ -18,14 +18,14 @@
 - [95-Y viral mechanics and tutorial](game-viral-tutorial.md) — §9.4 share prompts + friend invite deep link (+ startapp consumption); §12.4 4-step Tutorial.tsx; §3.5 daily-exclusive hats; isFirstWin detection in rewards.ts
 - [95-Y session 9 gaps](game-session9-gaps.md) — interpolation ring buffer, Stars backend invoice, camera lerp, api-server +30s task extension, low-fuel warning
 - [95-Y session 10 cosmetics/visuals](game-session10-cosmetics-visuals.md) — character silhouettes, pets/car skins shop, report button §5.6, neutral-role ejection text
-- [95-Y sprite art system](game-sprite-art.md) — 10 char + 6 car PNGs in public/sprites/; sprites.ts loader; renderer falls back to circles if not loaded; rotation = facingAngle + PI/2
+- [95-Y sprite art system](game-sprite-art.md) — AI-generated 128×128 chibi pixel art PNGs for all 10 chars + 6 cars; SPRITE_SHEETS cleared → single-sprite no-rotation path; spriteDisplaySize=60 humans/40 barsik; annotations use effectiveHalf
 - [Redis persistence + daily leaderboard](redis-persistence.md) — ioredis room snapshots; game loops resume on first reconnect (not on restore); removeClient takes ws param to prevent reconnect-race eviction; knownPlayerIds set for reconnect auth
 - [95-Y A* pathfinding](game-pathfinding.md) — §4.5 grid A* in pathfinder.ts (both packages); heap sized N×8 + closed set; start+dest snapped to walkable; LOS enforces diagonal corner-clearance; LOD at 240wu
 - [95-Y accessibility + msgpack](game-vol1-accessibility-protocol.md) — §13.1 accessibility persisted in profile; §12.4 card tutorial removed (in-game shawarma tutorial only); §05.2 WS is binary msgpack (never JSON)
 - [95-Y doc alignment: daily reward/AI%/LOD](game-doc-alignment-daily-ai-lod.md) — client/server botAI+types are hand-mirrored (not generated); doc %s are per-opportunity rolls, not per-frame; LOD has 2 independent parts (pathfinding mode + 5Hz update throttle)
 - [95-Y Volume II doc chunking](game-vol2-doc-chunking.md) — 1902-line Vol2 design doc split into docs/vol2/18-*.md…28-*.md; always read docs/vol2/PROGRESS.md first to see per-section done/gap status
-- [95-Y main menu redesign](game-main-menu-redesign.md) — "Propaganda Pop" style approved for Lobby.tsx but NOT yet graduated; style guide at docs/design/main-menu-style-guide.md
-- [95-Y sprite generation workflow](game-sprite-generation-workflow.md) — procedural (Node+zlib) sprite sheets for all 10 characters + static map-prop PNGs (bench/tree/hydrant/etc.), same PixelGrid toolkit
+- [95-Y main menu redesign](game-main-menu-redesign.md) — "Propaganda Pop" style IS LIVE in Lobby.tsx (graduated); joystick moved to bottom-right, fades after 3s hint (showJoystick/scheduleFade pattern)
+- [95-Y sprite generation workflow](game-sprite-generation-workflow.md) — REPLACED by AI generation; procedural scripts still exist but outputs overwritten; run gen:sprites would clobber AI sprites again
 - [Denis sprite canvas design](denis-sprite-canvas.md) — canvas mockup done (DenisSprite.tsx, 4×4 grid, all dirs); next session: export to char_denis.png via node-canvas
 - [Import setup quirks](import-setup-quirks.md) — after re-import, run `pnpm install`; a duplicate un-removable "artifacts/api-server: API Server" workflow is harmless
 - [Sprite outline + chibi technique](game-sprite-outline-chibi.md) — PixelGrid#outline() + bigger-head proportions fixed "looks like shit" feedback; watch DECOR_SPRITE_META drift when resizing prop canvases

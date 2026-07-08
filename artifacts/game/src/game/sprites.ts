@@ -42,16 +42,16 @@ const SPRITE_KEYS = [
 // AI top-down generations of those came back as front-elevation views that
 // didn't read correctly from directly overhead.
 export const DECOR_SPRITE_META: Record<string, { w: number; h: number; offsetY: number }> = {
-  decor_bench: { w: 54, h: 30, offsetY: 0 },
-  decor_dumpster: { w: 38, h: 40, offsetY: -1 },
-  decor_flowerbed: { w: 62, h: 62, offsetY: -2 },
-  decor_tree: { w: 70, h: 70, offsetY: -8 },
-  decor_lamppost: { w: 20, h: 66, offsetY: -1 },
-  decor_kvass_stand: { w: 54, h: 50, offsetY: -5 },
-  decor_ev_charger: { w: 32, h: 80, offsetY: -15 },
-  decor_hydrant: { w: 34, h: 32, offsetY: -5 },
-  decor_trash_bin: { w: 32, h: 32, offsetY: -5 },
-  decor_bicycle_rack: { w: 58, h: 58, offsetY: -4 },
+  decor_bench:        { w: 64, h: 40, offsetY:  -4 },
+  decor_dumpster:     { w: 44, h: 48, offsetY:  -2 },
+  decor_flowerbed:    { w: 68, h: 68, offsetY:  -4 },
+  decor_tree:         { w: 76, h: 76, offsetY:  -8 },
+  decor_lamppost:     { w: 26, h: 80, offsetY: -20 },
+  decor_kvass_stand:  { w: 60, h: 60, offsetY:  -8 },
+  decor_ev_charger:   { w: 40, h: 90, offsetY: -22 },
+  decor_hydrant:      { w: 38, h: 38, offsetY:  -6 },
+  decor_trash_bin:    { w: 36, h: 36, offsetY:  -6 },
+  decor_bicycle_rack: { w: 64, h: 64, offsetY:  -6 },
 };
 
 /** Maps car `id` → sprite key, matching colours to doc §7.2 car palette. */
@@ -85,18 +85,10 @@ const WALK_SHEET_META: SpriteSheetMeta = {
   rowFor: { left: 0, right: 1, down: 2, up: 3 },
 };
 
-export const SPRITE_SHEETS: Partial<Record<string, SpriteSheetMeta>> = {
-  char_denis: WALK_SHEET_META,
-  char_anya: WALK_SHEET_META,
-  char_vova: WALK_SHEET_META,
-  char_uncle_seryozha: WALK_SHEET_META,
-  char_petrovich: WALK_SHEET_META,
-  char_marina: WALK_SHEET_META,
-  char_akhmet: WALK_SHEET_META,
-  char_oleg: WALK_SHEET_META,
-  char_lena: WALK_SHEET_META,
-  char_barsik: WALK_SHEET_META,
-};
+// AI-generated single sprites replace the procedural sprite sheets.
+// Keeping the SPRITE_SHEETS map empty so the renderer falls through to the
+// single-sprite path (drawImage without frame-slicing or rotation).
+export const SPRITE_SHEETS: Partial<Record<string, SpriteSheetMeta>> = {};
 
 const loaded = new Map<string, HTMLImageElement>();
 
