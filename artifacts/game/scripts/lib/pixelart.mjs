@@ -42,6 +42,58 @@ export class PixelGrid {
     }
   }
 
+  /** Fills a filled circle using a distance test — gives a naturally rounded
+   * silhouette instead of the jagged/blocky look of rect-only pixel art. */
+  fillCircle(cx, cy, r, color) {
+    this.fillEllipse(cx, cy, r, r, color);
+  }
+
+  /** Fills a filled ellipse using a distance test. */
+  fillEllipse(cx, cy, rx, ry, color) {
+    const y0 = Math.floor(cy - ry);
+    const y1 = Math.ceil(cy + ry);
+    const x0 = Math.floor(cx - rx);
+    const x1 = Math.ceil(cx + rx);
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        const dx = (x + 0.5 - cx) / rx;
+        const dy = (y + 0.5 - cy) / ry;
+        if (dx * dx + dy * dy <= 1) this.set(x, y, color);
+      }
+    }
+  }
+
+  /** Fills a rectangle with rounded corners (radius in px) — used for torsos,
+   * limbs, cap crowns, etc. so silhouettes read as rounded, not right-angled. */
+  fillRoundedRect(x0, y0, w, h, radius, color) {
+    // Loop bounds must be integers (JS arrays don't support fractional
+    // indices) — callers may pass fractional coords from animation math
+    // (e.g. `bob * 0.4`), so round once here rather than at every call site.
+    x0 = Math.round(x0);
+    y0 = Math.round(y0);
+    w = Math.round(w);
+    h = Math.round(h);
+    const x1 = x0 + w - 1;
+    const y1 = y0 + h - 1;
+    const r = Math.min(radius, Math.floor(w / 2), Math.floor(h / 2));
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        let ccx = null;
+        let ccy = null;
+        if (x < x0 + r) ccx = x0 + r;
+        else if (x > x1 - r) ccx = x1 - r;
+        if (y < y0 + r) ccy = y0 + r;
+        else if (y > y1 - r) ccy = y1 - r;
+        if (ccx !== null && ccy !== null) {
+          const dx = x - ccx;
+          const dy = y - ccy;
+          if (dx * dx + dy * dy > r * r) continue;
+        }
+        this.set(x, y, color);
+      }
+    }
+  }
+
   /** Returns a new PixelGrid mirrored horizontally. */
   mirrored() {
     const out = new PixelGrid(this.width, this.height);

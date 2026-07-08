@@ -2,11 +2,16 @@
 // Generates public/sprites/char_denis.png as a 4x4 grid of 64x64 frames:
 //   Row 0: Walk Left   Row 1: Walk Right   Row 2: Walk Down   Row 3: Walk Up
 //
-// v2 (detail pass): working grid bumped from 16x16 to 32x32 (scale x2, still
-// 64x64 final frames — no sprites.ts metadata changes needed) so there's room
-// for actual detail called out in the reference art (yellow cap with a round
-// orange "9" badge, glasses, blue jeans, dark boots) instead of just bigger
-// blocky pixels. Still zero anti-aliasing — nearest-neighbor upscale only.
+// v3 (rounded redesign): previous versions built the silhouette out of
+// straight fillRect bars only, which reads as blocky/right-angled ("abrupt
+// square angles" feedback). This version builds every major shape — cap,
+// head, torso, arms, legs — out of `fillEllipse`/`fillCircle`/
+// `fillRoundedRect` primitives (see scripts/lib/pixelart.mjs) so the
+// silhouette is naturally rounded like the reference art, while staying a
+// crisp nearest-neighbor pixel-art look (no blur/anti-aliasing). Working
+// grid is now 64x64 directly (scale x1) — no upscale needed, more addressable
+// detail than the old 32x32x2 pass — final frame size unchanged (64x64), so
+// no `sprites.ts` metadata changes are required.
 //
 // Re-run any time with: pnpm --filter @workspace/game run gen:sprite:denis
 
@@ -19,200 +24,158 @@ import { encodePNG } from './lib/png.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_PATH = path.join(__dirname, '../public/sprites/char_denis.png');
 
-const SIZE = 32; // low-res working grid (per frame)
-const SCALE = 2; // upscale factor -> 64x64 final frame
+const SIZE = 64; // working grid == final frame size (no upscale)
+const SCALE = 1;
 
-// ─── Palette (per reference photo: yellow cap w/ orange "9" badge, glasses,
-// bright yellow hoodie/jacket, blue jeans, dark boots) ──────────────────────
+// ─── Palette (reference: bright yellow cap+hoodie w/ red "Я" badge, blue
+// jeans, dark shoes, rounded cartoon silhouette) ────────────────────────────
 const CAP_CROWN = '#FFD23D';
-const CAP_CROWN_SHADE = '#E0A800';
+const CAP_CROWN_SHADE = '#E5A800';
 const CAP_BILL = '#2B2B2E';
-const CAP_BADGE = '#E8532A';
-const CAP_BADGE_RING = '#FFE9A8';
-const HAIR = '#5C3A21';
-const SKIN = '#E3AC78';
-const SKIN_SHADE = '#C48A55';
-const EYE = '#241A12';
-const GLASSES = '#232323';
+const CAP_BADGE = '#D81E1E';
+const HAIR = '#4A2E1C';
+const SKIN = '#D99A6C';
+const SKIN_SHADE = '#C0805090';
+const EYE = '#2A1E14';
 const JACKET = '#FFC61E';
-const JACKET_SHADE = '#E0A800';
-const JACKET_ZIP = '#2B2B2E';
+const JACKET_SHADE = '#E0A20A';
+const JACKET_ZIP = '#8A6200';
 const COLLAR = '#2B2B2E';
 const JEANS = '#3D6EA5';
 const JEANS_SHADE = '#2A4E78';
 const SHOE = '#241C15';
 const SHOE_SOLE = '#100C08';
 
-// 4-frame walk cycle shared by all directions (legShift doubled vs the old
-// 16px grid so the stride still reads at the new 32px scale):
+// 4-frame walk cycle shared by all directions:
 //   0: contact A (stride open one way)   1: passing (mid, raised)
 //   2: contact B (stride open other way) 3: passing (mid, raised)
 const CYCLE = [
-  { legShift: 2, armPhase: 'back', bob: 0 },
-  { legShift: 0, armPhase: 'mid', bob: -1 },
-  { legShift: -2, armPhase: 'forward', bob: 0 },
-  { legShift: 0, armPhase: 'mid', bob: -1 },
+  { legShift: 4, armSwing: -4, bob: 0 },
+  { legShift: 0, armSwing: 0, bob: -2 },
+  { legShift: -4, armSwing: 4, bob: 0 },
+  { legShift: 0, armSwing: 0, bob: -2 },
 ];
 
 /** Down (facing viewer) / Up (back view) builder. */
 function buildFrontBack(facing, { legShift, bob }) {
   const g = new PixelGrid(SIZE, SIZE);
-  const put = (y, segs) => {
-    for (const [start, len, color] of segs) g.fillRect(start, y + bob, len, 1, color);
-  };
-  const dot = (x, y, color) => g.set(x, y + bob, color);
+  const cx = 32;
 
-  // ── Cap ──
-  put(0, [[12, 8, CAP_CROWN]]);
-  put(1, [[10, 12, CAP_CROWN]]);
-  put(2, [[9, 1, CAP_CROWN_SHADE], [10, 12, CAP_CROWN], [22, 1, CAP_CROWN_SHADE]]);
+  // ── Legs (drawn first, torso overlaps waist) ──
+  const legW = 10;
+  const legTopY = 50;
+  const legH = 10;
+  const leftLegX = cx - 12 - legShift * 0.5;
+  const rightLegX = cx + 2 + legShift * 0.5;
+  g.fillRoundedRect(Math.round(leftLegX), legTopY + bob, legW, legH, 4, JEANS);
+  g.fillRoundedRect(Math.round(rightLegX), legTopY + bob, legW, legH, 4, JEANS);
+  g.fillRoundedRect(Math.round(leftLegX) + 1, legTopY + legH - 3 + bob, legW - 2, 3, 2, JEANS_SHADE);
+  g.fillRoundedRect(Math.round(rightLegX) + 1, legTopY + legH - 3 + bob, legW - 2, 3, 2, JEANS_SHADE);
+  // Shoes
+  g.fillRoundedRect(Math.round(leftLegX) - 1, legTopY + legH - 2 + bob, legW + 2, 6, 3, SHOE);
+  g.fillRoundedRect(Math.round(rightLegX) - 1, legTopY + legH - 2 + bob, legW + 2, 6, 3, SHOE);
+  g.fillRoundedRect(Math.round(leftLegX) - 1, legTopY + legH + 2 + bob, legW + 2, 2, 1, SHOE_SOLE);
+  g.fillRoundedRect(Math.round(rightLegX) - 1, legTopY + legH + 2 + bob, legW + 2, 2, 1, SHOE_SOLE);
+
+  // ── Hips band ──
+  g.fillRoundedRect(cx - 15, 48 + bob, 30, 8, 4, JEANS);
+
+  // ── Arms (behind torso edges, rounded capsules) ──
+  g.fillRoundedRect(cx - 21, 32 + bob, 9, 20, 4, JACKET);
+  g.fillRoundedRect(cx + 12, 32 + bob, 9, 20, 4, JACKET);
+  g.fillCircle(cx - 17, 51 + bob, 4, SKIN);
+  g.fillCircle(cx + 17, 51 + bob, 4, SKIN);
+
+  // ── Torso (hoodie) — rounded rect body ──
+  g.fillRoundedRect(cx - 16, 30 + bob, 32, 24, 9, JACKET);
+  g.fillRect(cx + 4, 32 + bob, 12, 20, JACKET_SHADE);
+  // Zipper + pocket + collar detail
+  g.fillRect(cx - 1, 33 + bob, 2, 18, JACKET_ZIP);
+  g.fillRoundedRect(cx - 11, 39 + bob, 5, 6, 1, JACKET_SHADE);
+  g.fillRoundedRect(cx - 6, 28 + bob, 12, 5, 2, COLLAR);
+
+  // ── Head ──
+  g.fillEllipse(cx, 24 + bob, 11, 11, SKIN);
+  g.fillEllipse(cx + 5, 26 + bob, 7, 8, SKIN_SHADE);
+
   if (facing === 'down') {
-    put(2, [[14, 4, CAP_BADGE]]);
-    dot(14, 2, CAP_BADGE_RING);
-    dot(17, 2, CAP_BADGE_RING);
-    put(3, [[8, 16, CAP_BILL]]);
+    // Eyebrows — sit clear of the cap bill, well above the eyes
+    g.fillRoundedRect(cx - 8, 20 + bob, 4, 2, 1, HAIR);
+    g.fillRoundedRect(cx + 4, 20 + bob, 4, 2, 1, HAIR);
+    // Eyes
+    g.fillCircle(cx - 6, 23 + bob, 1.6, EYE);
+    g.fillCircle(cx + 6, 23 + bob, 1.6, EYE);
+    // Nose hint
+    g.set(cx, 26 + bob, SKIN_SHADE);
+    // Mouth — small friendly smile
+    g.fillRoundedRect(cx - 3, 29 + bob, 6, 2, 1, '#8A5A38');
+
+    // Cap (drawn last, but kept above the eyebrow line so it never reads
+    // as sunglasses across the face)
+    g.fillEllipse(cx, 9 + bob, 13, 9, CAP_CROWN_SHADE);
+    g.fillEllipse(cx - 2, 8 + bob, 12, 8, CAP_CROWN);
+    g.fillRoundedRect(cx - 11, 13 + bob, 22, 4, 2, CAP_BILL);
+    g.fillCircle(cx, 7 + bob, 3, CAP_BADGE);
   } else {
-    // Back view: no badge/bill visible, just a small strap detail + hair tufts
-    put(2, [[15, 2, CAP_CROWN_SHADE]]);
-    put(3, [[9, 14, CAP_CROWN]]);
+    // Back of head: solid cap dome + a sliver of hair at the nape, no face
+    g.fillEllipse(cx, 20 + bob, 11, 10, HAIR);
+    g.fillEllipse(cx, 11 + bob, 13, 11, CAP_CROWN_SHADE);
+    g.fillEllipse(cx - 1, 10 + bob, 12, 10, CAP_CROWN);
+    g.fillRoundedRect(cx - 6, 18 + bob, 12, 4, 2, CAP_CROWN_SHADE);
   }
-
-  if (facing === 'down') {
-    // Face
-    put(4, [[8, 2, HAIR], [10, 12, SKIN], [22, 2, HAIR]]);
-    put(5, [[7, 2, HAIR], [9, 14, SKIN], [23, 2, HAIR]]);
-    put(6, [[8, 16, SKIN]]);
-    // Glasses: dark rim across both eyes + bridge, light lens tint, eye dots
-    put(6, [[9, 4, GLASSES], [19, 4, GLASSES]]);
-    put(7, [[9, 1, GLASSES], [10, 2, EYE], [12, 1, GLASSES], [19, 1, GLASSES], [20, 2, EYE], [22, 1, GLASSES]]);
-    put(7, [[13, 6, SKIN]]);
-    put(8, [[8, 16, SKIN]]);
-    put(9, [[9, 5, SKIN], [14, 4, SKIN_SHADE], [18, 5, SKIN]]);
-  } else {
-    // Back of head: solid cap + hair peeking at nape, no face
-    put(4, [[9, 14, CAP_CROWN]]);
-    put(5, [[8, 16, CAP_CROWN]]);
-    put(6, [[8, 16, CAP_CROWN]]);
-    put(7, [[8, 16, CAP_CROWN]]);
-    put(8, [[8, 2, HAIR], [22, 2, HAIR]]);
-    put(9, [[8, 3, HAIR], [21, 3, HAIR]]);
-  }
-
-  // ── Collar / jacket ──
-  put(10, [[11, 10, COLLAR]]);
-  put(11, [[7, 18, JACKET], [7, 2, JACKET_SHADE], [23, 2, JACKET_SHADE]]);
-  put(12, [[6, 20, JACKET], [6, 2, JACKET_SHADE], [24, 2, JACKET_SHADE]]);
-  put(13, [[6, 20, JACKET], [6, 2, JACKET_SHADE], [24, 2, JACKET_SHADE]]);
-  put(14, [[6, 20, JACKET], [6, 2, JACKET_SHADE], [24, 2, JACKET_SHADE]]);
-  put(15, [[6, 20, JACKET], [6, 2, JACKET_SHADE], [24, 2, JACKET_SHADE]]);
-  put(16, [[6, 20, JACKET], [6, 2, JACKET_SHADE], [24, 2, JACKET_SHADE]]);
-  if (facing === 'down') {
-    put(11, [[15, 2, JACKET_ZIP]]);
-    put(12, [[15, 2, JACKET_ZIP]]);
-    put(13, [[15, 2, JACKET_ZIP]]);
-    put(14, [[15, 2, JACKET_ZIP]]);
-    put(15, [[15, 2, JACKET_ZIP]]);
-    put(16, [[15, 2, JACKET_ZIP]]);
-  }
-  put(17, [[7, 18, JACKET_SHADE]]);
-
-  // ── Jeans ──
-  put(18, [[9, 14, JEANS]]);
-  put(19, [[9, 14, JEANS], [15, 2, JEANS_SHADE]]);
-
-  // Legs — shift left/right leg oppositely for the stride
-  const legWidth = 5;
-  const leftStart = 10 - legShift;
-  const rightStart = 17 + legShift;
-  put(20, [[leftStart, legWidth, JEANS], [rightStart, legWidth, JEANS]]);
-  put(21, [[leftStart, legWidth, JEANS], [rightStart, legWidth, JEANS]]);
-  put(22, [[leftStart, legWidth, JEANS], [rightStart, legWidth, JEANS]]);
-  put(23, [[leftStart, legWidth, JEANS], [rightStart, legWidth, JEANS]]);
-  put(24, [[leftStart, legWidth, JEANS_SHADE], [rightStart, legWidth, JEANS_SHADE]]);
-  put(25, [[leftStart, legWidth, SHOE], [rightStart, legWidth, SHOE]]);
-  put(26, [[leftStart, legWidth, SHOE], [rightStart, legWidth, SHOE]]);
-  put(27, [[leftStart, legWidth, SHOE_SOLE], [rightStart, legWidth, SHOE_SOLE]]);
 
   return g;
 }
 
 /** Right-facing profile builder (mirrored for Left). */
-function buildProfileRight({ legShift, armPhase, bob }) {
+function buildProfileRight({ legShift, armSwing, bob }) {
   const g = new PixelGrid(SIZE, SIZE);
-  const put = (y, segs) => {
-    for (const [start, len, color] of segs) g.fillRect(start, y + bob, len, 1, color);
-  };
-  const dot = (x, y, color) => g.set(x, y + bob, color);
+  const cx = 34; // slightly right-biased so the character reads as facing right
 
-  // ── Cap (visor points right, toward movement direction) ──
-  put(0, [[14, 8, CAP_CROWN]]);
-  put(1, [[12, 12, CAP_CROWN]]);
-  put(2, [[11, 15, CAP_CROWN], [26, 3, CAP_BILL]]);
-  put(3, [[10, 6, HAIR], [16, 9, CAP_CROWN], [25, 4, CAP_BILL]]);
-  put(3, [[14, 3, CAP_BADGE]]);
-  dot(15, 3, CAP_BADGE_RING);
+  // ── Trailing (far) leg — behind, mostly hidden ──
+  const legW = 9;
+  const nearLegX = cx - 4 + legShift;
+  const farLegX = cx - 4 - legShift * 0.6;
+  g.fillRoundedRect(Math.round(farLegX) - 3, 50 + bob, legW, 9, 4, JEANS_SHADE);
+  g.fillRoundedRect(Math.round(farLegX) - 3, 56 + bob, legW, 6, 3, SHOE);
 
-  // Face
-  put(4, [[11, 5, HAIR], [16, 8, SKIN], [24, 1, SKIN]]);
-  put(5, [[12, 4, HAIR], [16, 8, SKIN], [24, 2, SKIN]]);
-  // Glasses (side view — one lens + temple arm)
-  put(6, [[16, 7, SKIN], [18, 4, GLASSES]]);
-  put(7, [[16, 1, HAIR], [17, 1, GLASSES], [18, 2, EYE], [20, 1, GLASSES], [21, 3, SKIN]]);
-  put(8, [[16, 8, SKIN]]);
-  put(9, [[17, 6, SKIN], [19, 2, SKIN_SHADE]]);
+  // ── Hips ──
+  g.fillRoundedRect(cx - 13, 48 + bob, 22, 8, 4, JEANS);
 
-  // ── Torso / jacket ──
-  put(10, [[15, 7, COLLAR]]);
-  put(11, [[10, 15, JACKET], [10, 2, JACKET_SHADE]]);
-  put(12, [[8, 18, JACKET], [8, 2, JACKET_SHADE]]);
-  put(13, [[8, 18, JACKET], [8, 2, JACKET_SHADE]]);
-  put(14, [[8, 18, JACKET], [8, 2, JACKET_SHADE]]);
-  put(15, [[8, 18, JACKET], [8, 2, JACKET_SHADE]]);
-  put(16, [[10, 15, JACKET], [10, 2, JACKET_SHADE]]);
-  put(17, [[11, 13, JACKET_SHADE]]);
+  // ── Near (front) leg — swings with the stride ──
+  g.fillRoundedRect(Math.round(nearLegX) - 3, 50 + bob, legW, 10, 4, JEANS);
+  g.fillRoundedRect(Math.round(nearLegX) - 4, 58 + bob, legW + 2, 6, 3, SHOE);
+  g.fillRoundedRect(Math.round(nearLegX) - 4, 62 + bob, legW + 2, 2, 1, SHOE_SOLE);
 
-  // Trailing arm (behind torso, always faintly visible for depth)
-  put(15, [[7, 2, JACKET_SHADE]]);
-  put(16, [[7, 2, SKIN]]);
+  // ── Trailing arm (behind torso) ──
+  g.fillRoundedRect(cx - 12, 34 + bob, 8, 16 - armSwing * 0.3, 4, JACKET_SHADE);
 
-  // Swinging arm — moves back/forward/tucked with the walk cycle
-  if (armPhase === 'back') {
-    put(13, [[6, 2, JACKET]]);
-    put(14, [[6, 2, JACKET]]);
-    put(15, [[6, 2, JACKET]]);
-    put(16, [[6, 2, SKIN]]);
-  } else if (armPhase === 'forward') {
-    put(12, [[24, 2, JACKET]]);
-    put(13, [[25, 2, JACKET]]);
-    put(14, [[25, 2, JACKET]]);
-    put(15, [[25, 2, SKIN]]);
-  } else {
-    put(13, [[8, 2, JACKET]]);
-    put(14, [[8, 2, JACKET]]);
-    put(15, [[8, 2, SKIN]]);
-  }
+  // ── Torso (hoodie), profile — rounded capsule leaning slightly forward ──
+  g.fillRoundedRect(cx - 12, 30 + bob, 26, 24, 9, JACKET);
+  g.fillRect(cx - 12, 32 + bob, 8, 20, JACKET_SHADE);
+  g.fillRect(cx + 3, 34 + bob, 2, 16, JACKET_ZIP);
+  g.fillRoundedRect(cx - 3, 28 + bob, 10, 5, 2, COLLAR);
 
-  // ── Jeans ──
-  put(18, [[12, 10, JEANS]]);
-  put(19, [[12, 10, JEANS]]);
+  // ── Swinging (near) arm ──
+  const armY = 34 + bob + armSwing * 0.4;
+  g.fillRoundedRect(cx + 6, armY, 9, 18, 4, JACKET);
+  g.fillCircle(cx + 10, armY + 18, 4, SKIN);
 
-  // Single swinging leg — alternates forward/center/back along the stride
-  const legWidth = 5;
-  const legCol = legShift > 0 ? 17 : legShift < 0 ? 9 : 13;
-  put(20, [[legCol, legWidth, JEANS]]);
-  put(21, [[legCol, legWidth, JEANS]]);
-  put(22, [[legCol, legWidth, JEANS]]);
-  put(23, [[legCol, legWidth, JEANS]]);
-  put(24, [[legCol, legWidth, JEANS_SHADE]]);
-  put(25, [[legCol, legWidth, SHOE]]);
-  put(26, [[legCol, legWidth, SHOE]]);
-  put(27, [[legCol, legWidth, SHOE_SOLE]]);
+  // ── Head (profile) ──
+  g.fillEllipse(cx + 2, 20 + bob, 10, 10, SKIN);
+  g.fillEllipse(cx + 6, 22 + bob, 6, 7, SKIN_SHADE);
+  // Eye
+  g.fillCircle(cx + 8, 20 + bob, 1.4, EYE);
+  // Nose bump
+  g.fillRoundedRect(cx + 11, 20 + bob, 2, 3, 1, SKIN);
+  // Mouth
+  g.fillRoundedRect(cx + 6, 24 + bob, 4, 2, 1, '#8A5A38');
 
-  // Back leg — mostly hidden behind torso, small hint under it
-  put(24, [[13, 4, JEANS_SHADE]]);
-  put(25, [[13, 4, SHOE]]);
-  put(26, [[13, 4, SHOE]]);
-  put(27, [[13, 4, SHOE_SOLE]]);
+  // Cap (profile — bill points right, in the facing direction)
+  g.fillEllipse(cx + 1, 11 + bob, 12, 10, CAP_CROWN_SHADE);
+  g.fillEllipse(cx, 10 + bob, 11, 9, CAP_CROWN);
+  g.fillRoundedRect(cx + 8, 15 + bob, 10, 5, 2, CAP_BILL);
+  g.fillCircle(cx - 3, 9 + bob, 2.6, CAP_BADGE);
 
   return g;
 }

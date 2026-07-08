@@ -27,6 +27,32 @@ part meant to survive across repo re-imports/sessions.
   at both native and actual in-game draw size (spriteSize ~42px) before calling
   a redesign done — details that read at 64px can disappear at 42px.
 
+## Rounded-silhouette redesign (Denis v3)
+- User feedback on v1/v2 ("still looked like shit... no abrupt square angles")
+  meant the *silhouette* itself was too rectangular, not a resolution/detail
+  problem. Fix: `pixelart.mjs` now has `fillCircle`/`fillEllipse`
+  (distance-test fill) and `fillRoundedRect` (rect with corner-circle cutout)
+  primitives — every major body part (cap, head, torso, arms, legs) is built
+  from these instead of straight `fillRect` bars, which is what actually
+  produces a rounded/cartoon look matching a reference image.
+  **Why:** hand-tuning per-row pixel widths to fake curves is slow and never
+  reads as "rounded" at a glance; distance-based shape fills give a correct
+  rounded silhouette for free at any working resolution.
+- **Gotcha:** `fillRoundedRect`/loops index the pixel grid with the y/x
+  values directly as array indices — if a caller passes a fractional
+  coordinate (e.g. from `bob * 0.4` walk-cycle animation math), `grid[y]` is
+  `undefined` (JS arrays don't have fractional keys) and it throws deep
+  inside `set()`, not at the call site. Fixed by `Math.round`-ing
+  x0/y0/w/h at the top of `fillRoundedRect` itself — round once centrally
+  rather than requiring every call site to remember to round.
+- Denis v3 uses a 64x64 working grid directly (scale x1, no upscale) instead
+  of the earlier 32x32x2 — more addressable resolution for smooth curves at
+  the same final frame size, no `sprites.ts` metadata change needed.
+- When placing a cap/hat that overlaps the face, keep its bottom edge (bill
+  included) above the eyebrow line — drawing the cap after the face (so it
+  layers correctly) but too low reads as a solid dark "sunglasses" bar across
+  the eyes instead of a brim.
+
 ## Key non-obvious decisions
 - Animation frame-rate is driven by actual per-frame position delta (px/sec),
   not the raw joystick vector magnitude — **why:** in this game, movement
