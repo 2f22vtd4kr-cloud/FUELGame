@@ -20,3 +20,4 @@
 - [95-Y session 10 cosmetics/visuals](game-session10-cosmetics-visuals.md) — character silhouettes, pets/car skins shop, report button §5.6, neutral-role ejection text
 - [95-Y sprite art system](game-sprite-art.md) — 10 char + 6 car PNGs in public/sprites/; sprites.ts loader; renderer falls back to circles if not loaded; rotation = facingAngle + PI/2
 - [Redis persistence + daily leaderboard](redis-persistence.md) — ioredis room snapshots; game loops resume on first reconnect (not on restore); removeClient takes ws param to prevent reconnect-race eviction; knownPlayerIds set for reconnect auth
+- [95-Y A* pathfinding](game-pathfinding.md) — §4.5 grid A* in pathfinder.ts (both packages); heap sized N×8 + closed set; start+dest snapped to walkable; LOS enforces diagonal corner-clearance; LOD at 240wu

@@ -8,6 +8,7 @@ import {
 } from './types';
 import { TASK_DEFS } from '../data/tasks';
 import { isInsideBuilding, clampToMap, dist, DUMPSTER_POSITIONS, isInFlowerBed } from '../data/map';
+import { findPath, CELL } from './pathfinder';
 import type { SabotageKey } from './types';
 import { callMeeting, triggerBotSabotage, isSabotageActive } from './logic';
 import { audio } from './audio-stub';
@@ -358,10 +359,66 @@ function updateSlivshchikBot(bot: Player, dt: number): void {
 
 // ─── Movement helpers ─────────────────────────────────────────────────────────
 
+/** §4.5 — how close a bot must get to pop the next waypoint from its path. */
+const WAYPOINT_REACH = CELL * 0.6;   // ~18 wu
+/** §4.5 — replan every N seconds even if target hasn't moved. */
+const REPLAN_INTERVAL = 1.0;
+/** §4.5 — replan immediately if target drifted further than this. */
+const TARGET_MOVED_THR = 60;
+/** §4.5 — distance from any human within which we use full A* (≈12 m). */
+const NEAR_HUMAN_DIST = 240;
+
+/**
+ * Move `bot` toward `target`, using A* path-following when the bot is near
+ * a human player, and falling back to direct steering + wall-slide otherwise.
+ */
 function moveBot(bot: Player, target: Vec2, dt: number): void {
+  if (dist(bot.pos, target) < 2) return;
+
+  // §4.5 LOD: bots far from all humans skip pathfinding.
+  const nearHuman = gs.players.some(
+    p => p.isHuman && p.isAlive && dist(bot.pos, p.pos) < NEAR_HUMAN_DIST,
+  );
+
+  if (!nearHuman) {
+    // Clear stale path so it is rebuilt when the bot gets closer.
+    if (bot.botPath.length) bot.botPath = [];
+    _moveDirect(bot, target, dt);
+    return;
+  }
+
+  // ── Full A* path-following ───────────────────────────────────────────────
+  const targetMoved =
+    !bot.botPathTarget ||
+    dist(bot.botPathTarget, target) > TARGET_MOVED_THR;
+
+  bot.botReplanTimer -= dt;
+
+  if (!bot.botPath.length || targetMoved || bot.botReplanTimer <= 0) {
+    bot.botPath       = findPath(bot.pos, target);
+    bot.botPathTarget = { ...target };
+    bot.botReplanTimer = REPLAN_INTERVAL;
+  }
+
+  // Advance past waypoints we have already reached.
+  while (bot.botPath.length > 1 && dist(bot.pos, bot.botPath[0]) < WAYPOINT_REACH) {
+    bot.botPath.shift();
+  }
+
+  const nextWP = bot.botPath[0];
+  if (!nextWP || dist(bot.pos, nextWP) < WAYPOINT_REACH) {
+    bot.botPath = [];
+    return;
+  }
+
+  _moveDirect(bot, nextWP, dt);
+}
+
+/** Direct steering + axis-aligned wall-slide (original logic, now an inner helper). */
+function _moveDirect(bot: Player, target: Vec2, dt: number): void {
   const dx = target.x - bot.pos.x;
   const dy = target.y - bot.pos.y;
-  const d = Math.sqrt(dx * dx + dy * dy);
+  const d  = Math.sqrt(dx * dx + dy * dy);
   if (d < 2) return;
 
   bot.facingAngle = Math.atan2(dy, dx);
@@ -369,7 +426,7 @@ function moveBot(bot: Player, target: Vec2, dt: number): void {
   const ny = dy / d;
   // §1.2 Flower-bed slow zone
   const fbMult = isInFlowerBed(bot.pos) ? FLOWERBED_SLOW_MULT : 1;
-  const speed = bot.speed * fbMult;
+  const speed  = bot.speed * fbMult;
   const candidate = clampToMap({ x: bot.pos.x + nx * speed * dt, y: bot.pos.y + ny * speed * dt }, 14);
   if (!isInsideBuilding(candidate, 14)) {
     bot.pos = candidate;
@@ -390,6 +447,8 @@ function randomWander(bot: Player, dt: number): void {
       x: margin + Math.random() * (1200 - margin * 2),
       y: 120 + Math.random() * (900 - 240),
     };
+    // Force a replan when the wander destination changes.
+    bot.botPath = [];
   }
   moveBot(bot, bot.botTarget, dt);
 }

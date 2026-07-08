@@ -113,6 +113,9 @@ export function startGame(
       botCooldown: Math.random() * 2,
       khozainLockCooldown: 0,
       khozainLockProgress: 0,
+      botPath: [],
+      botReplanTimer: 0,
+      botPathTarget: null,
     };
   });
 
@@ -230,6 +233,9 @@ function makePlayer(
     botCooldown: isHuman ? 0 : Math.random() * 2,
     khozainLockCooldown: 0,
     khozainLockProgress: 0,
+    botPath: [],
+    botReplanTimer: 0,
+    botPathTarget: null,
   };
 }
 

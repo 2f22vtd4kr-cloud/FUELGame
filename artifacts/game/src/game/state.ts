@@ -125,6 +125,9 @@ export function startGame(
       botTaskId: null,
       botCarId: null,
       botCooldown: Math.random() * 2,
+      botPath: [],
+      botReplanTimer: 0,
+      botPathTarget: null,
     };
   });
 

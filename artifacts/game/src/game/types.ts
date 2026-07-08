@@ -249,6 +249,10 @@ export interface Player {
   botTaskId: string | null;
   botCarId: string | null;
   botCooldown: number;
+  // §4.5 A* pathfinding state
+  botPath: Vec2[];           // remaining world-space waypoints (head = next destination)
+  botReplanTimer: number;    // seconds until forced replan
+  botPathTarget: Vec2 | null; // target pos when path was last computed (change detection)
 }
 
 // ─── Bodies (left behind by ambushed players) ─────────────────────────────────
