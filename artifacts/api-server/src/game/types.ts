@@ -214,8 +214,10 @@ export interface Player {
   ambushChargeTimer: number;  // charge up to AMBUSH_CHARGE_TIME
   ambushCooldown: number;
   siphonCooldown: number;     // 15s cooldown after completing/canceling a siphon (§2.4)
+  siphonDecisionCooldown: number; // §4.2 cooldown after a failed siphon-attempt roll before re-rolling
   // Sabotage
   sabotageCooldown: number;   // global cooldown between sabotage uses
+  sabotageDecisionCooldown: number; // §4.2 cooldown after a failed sabotage-attempt roll before re-rolling
   // Items
   isCarryingCanister: boolean;
   ventCooldown: number;       // §3.1.2 cooldown after using dumpster vent
@@ -249,6 +251,7 @@ export interface Player {
   botPath: Vec2[];            // remaining world-space waypoints (head = next destination)
   botReplanTimer: number;     // seconds until forced replan
   botPathTarget: Vec2 | null; // target pos when path was last computed (change detection)
+  botLodAccum: number;        // §4.5 accumulated dt for far-bot 5Hz position-update throttling
 }
 
 // ─── Bodies (left behind by ambushed players) ─────────────────────────────────
@@ -340,18 +343,20 @@ export const IMMUNITY_TICKET_DURATION = 60; // §10.2 immunity ticket locks car 
 export type BotDifficulty = 'easy' | 'medium' | 'hard' | 'nightmare';
 
 export interface BotDifficultySettings {
-  ambushChance: number;           // probability of attempting ambush when eligible
-  sabotageChancePerFrame: number; // per-frame probability of triggering sabotage
+  ambushChance: number;           // §4.2 probability of attempting ambush when eligible
+  siphonChance: number;           // §4.2 probability of attempting siphon when a car is available
+  sabotageChance: number;         // §4.2 probability of triggering sabotage when off cooldown & available
   useVents: boolean;              // slivshchik bots use dumpster vents
   fleeRadius: number;             // how far khozain bots run from nearby slivshchik
   skipVoteChance: number;         // probability bot skips vote instead of using suspicion
 }
 
+// §4.2 — Сливщик AI Difficulty Tiers (literal doc percentages)
 export const BOT_DIFFICULTY_SETTINGS: Record<BotDifficulty, BotDifficultySettings> = {
-  easy:      { ambushChance: 0.10, sabotageChancePerFrame: 0.000, useVents: false, fleeRadius: 180, skipVoteChance: 0.35 },
-  medium:    { ambushChance: 0.25, sabotageChancePerFrame: 0.002, useVents: false, fleeRadius: 220, skipVoteChance: 0.20 },
-  hard:      { ambushChance: 0.40, sabotageChancePerFrame: 0.004, useVents: true,  fleeRadius: 260, skipVoteChance: 0.10 },
-  nightmare: { ambushChance: 0.60, sabotageChancePerFrame: 0.008, useVents: true,  fleeRadius: 300, skipVoteChance: 0.05 },
+  easy:      { ambushChance: 0.20, siphonChance: 0.70, sabotageChance: 0.00, useVents: false, fleeRadius: 180, skipVoteChance: 0.35 },
+  medium:    { ambushChance: 0.30, siphonChance: 0.85, sabotageChance: 0.50, useVents: false, fleeRadius: 220, skipVoteChance: 0.20 },
+  hard:      { ambushChance: 0.50, siphonChance: 0.95, sabotageChance: 0.80, useVents: true,  fleeRadius: 260, skipVoteChance: 0.10 },
+  nightmare: { ambushChance: 0.70, siphonChance: 1.00, sabotageChance: 1.00, useVents: true,  fleeRadius: 300, skipVoteChance: 0.05 },
 };
 
 // ─── Immunity Ticket (§10.2) ──────────────────────────────────────────────────

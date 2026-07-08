@@ -92,7 +92,9 @@ export function startGame(
       ambushChargeTimer: 0,
       ambushCooldown: 0,
       siphonCooldown: 0,
+      siphonDecisionCooldown: 0,
       sabotageCooldown: 0,
+      sabotageDecisionCooldown: 0,
       isCarryingCanister: false,
       ventCooldown: 0,
       emote: null,
@@ -116,6 +118,7 @@ export function startGame(
       botPath: [],
       botReplanTimer: 0,
       botPathTarget: null,
+      botLodAccum: 0,
     };
   });
 
@@ -212,7 +215,9 @@ function makePlayer(
     ambushChargeTimer: 0,
     ambushCooldown: 0,
     siphonCooldown: 0,
+    siphonDecisionCooldown: 0,
     sabotageCooldown: 0,
+    sabotageDecisionCooldown: 0,
     isCarryingCanister: false,
     ventCooldown: 0,
     emote: null,
@@ -236,6 +241,7 @@ function makePlayer(
     botPath: [],
     botReplanTimer: 0,
     botPathTarget: null,
+    botLodAccum: 0,
   };
 }
 

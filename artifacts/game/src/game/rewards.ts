@@ -132,7 +132,7 @@ export function applyMatchRewards(gs: GameState): MatchRewards {
     if (profile.daily.progress >= dailyDef.target) {
       profile.daily.completed = true;
       dailyCompleted = true;
-      babki += 50;    // §3.5 daily reward (spec: 50 BP XP / matching Бабки amount)
+      babki += 200;   // §3.5 daily reward: 200 Бабки + 50 Battle Pass XP
       xp += 50;
 
       // §3.6 "Постоянный Жилец" — consecutive daily-challenge completion streak

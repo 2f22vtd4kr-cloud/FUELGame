@@ -48,6 +48,8 @@ export function updateBots(dt: number): void {
     }
     if (bot.ambushCooldown > 0) bot.ambushCooldown -= dt;
     if (bot.siphonCooldown > 0) bot.siphonCooldown -= dt;
+    if (bot.siphonDecisionCooldown > 0) bot.siphonDecisionCooldown -= dt;
+    if (bot.sabotageDecisionCooldown > 0) bot.sabotageDecisionCooldown -= dt;
     if (bot.ventCooldown > 0) bot.ventCooldown -= dt;
 
     if (bot.role === 'khozain') updateKhozainBot(bot, dt);
@@ -269,17 +271,20 @@ function updateSlivshchikBot(bot: Player, dt: number): void {
     }
   }
 
-  // 3.5. Sabotage attempt (§2.9 — uses difficulty-based chance)
-  if (bot.sabotageCooldown <= 0 && !isWatched && Math.random() < diffSliv.sabotageChancePerFrame) {
-    // ~18% chance per 60s (checked per frame at 0.003 * 60fps)
+  // 3.5. Sabotage attempt (§4.2 — uses difficulty-tier decision chance, rolled once per opportunity)
+  if (bot.sabotageCooldown <= 0 && bot.sabotageDecisionCooldown <= 0 && !isWatched) {
     const keys: SabotageKey[] = ['alarm_chaos', 'chat_offline', 'babushka_cerberus', 'pipe_burst'];
     const available = keys.filter(k => !gs.activeSabotages.some(s => s.key === k && !s.isResolved));
     if (available.length > 0) {
-      // Prefer alarm_chaos before siphoning to mask gurgle; pipe_burst last (critical risk)
-      const preferOrder: SabotageKey[] = ['alarm_chaos', 'chat_offline', 'babushka_cerberus', 'pipe_burst'];
-      const sorted = preferOrder.filter(k => available.includes(k));
-      const pick = sorted.length > 0 ? sorted[0] : available[0];
-      triggerBotSabotage(bot.id, pick);
+      if (Math.random() < diffSliv.sabotageChance) {
+        // Prefer alarm_chaos before siphoning to mask gurgle; pipe_burst last (critical risk)
+        const preferOrder: SabotageKey[] = ['alarm_chaos', 'chat_offline', 'babushka_cerberus', 'pipe_burst'];
+        const sorted = preferOrder.filter(k => available.includes(k));
+        const pick = sorted.length > 0 ? sorted[0] : available[0];
+        triggerBotSabotage(bot.id, pick);
+      }
+      // Whether the roll succeeded or failed, don't re-roll again immediately.
+      bot.sabotageDecisionCooldown = 10 + Math.random() * 5;
     }
   }
 
@@ -303,7 +308,7 @@ function updateSlivshchikBot(bot: Player, dt: number): void {
     }
   }
 
-  // 4. Find a car to siphon
+  // 4. Find a car to siphon (§4.2 — gated by difficulty-tier siphon chance, rolled once per opportunity)
   if (bot.botState === 'idle' || bot.botState === 'fake_task') {
     if (bot.siphonCooldown > 0) { randomWander(bot, dt); return; }
     // §2.9 Pipe burst: cars are flooded and inaccessible for all players
@@ -314,6 +319,15 @@ function updateSlivshchikBot(bot: Player, dt: number): void {
       const d = dist(bot.pos, car.pos);
       if (d < bestDist) { bestDist = d; best = car; }
     }
+    if (best && bot.siphonDecisionCooldown <= 0) {
+      if (Math.random() >= diffSliv.siphonChance) {
+        // Decided not to siphon this opportunity — wander for a bit before re-evaluating.
+        bot.siphonDecisionCooldown = 4 + Math.random() * 3;
+        randomWander(bot, dt);
+        return;
+      }
+    }
+    if (bot.siphonDecisionCooldown > 0) { randomWander(bot, dt); return; }
     if (best) { bot.botCarId = best.id; bot.botState = 'moving'; }
     else { randomWander(bot, dt); return; }
   }
@@ -367,6 +381,8 @@ const REPLAN_INTERVAL = 1.0;
 const TARGET_MOVED_THR = 60;
 /** §4.5 — distance from any human within which we use full A* (≈12 m). */
 const NEAR_HUMAN_DIST = 240;
+/** §4.5 — far bots (beyond NEAR_HUMAN_DIST) update position at 5Hz instead of every tick (~20Hz). */
+const FAR_UPDATE_INTERVAL = 1 / 5;
 
 /**
  * Move `bot` toward `target`, using A* path-following when the bot is near
@@ -383,9 +399,16 @@ function moveBot(bot: Player, target: Vec2, dt: number): void {
   if (!nearHuman) {
     // Clear stale path so it is rebuilt when the bot gets closer.
     if (bot.botPath.length) bot.botPath = [];
-    _moveDirect(bot, target, dt);
+    // §4.5 Throttle far-bot position updates to 5Hz: accumulate dt and move
+    // in a single larger step only once the interval has elapsed.
+    bot.botLodAccum += dt;
+    if (bot.botLodAccum < FAR_UPDATE_INTERVAL) return;
+    const stepDt = bot.botLodAccum;
+    bot.botLodAccum = 0;
+    _moveDirect(bot, target, stepDt);
     return;
   }
+  bot.botLodAccum = 0;
 
   // ── Full A* path-following ───────────────────────────────────────────────
   const targetMoved =
