@@ -286,6 +286,27 @@ export default function HUD({ state }: HUDProps) {
   };
   const [isCrouchHeld, setIsCrouchHeld] = useState(false);
 
+  // §12.4 Tutorial triggers — must be above any early-return to satisfy Rules of Hooks
+  useEffect(() => {
+    if (state.phase === 'play' && gs.tutorialStep === 0) {
+      const lsDone = localStorage.getItem('95Y_tutorial') === 'done';
+      const profileDone = loadProfile().seenTutorial;
+      if (!lsDone && !profileDone) gs.tutorialStep = 1;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.phase]);
+
+  useEffect(() => {
+    if (state.tutorialStep !== 3) return;
+    const timer = window.setTimeout(() => {
+      gs.tutorialStep = 0;
+      localStorage.setItem('95Y_tutorial', 'done');
+      const profile = loadProfile(); profile.seenTutorial = true; saveProfile(profile);
+    }, 3000);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.tutorialStep]);
+
   const localPlayer = state.players.find(p => p.id === state.localPlayerId);
   if (!localPlayer) return null;
 
@@ -308,27 +329,6 @@ export default function HUD({ state }: HUDProps) {
   const mins = Math.floor(tleft / 60).toString().padStart(2, '0');
   const secs = Math.floor(tleft % 60).toString().padStart(2, '0');
   const timerUrgent = tleft < 60;
-
-  // §12.4 Tutorial triggers
-  useEffect(() => {
-    if (state.phase === 'play' && gs.tutorialStep === 0) {
-      const lsDone = localStorage.getItem('95Y_tutorial') === 'done';
-      const profileDone = loadProfile().seenTutorial;
-      if (!lsDone && !profileDone) gs.tutorialStep = 1;
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.phase]);
-
-  useEffect(() => {
-    if (state.tutorialStep !== 3) return;
-    const timer = window.setTimeout(() => {
-      gs.tutorialStep = 0;
-      localStorage.setItem('95Y_tutorial', 'done');
-      const profile = loadProfile(); profile.seenTutorial = true; saveProfile(profile);
-    }, 3000);
-    return () => clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.tutorialStep]);
 
   const dismissTutorial = () => {
     gs.tutorialStep = 0;

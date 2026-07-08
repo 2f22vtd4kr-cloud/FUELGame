@@ -19,8 +19,10 @@ const outDir = path.join(__dirname, '../public/sprites');
 // name -> desired max(width,height) in world px, roughly matching the prior
 // procedural sprite's footprint so gameplay scale doesn't shift.
 const TARGETS = {
+  decor_bench: 54,
   decor_dumpster: 40,
   decor_flowerbed: 62,
+  decor_kvass_stand: 54,
   decor_tree: 70,
   decor_hydrant: 34,
   decor_trash_bin: 32,

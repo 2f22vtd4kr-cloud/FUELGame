@@ -153,19 +153,44 @@ const OUTLINE = '#14100C';
 }
 
 // ── EV charger (broken) ─────────────────────────────────────────────────
-// v2: cracked screen, warning sparks, and a cable coil for visual noise.
+// v3: brighter palette so it reads at 32×80 game size — lighter post, visible
+// screen crack lines and a blinking red fault LED.
 {
   const g = new PixelGrid(32, 80);
-  g.fillRoundedRect(12, 32, 8, 44, 2, '#546E7A'); // post
-  g.fillRoundedRect(10, 46, 12, 6, 2, '#37474F');
-  g.fillEllipse(9, 62, 3, 6, '#263238'); // cable coil hint
-  g.fillRoundedRect(3, 0, 26, 26, 3, '#1A237E'); // head unit
-  g.fillRoundedRect(5, 2, 22, 20, 2, '#151B60');
-  g.fillRect(7, 4, 18, 14, '#0D103A'); // cracked screen
-  g.fillRect(9, 6, 3, 10, '#1E2470');
-  g.fillRect(15, 4, 2, 14, '#1E2470');
-  g.fillCircle(24, 42, 3, '#FF1744'); // fault light
-  g.fillCircle(24, 42, 1.2, '#FFCDD2');
+  // Base/foot
+  g.fillRoundedRect(8, 70, 16, 8, 2, '#546E7A');
+  g.fillRoundedRect(9, 69, 14, 3, 1, '#78909C'); // foot highlight
+  // Post (steel grey, visible)
+  g.fillRoundedRect(12, 30, 8, 42, 2, '#78909C');
+  g.fillRect(12, 30, 3, 42, '#90A4AE'); // lit edge
+  g.fillRect(17, 30, 3, 42, '#546E7A'); // shadow edge
+  // Cable bracket
+  g.fillRoundedRect(9, 44, 14, 6, 2, '#546E7A');
+  // Cable (dangling, bright orange so it reads)
+  g.fillRect(18, 50, 3, 4, '#FF8F00');
+  g.fillRect(20, 54, 3, 4, '#FF8F00');
+  g.fillRect(19, 58, 3, 4, '#FF8F00');
+  g.fillCircle(21, 64, 2, '#E65100'); // plug end
+  // Head unit body (slate blue, much lighter than v2)
+  g.fillRoundedRect(2, 0, 28, 30, 3, '#455A64');
+  g.fillRoundedRect(3, 1, 26, 8, 2, '#607D8B'); // top highlight
+  // Screen — cracked, dim (not pitch-black)
+  g.fillRoundedRect(5, 4, 22, 18, 2, '#263238');
+  g.fillRect(7, 6, 18, 13, '#1C2E38');
+  // Crack lines (bright so they read)
+  g.fillRect(12, 6, 1, 8, '#4FC3F7');
+  g.fillRect(13, 8, 4, 1, '#4FC3F7');
+  g.fillRect(17, 7, 1, 6, '#4FC3F7');
+  // ⚡ icon ghost
+  g.fillRect(10, 11, 2, 4, '#37474F');
+  g.fillRect(14, 9, 2, 4, '#37474F');
+  g.fillRect(12, 13, 2, 1, '#37474F');
+  // Fault LED (red, clearly visible)
+  g.fillCircle(24, 5, 3.5, '#FF1744');
+  g.fillCircle(23, 4, 1.5, '#FF8A80'); // glint
+  // Charging port slot
+  g.fillRoundedRect(10, 24, 12, 4, 1, '#37474F');
+  g.fillRect(11, 25, 10, 2, '#263238');
   g.outline(OUTLINE);
   writeGrid('decor_ev_charger', g);
 }

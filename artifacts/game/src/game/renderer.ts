@@ -1467,12 +1467,78 @@ function drawAlarmButton(ctx: CanvasRenderingContext2D, state: GameState): void 
 }
 
 function drawEntrance(ctx: CanvasRenderingContext2D): void {
-  // Arch frame
-  ctx.fillStyle = '#A0522D';
-  ctx.fillRect(450, 810, 15, 90);
-  ctx.fillRect(735, 810, 15, 90);
-  ctx.fillStyle = '#8B4513';
-  ctx.fillRect(450, 810, 300, 8);
+  const L = 450, R = 750; // arch left/right
+  const T = 810;          // arch top y
+  const PW = 26;          // pillar width
+  const LINTEL = 20;      // lintel height
+
+  // ── Pillar bodies (Soviet pre-cast concrete) ─────────────────────────────
+  for (const [px] of [[L - PW, 1], [R, -1]] as [number, number][]) {
+    ctx.fillStyle = '#8D9EAB';
+    ctx.fillRect(px, T, PW, 90);
+    ctx.fillStyle = '#607D8B';   // shadow side
+    ctx.fillRect(px + PW - 5, T, 5, 90);
+    ctx.fillStyle = '#B0BEC5';   // lit side
+    ctx.fillRect(px, T, 5, 90);
+    // Horizontal joint lines (panel seams)
+    ctx.strokeStyle = '#546E7A';
+    ctx.lineWidth = 1;
+    for (const jy of [T + 22, T + 44, T + 66]) {
+      ctx.beginPath();
+      ctx.moveTo(px, jy);
+      ctx.lineTo(px + PW, jy);
+      ctx.stroke();
+    }
+  }
+
+  // ── Lintel (overhead beam spanning full arch width) ──────────────────────
+  const fullW = R - L + PW * 2;
+  ctx.fillStyle = '#78909C';
+  ctx.fillRect(L - PW, T, fullW, LINTEL);
+  ctx.fillStyle = '#90A4AE';   // top highlight
+  ctx.fillRect(L - PW, T, fullW, 5);
+  ctx.fillStyle = '#455A64';   // underside shadow
+  ctx.fillRect(L - PW, T + LINTEL - 4, fullW, 4);
+  // Lintel panel seams
+  ctx.strokeStyle = '#607D8B';
+  ctx.lineWidth = 1;
+  for (const sx of [L - PW + 90, L - PW + 180, L - PW + 270]) {
+    ctx.beginPath();
+    ctx.moveTo(sx, T);
+    ctx.lineTo(sx, T + LINTEL);
+    ctx.stroke();
+  }
+
+  // ── Iron gate bars descending from lintel ────────────────────────────────
+  ctx.strokeStyle = '#2E3A45';
+  ctx.lineWidth = 3;
+  for (let gx = L + 22; gx < R - 10; gx += 26) {
+    ctx.beginPath();
+    ctx.moveTo(gx, T + LINTEL);
+    ctx.lineTo(gx, T + LINTEL + 26);
+    ctx.stroke();
+  }
+  // Crossbar
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = '#37474F';
+  ctx.beginPath();
+  ctx.moveTo(L + 12, T + LINTEL + 26);
+  ctx.lineTo(R - 12, T + LINTEL + 26);
+  ctx.stroke();
+
+  // ── Building address plate on left pillar ────────────────────────────────
+  ctx.fillStyle = '#37474F';
+  ctx.beginPath();
+  ctx.roundRect(L - PW + 5, T + 32, 16, 24, 2);
+  ctx.fill();
+  ctx.fillStyle = '#B0BEC5';
+  ctx.font = 'bold 5px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('ЖК', L - PW + 13, T + 42);
+  ctx.fillText('ЦП', L - PW + 13, T + 49);
+  ctx.fillStyle = '#e5a50a';
+  ctx.font = 'bold 6px sans-serif';
+  ctx.fillText('14', L - PW + 13, T + 52);
 }
 
 // ─── World UI ─────────────────────────────────────────────────────────────────

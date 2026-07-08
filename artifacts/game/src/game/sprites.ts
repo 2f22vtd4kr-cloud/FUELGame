@@ -42,12 +42,12 @@ const SPRITE_KEYS = [
 // AI top-down generations of those came back as front-elevation views that
 // didn't read correctly from directly overhead.
 export const DECOR_SPRITE_META: Record<string, { w: number; h: number; offsetY: number }> = {
-  decor_bench: { w: 48, h: 26, offsetY: 0 },
+  decor_bench: { w: 54, h: 30, offsetY: 0 },
   decor_dumpster: { w: 38, h: 40, offsetY: -1 },
   decor_flowerbed: { w: 62, h: 62, offsetY: -2 },
   decor_tree: { w: 70, h: 70, offsetY: -8 },
   decor_lamppost: { w: 20, h: 66, offsetY: -1 },
-  decor_kvass_stand: { w: 44, h: 48, offsetY: -5 },
+  decor_kvass_stand: { w: 54, h: 50, offsetY: -5 },
   decor_ev_charger: { w: 32, h: 80, offsetY: -15 },
   decor_hydrant: { w: 34, h: 32, offsetY: -5 },
   decor_trash_bin: { w: 32, h: 32, offsetY: -5 },
