@@ -10,7 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "gen:sprite:denis": "node scripts/generate-denis-sprite.mjs",
-    "gen:sprites": "node scripts/generate-denis-sprite.mjs && node scripts/generate-characters.mjs && node scripts/generate-barsik-sprite.mjs"
+    "gen:sprites": "node scripts/generate-denis-sprite.mjs && node scripts/generate-characters.mjs && node scripts/generate-barsik-sprite.mjs && node scripts/generate-props.mjs"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",

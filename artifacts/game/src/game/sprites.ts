@@ -19,7 +19,31 @@ const SPRITE_KEYS = [
   'car_tesla',
   'car_haval',
   'car_vesta',
+  'decor_bench',
+  'decor_dumpster',
+  'decor_flowerbed',
+  'decor_tree',
+  'decor_lamppost',
+  'decor_kvass_stand',
+  'decor_ev_charger',
+  'decor_hydrant',
+  'decor_trash_bin',
+  'decor_bicycle_rack',
 ];
+
+/** Draw size + vertical anchor offset (px, relative to the decoration's (x,y) point) for each prop sprite. */
+export const DECOR_SPRITE_META: Record<string, { w: number; h: number; offsetY: number }> = {
+  decor_bench: { w: 48, h: 22, offsetY: 2 },
+  decor_dumpster: { w: 38, h: 36, offsetY: 0 },
+  decor_flowerbed: { w: 60, h: 40, offsetY: 0 },
+  decor_tree: { w: 50, h: 66, offsetY: -7 },
+  decor_lamppost: { w: 18, h: 64, offsetY: 0 },
+  decor_kvass_stand: { w: 42, h: 46, offsetY: -4 },
+  decor_ev_charger: { w: 30, h: 78, offsetY: -14 },
+  decor_hydrant: { w: 20, h: 30, offsetY: -4 },
+  decor_trash_bin: { w: 22, h: 28, offsetY: -4 },
+  decor_bicycle_rack: { w: 52, h: 26, offsetY: 0 },
+};
 
 /** Maps car `id` → sprite key, matching colours to doc §7.2 car palette. */
 export const CAR_SPRITE_MAP: Record<string, string> = {

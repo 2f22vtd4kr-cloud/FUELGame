@@ -107,13 +107,15 @@ export const BABUSHKA_CERBERUS_POS: Vec2 = { x: 530, y: 790 };
 // ─── Decorations ──────────────────────────────────────────────────────────────
 
 export interface DecorationDef {
-  type: 'bench' | 'dumpster' | 'flowerbed' | 'tree' | 'lamppost' | 'kvass_stand' | 'ev_charger';
+  type: 'bench' | 'dumpster' | 'flowerbed' | 'tree' | 'lamppost' | 'kvass_stand' | 'ev_charger'
+    | 'hydrant' | 'trash_bin' | 'bicycle_rack';
   pos: Vec2;
 }
 
 export const DECORATIONS: DecorationDef[] = [
   { type: 'bench',      pos: { x: 400, y: 700 } },
   { type: 'bench',      pos: { x: 800, y: 700 } },
+  { type: 'bench',      pos: { x: 600, y: 640 } },
   { type: 'dumpster',   pos: { x: 1060, y: 700 } },
   { type: 'dumpster',   pos: { x: 140,  y: 700 } },
   { type: 'flowerbed',  pos: { x: 350, y: 560 } },
@@ -122,11 +124,21 @@ export const DECORATIONS: DecorationDef[] = [
   { type: 'tree',       pos: { x: 200, y: 530 } },
   { type: 'tree',       pos: { x: 1000, y: 530 } },
   { type: 'tree',       pos: { x: 600, y: 470 } },
+  { type: 'tree',       pos: { x: 130, y: 620 } },
+  { type: 'tree',       pos: { x: 1080, y: 620 } },
   { type: 'lamppost',   pos: { x: 300, y: 450 } },
   { type: 'lamppost',   pos: { x: 900, y: 450 } },
+  { type: 'lamppost',   pos: { x: 600, y: 700 } },
   { type: 'kvass_stand', pos: { x: 1050, y: 530 } },
   // §01.2 Broken EV Charger — upper-right parking lot, decorative sabotage target
   { type: 'ev_charger', pos: { x: 1060, y: 140 } },
+  // Extra courtyard flavor props to fill out the map (§7.3 asset library)
+  { type: 'hydrant',      pos: { x: 950, y: 720 } },
+  { type: 'hydrant',      pos: { x: 250, y: 720 } },
+  { type: 'trash_bin',    pos: { x: 460, y: 640 } },
+  { type: 'trash_bin',    pos: { x: 740, y: 640 } },
+  { type: 'trash_bin',    pos: { x: 150, y: 150 } },
+  { type: 'bicycle_rack', pos: { x: 950, y: 250 } },
 ];
 
 // ─── Player spawns ─────────────────────────────────────────────────────────────

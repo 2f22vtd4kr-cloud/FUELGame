@@ -1,6 +1,6 @@
 import type { GameState, Player, Vec2 } from './types';
 import { ALARM_RADIUS, MAP_W, MAP_H, CROUCH_VISIBILITY_MULT, VENT_FLASH_DURATION } from './types';
-import { getSprite, CAR_SPRITE_MAP, SPRITE_SHEETS } from './sprites';
+import { getSprite, CAR_SPRITE_MAP, SPRITE_SHEETS, DECOR_SPRITE_META } from './sprites';
 import { TASK_DEFS } from '../data/tasks';
 import { DECORATIONS, ENTRANCE_POS, DUMPSTER_POSITIONS, VISION_BUILDINGS, VALVE_POSITIONS, BABUSHKA_CERBERUS_POS, BABUSHKA_NPC_POS, PLAYGROUND } from '../data/map';
 import { CHARACTERS } from '../data/characters';
@@ -602,6 +602,14 @@ function drawParkingLot(ctx: CanvasRenderingContext2D): void {
 function drawDecorations(ctx: CanvasRenderingContext2D): void {
   for (const deco of DECORATIONS) {
     const { x, y } = deco.pos;
+    const spriteKey = `decor_${deco.type}`;
+    const sprite = getSprite(spriteKey);
+    const meta = DECOR_SPRITE_META[spriteKey];
+    if (sprite && meta) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(sprite, x - meta.w / 2, y + meta.offsetY - meta.h / 2, meta.w, meta.h);
+      continue;
+    }
     switch (deco.type) {
       case 'bench':
         ctx.fillStyle = '#8B6914';

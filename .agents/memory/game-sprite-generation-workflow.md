@@ -69,3 +69,24 @@ part meant to survive across repo re-imports/sessions.
 - PNG encoding is done with a hand-rolled zero-dependency encoder (Node
   `zlib` only) rather than `node-canvas`/`sharp`/ImageMagick — avoids native
   binding/system-dependency risk entirely for future sessions.
+
+## Full roster + static prop generalization (session: all characters + decor)
+- All 10 characters now generated via `generate-characters.mjs` (humans) +
+  `generate-barsik-sprite.mjs` (cat), using a shared `lib/characterBuilder.mjs`
+  that takes a small palette/headwear config per character instead of
+  hand-writing per-character draw code — adding a character is just a new
+  config object (skin/hair/top/bottom/shoe/headwear).
+- Static (non-animated) map props use the same `PixelGrid` primitives but
+  skip `composeSheet`'s square-frame-sheet assumption — `generate-props.mjs`
+  has its own `writeGrid()` that encodes one arbitrary-size grid straight to
+  PNG. **Why:** `composeSheet` assumes uniform square frames tiled in a grid
+  (built for walk-cycle sheets); one-off props like a lamppost (18×64) or
+  bench (48×22) aren't square and don't need multi-frame tiling.
+- Decoration sprites are drawn centered on the existing `(x,y)` gameplay
+  anchor point via a `DECOR_SPRITE_META` lookup (`{w,h,offsetY}` per type) in
+  `sprites.ts`, with `renderer.ts::drawDecorations` trying the sprite first
+  and falling back to the old primitive-shape drawing if not loaded — same
+  graceful-fallback pattern as character/car sprites, so decor art can be
+  iterated without touching collision/gameplay code (`FLOWERBED_RECTS`,
+  `DUMPSTER_POSITIONS`, etc. are untouched and still reference the same
+  `(x,y)` points).

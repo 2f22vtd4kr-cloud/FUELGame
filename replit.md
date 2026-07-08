@@ -52,6 +52,16 @@ The game is then available at the Replit preview URL (root path `/`).
   Re-run all with `pnpm --filter @workspace/game run gen:sprites`. To add a new character, add a
   palette config entry to `generate-characters.mjs` — no new draw code needed.
 
+## Map decoration sprites
+
+- All courtyard decorations (bench, dumpster, flowerbed, tree, lamppost, kvass stand, EV charger,
+  plus new hydrant/trash bin/bicycle rack) are procedurally generated static PNGs in
+  `artifacts/game/public/sprites/` via `artifacts/game/scripts/generate-props.mjs`, drawn with the
+  same `PixelGrid` toolkit used for characters. `artifacts/game/src/game/sprites.ts` exposes
+  `DECOR_SPRITE_META` (size + vertical anchor offset per type) and `renderer.ts::drawDecorations()`
+  draws the sprite first, falling back to the old primitive-shape drawing if a sprite fails to load.
+  Regenerate all sprites (characters + props) with `pnpm --filter @workspace/game run gen:sprites`.
+
 ## Main menu redesign (in progress)
 
 - `docs/design/main-menu-style-guide.md` — "Propaganda Pop" (Soviet-retro poster) visual style
