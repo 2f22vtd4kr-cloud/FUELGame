@@ -28,3 +28,4 @@
 - [95-Y sprite generation workflow](game-sprite-generation-workflow.md) — procedural (Node+zlib) sprite sheets for all 10 characters + static map-prop PNGs (bench/tree/hydrant/etc.), same PixelGrid toolkit
 - [Denis sprite canvas design](denis-sprite-canvas.md) — canvas mockup done (DenisSprite.tsx, 4×4 grid, all dirs); next session: export to char_denis.png via node-canvas
 - [Import setup quirks](import-setup-quirks.md) — after re-import, run `pnpm install`; a duplicate un-removable "artifacts/api-server: API Server" workflow is harmless
+- [Sprite outline + chibi technique](game-sprite-outline-chibi.md) — PixelGrid#outline() + bigger-head proportions fixed "looks like shit" feedback; watch DECOR_SPRITE_META drift when resizing prop canvases

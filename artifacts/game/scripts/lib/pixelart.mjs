@@ -116,6 +116,36 @@ export class PixelGrid {
     }
     return out;
   }
+
+  /**
+   * Traces a 1px outline around the silhouette in-place: any currently-empty
+   * pixel that is 8-adjacent to a filled pixel is set to `color`. This is
+   * the single highest-impact pixel-art polish step — a clean dark border
+   * is what makes flat color blocks read as a professional character/prop
+   * sprite instead of a blob. Must be called LAST, after every shape for
+   * the frame has been drawn, since it only fills pixels still empty at
+   * that point (it never overwrites existing color).
+   */
+  outline(color = '#14100C') {
+    const additions = [];
+    for (let y = 0; y < this.height; y++) {
+      for (let x = 0; x < this.width; x++) {
+        if (this.grid[y][x]) continue;
+        let touchesFilled = false;
+        for (let dy = -1; dy <= 1 && !touchesFilled; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= this.width || ny >= this.height) continue;
+            if (this.grid[ny][nx]) { touchesFilled = true; break; }
+          }
+        }
+        if (touchesFilled) additions.push([x, y]);
+      }
+    }
+    for (const [x, y] of additions) this.set(x, y, color);
+  }
 }
 
 /**

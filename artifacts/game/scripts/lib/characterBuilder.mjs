@@ -18,36 +18,48 @@ const CYCLE = [
   { legShift: 0, armSwing: 0, bob: -2 },
 ];
 
+// ─── Chibi proportions (v2: "beautiful sprites" pass) ──────────────────────
+// Reference art (asset-library sheet) reads as chibi: an oversized rounded
+// head (~roughly half the figure height) sitting on a short, stubby body,
+// every shape finished with a crisp dark outline. v1 used an adult-like
+// head-to-body ratio and had no outline at all, which is what made it read
+// as a blobby placeholder instead of a finished character. Head radius grew
+// 11->15 (mostly by extending both up and down from the same center, so
+// existing cap/face-feature offsets barely needed to move) and torso/legs
+// were shortened so the head dominates the silhouette. `PixelGrid#outline`
+// is called last for every frame — see lib/pixelart.mjs.
+const OUTLINE = '#14100C';
+
 /** Draws headwear (or hair-only) onto the front/back builder at cap position. */
 function drawHeadFrontBack(g, cx, bob, cfg, facing) {
   const { headwear, hair } = cfg;
   if (facing === 'up') {
     // Back of head — solid dome, no face
-    g.fillEllipse(cx, 20 + bob, 11, 10, hair);
+    g.fillEllipse(cx, 19 + bob, 14, 12, hair);
     if (headwear.type === 'cap') {
-      g.fillEllipse(cx, 11 + bob, 13, 11, headwear.shade);
-      g.fillEllipse(cx - 1, 10 + bob, 12, 10, headwear.color);
-      g.fillRoundedRect(cx - 6, 18 + bob, 12, 4, 2, headwear.shade);
+      g.fillEllipse(cx, 10 + bob, 16, 12, headwear.shade);
+      g.fillEllipse(cx - 1, 9 + bob, 15, 11, headwear.color);
+      g.fillRoundedRect(cx - 7, 17 + bob, 14, 5, 2, headwear.shade);
     } else if (headwear.type === 'bandana') {
-      g.fillEllipse(cx, 14 + bob, 12, 8, headwear.shade);
-      g.fillEllipse(cx - 1, 13 + bob, 11, 7, headwear.color);
+      g.fillEllipse(cx, 13 + bob, 15, 9, headwear.shade);
+      g.fillEllipse(cx - 1, 12 + bob, 14, 8, headwear.color);
     }
     return;
   }
   // Down (facing viewer)
   if (headwear.type === 'cap') {
-    g.fillEllipse(cx, 9 + bob, 13, 9, headwear.shade);
-    g.fillEllipse(cx - 2, 8 + bob, 12, 8, headwear.color);
-    g.fillRoundedRect(cx - 11, 13 + bob, 22, 4, 2, headwear.bill ?? '#2B2B2E');
-    if (headwear.badge) g.fillCircle(cx, 7 + bob, 3, headwear.badge);
+    g.fillEllipse(cx, 8 + bob, 16, 10, headwear.shade);
+    g.fillEllipse(cx - 2, 7 + bob, 15, 9, headwear.color);
+    g.fillRoundedRect(cx - 13, 12 + bob, 26, 5, 2, headwear.bill ?? '#2B2B2E');
+    if (headwear.badge) g.fillCircle(cx, 6 + bob, 3.2, headwear.badge);
   } else if (headwear.type === 'bandana') {
-    g.fillEllipse(cx, 12 + bob, 12, 7, headwear.shade);
-    g.fillEllipse(cx - 1, 11 + bob, 11, 6, headwear.color);
-    g.fillRoundedRect(cx - 12, 14 + bob, 6, 4, 2, headwear.color);
+    g.fillEllipse(cx, 11 + bob, 14, 8, headwear.shade);
+    g.fillEllipse(cx - 1, 10 + bob, 13, 7, headwear.color);
+    g.fillRoundedRect(cx - 14, 13 + bob, 7, 5, 2, headwear.color);
   } else if (headwear.type === 'bun') {
-    g.fillCircle(cx, 8 + bob, 5, hair);
+    g.fillCircle(cx, 6 + bob, 6, hair);
   } else if (headwear.type === 'none') {
-    g.fillRoundedRect(cx - 9, 14 + bob, 18, 5, 2, hair);
+    g.fillRoundedRect(cx - 11, 12 + bob, 22, 6, 3, hair);
   }
 }
 
@@ -57,10 +69,10 @@ function buildFrontBack(cfg, facing, { legShift, bob }) {
   const cx = 32;
   const { skin, skinShade, top, bottom, shoe, shoeSole } = cfg;
 
-  // Legs
+  // Legs — short and stubby, chibi body sits below a much bigger head
   const legW = 10;
-  const legTopY = 50;
-  const legH = 10;
+  const legTopY = 48;
+  const legH = 9;
   const leftLegX = cx - 12 - legShift * 0.5;
   const rightLegX = cx + 2 + legShift * 0.5;
   g.fillRoundedRect(Math.round(leftLegX), legTopY + bob, legW, legH, 4, bottom.color);
@@ -73,43 +85,48 @@ function buildFrontBack(cfg, facing, { legShift, bob }) {
   g.fillRoundedRect(Math.round(rightLegX) - 1, legTopY + legH + 2 + bob, legW + 2, 2, 1, shoeSole);
 
   // Hips
-  g.fillRoundedRect(cx - 15, 48 + bob, 30, 8, 4, bottom.color);
+  g.fillRoundedRect(cx - 15, 44 + bob, 30, 8, 4, bottom.color);
 
   // Arms
-  g.fillRoundedRect(cx - 21, 32 + bob, 9, 20, 4, top.color);
-  g.fillRoundedRect(cx + 12, 32 + bob, 9, 20, 4, top.color);
-  g.fillCircle(cx - 17, 51 + bob, 4, skin);
-  g.fillCircle(cx + 17, 51 + bob, 4, skin);
+  g.fillRoundedRect(cx - 21, 30 + bob, 9, 18, 4, top.color);
+  g.fillRoundedRect(cx + 12, 30 + bob, 9, 18, 4, top.color);
+  g.fillCircle(cx - 17, 47 + bob, 4, skin);
+  g.fillCircle(cx + 17, 47 + bob, 4, skin);
 
-  // Torso
-  g.fillRoundedRect(cx - 16, 30 + bob, 32, 24, 9, top.color);
-  g.fillRect(cx + 4, 32 + bob, 12, 20, top.shade);
+  // Torso — shortened so the head reads as dominant (chibi ratio)
+  g.fillRoundedRect(cx - 15, 28 + bob, 30, 18, 8, top.color);
+  g.fillRect(cx + 3, 30 + bob, 12, 14, top.shade);
   if (top.accent) {
-    g.fillRect(cx - 1, 33 + bob, 2, 18, top.accent);
+    g.fillRect(cx - 1, 31 + bob, 2, 13, top.accent);
   }
-  g.fillRoundedRect(cx - 11, 39 + bob, 5, 6, 1, top.shade);
-  g.fillRoundedRect(cx - 6, 28 + bob, 12, 5, 2, top.collar ?? top.shade);
+  g.fillRoundedRect(cx - 10, 35 + bob, 5, 5, 1, top.shade);
+  g.fillRoundedRect(cx - 6, 26 + bob, 12, 5, 2, top.collar ?? top.shade);
 
-  // Head
-  g.fillEllipse(cx, 24 + bob, 11, 11, skin);
-  g.fillEllipse(cx + 5, 26 + bob, 7, 8, skinShade);
+  // Head — big and round (chibi), drawn after torso so it dominates the silhouette
+  g.fillEllipse(cx, 21 + bob, 15, 15, skin);
+  g.fillEllipse(cx + 6, 24 + bob, 9, 10, skinShade);
 
   if (facing === 'down') {
-    g.fillRoundedRect(cx - 8, 20 + bob, 4, 2, 1, cfg.hair);
-    g.fillRoundedRect(cx + 4, 20 + bob, 4, 2, 1, cfg.hair);
-    g.fillCircle(cx - 6, 23 + bob, 1.6, '#2A1E14');
-    g.fillCircle(cx + 6, 23 + bob, 1.6, '#2A1E14');
-    g.set(cx, 26 + bob, skinShade);
-    if (cfg.mustache) g.fillRoundedRect(cx - 4, 28 + bob, 8, 2, 1, cfg.hair);
-    g.fillRoundedRect(cx - 3, 29 + bob, 6, 2, 1, '#8A5A38');
+    g.fillRoundedRect(cx - 9, 16 + bob, 5, 2, 1, cfg.hair);
+    g.fillRoundedRect(cx + 4, 16 + bob, 5, 2, 1, cfg.hair);
+    g.fillCircle(cx - 6, 20 + bob, 2, '#2A1E14');
+    g.fillCircle(cx + 6, 20 + bob, 2, '#2A1E14');
+    // Tiny eye highlight — cheap but reads as "alive" instead of dead dots
+    g.set(cx - 7, 19 + bob, '#FFFFFF');
+    g.set(cx + 5, 19 + bob, '#FFFFFF');
+    g.set(cx, 23 + bob, skinShade);
+    if (cfg.mustache) g.fillRoundedRect(cx - 4, 26 + bob, 8, 2, 1, cfg.hair);
+    g.fillRoundedRect(cx - 3, 27 + bob, 6, 2, 1, '#8A5A38');
     if (cfg.glasses) {
-      g.fillRoundedRect(cx - 9, 21 + bob, 6, 4, 1, '#1A1A1A80');
-      g.fillRoundedRect(cx + 3, 21 + bob, 6, 4, 1, '#1A1A1A80');
+      g.fillRoundedRect(cx - 10, 18 + bob, 7, 5, 2, '#1A1A1A80');
+      g.fillRoundedRect(cx + 3, 18 + bob, 7, 5, 2, '#1A1A1A80');
+      g.fillRect(cx - 3, 20 + bob, 6, 1, '#1A1A1A80');
     }
   }
 
   drawHeadFrontBack(g, cx, bob, cfg, facing);
 
+  g.outline(OUTLINE);
   return g;
 }
 
@@ -122,48 +139,52 @@ function buildProfileRight(cfg, { legShift, armSwing, bob }) {
   const legW = 9;
   const nearLegX = cx - 4 + legShift;
   const farLegX = cx - 4 - legShift * 0.6;
-  g.fillRoundedRect(Math.round(farLegX) - 3, 50 + bob, legW, 9, 4, bottom.shade);
-  g.fillRoundedRect(Math.round(farLegX) - 3, 56 + bob, legW, 6, 3, shoe);
+  g.fillRoundedRect(Math.round(farLegX) - 3, 48 + bob, legW, 8, 4, bottom.shade);
+  g.fillRoundedRect(Math.round(farLegX) - 3, 54 + bob, legW, 6, 3, shoe);
 
-  g.fillRoundedRect(cx - 13, 48 + bob, 22, 8, 4, bottom.color);
+  g.fillRoundedRect(cx - 13, 44 + bob, 22, 8, 4, bottom.color);
 
-  g.fillRoundedRect(Math.round(nearLegX) - 3, 50 + bob, legW, 10, 4, bottom.color);
-  g.fillRoundedRect(Math.round(nearLegX) - 4, 58 + bob, legW + 2, 6, 3, shoe);
-  g.fillRoundedRect(Math.round(nearLegX) - 4, 62 + bob, legW + 2, 2, 1, shoeSole);
+  g.fillRoundedRect(Math.round(nearLegX) - 3, 46 + bob, legW, 10, 4, bottom.color);
+  g.fillRoundedRect(Math.round(nearLegX) - 4, 54 + bob, legW + 2, 6, 3, shoe);
+  g.fillRoundedRect(Math.round(nearLegX) - 4, 58 + bob, legW + 2, 2, 1, shoeSole);
 
-  g.fillRoundedRect(cx - 12, 34 + bob, 8, 16 - armSwing * 0.3, 4, top.shade);
+  g.fillRoundedRect(cx - 12, 30 + bob, 8, 14 - armSwing * 0.3, 4, top.shade);
 
-  g.fillRoundedRect(cx - 12, 30 + bob, 26, 24, 9, top.color);
-  g.fillRect(cx - 12, 32 + bob, 8, 20, top.shade);
-  if (top.accent) g.fillRect(cx + 3, 34 + bob, 2, 16, top.accent);
-  g.fillRoundedRect(cx - 3, 28 + bob, 10, 5, 2, top.collar ?? top.shade);
+  g.fillRoundedRect(cx - 12, 27 + bob, 26, 18, 8, top.color);
+  g.fillRect(cx - 12, 29 + bob, 8, 14, top.shade);
+  if (top.accent) g.fillRect(cx + 3, 31 + bob, 2, 12, top.accent);
+  g.fillRoundedRect(cx - 3, 25 + bob, 10, 5, 2, top.collar ?? top.shade);
 
-  const armY = 34 + bob + armSwing * 0.4;
-  g.fillRoundedRect(cx + 6, armY, 9, 18, 4, top.color);
-  g.fillCircle(cx + 10, armY + 18, 4, skin);
+  const armY = 30 + bob + armSwing * 0.4;
+  g.fillRoundedRect(cx + 6, armY, 9, 16, 4, top.color);
+  g.fillCircle(cx + 10, armY + 16, 4, skin);
 
-  g.fillEllipse(cx + 2, 20 + bob, 10, 10, skin);
-  g.fillEllipse(cx + 6, 22 + bob, 6, 7, skinShade);
-  g.fillCircle(cx + 8, 20 + bob, 1.4, '#2A1E14');
-  g.fillRoundedRect(cx + 11, 20 + bob, 2, 3, 1, skin);
-  if (cfg.mustache) g.fillRoundedRect(cx + 9, 23 + bob, 3, 2, 1, hair);
-  g.fillRoundedRect(cx + 6, 24 + bob, 4, 2, 1, '#8A5A38');
+  // Head — big and round (chibi)
+  g.fillEllipse(cx + 2, 18 + bob, 14, 14, skin);
+  g.fillEllipse(cx + 7, 21 + bob, 8, 9, skinShade);
+  g.fillCircle(cx + 11, 18 + bob, 2, '#2A1E14');
+  g.set(cx + 12, 17 + bob, '#FFFFFF');
+  g.fillRoundedRect(cx + 14, 18 + bob, 3, 4, 1, skin);
+  if (cfg.mustache) g.fillRoundedRect(cx + 11, 21 + bob, 4, 2, 1, hair);
+  g.fillRoundedRect(cx + 8, 22 + bob, 5, 2, 1, '#8A5A38');
+  if (cfg.glasses) g.fillRoundedRect(cx + 7, 16 + bob, 8, 5, 2, '#1A1A1A80');
 
   if (headwear.type === 'cap') {
-    g.fillEllipse(cx + 1, 11 + bob, 12, 10, headwear.shade);
-    g.fillEllipse(cx, 10 + bob, 11, 9, headwear.color);
-    g.fillRoundedRect(cx + 8, 15 + bob, 10, 5, 2, headwear.bill ?? '#2B2B2E');
-    if (headwear.badge) g.fillCircle(cx - 3, 9 + bob, 2.6, headwear.badge);
+    g.fillEllipse(cx + 2, 9 + bob, 15, 11, headwear.shade);
+    g.fillEllipse(cx + 1, 8 + bob, 14, 10, headwear.color);
+    g.fillRoundedRect(cx + 10, 12 + bob, 12, 5, 2, headwear.bill ?? '#2B2B2E');
+    if (headwear.badge) g.fillCircle(cx - 4, 7 + bob, 2.8, headwear.badge);
   } else if (headwear.type === 'bandana') {
-    g.fillEllipse(cx + 1, 13 + bob, 11, 8, headwear.shade);
-    g.fillEllipse(cx, 12 + bob, 10, 7, headwear.color);
+    g.fillEllipse(cx + 2, 11 + bob, 13, 9, headwear.shade);
+    g.fillEllipse(cx + 1, 10 + bob, 12, 8, headwear.color);
   } else if (headwear.type === 'bun') {
-    g.fillCircle(cx - 4, 10 + bob, 5, hair);
-    g.fillEllipse(cx + 1, 15 + bob, 10, 8, hair);
+    g.fillCircle(cx - 5, 8 + bob, 6, hair);
+    g.fillEllipse(cx + 2, 13 + bob, 12, 9, hair);
   } else if (headwear.type === 'none') {
-    g.fillEllipse(cx + 1, 15 + bob, 10, 8, hair);
+    g.fillEllipse(cx + 2, 13 + bob, 12, 9, hair);
   }
 
+  g.outline(OUTLINE);
   return g;
 }
 

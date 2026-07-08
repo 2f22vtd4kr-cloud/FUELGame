@@ -36,117 +36,188 @@ function writeGrid(name, grid) {
   console.log(`Wrote ${name}.png (${grid.width}x${grid.height})`);
 }
 
+const OUTLINE = '#14100C';
+
 // ── Bench ───────────────────────────────────────────────────────────────
+// v2: proper wooden park bench read top-down — slat lines, armrests, legs
+// peeking past the seat, finished with the shared outline pass.
 {
-  const g = new PixelGrid(48, 22);
-  g.fillRoundedRect(2, 14, 44, 5, 2, '#6B4A22');
-  g.fillRoundedRect(2, 4, 44, 8, 3, '#8B6914');
-  g.fillRoundedRect(2, 4, 44, 3, 2, '#A9812E');
-  g.fillRect(5, 19, 3, 3, '#3E2A13');
-  g.fillRect(40, 19, 3, 3, '#3E2A13');
+  const g = new PixelGrid(48, 26);
+  g.fillRoundedRect(3, 18, 4, 6, 1, '#3E2A13'); // legs
+  g.fillRoundedRect(41, 18, 4, 6, 1, '#3E2A13');
+  g.fillRoundedRect(1, 6, 46, 14, 4, '#8B6914'); // seat slats block
+  g.fillRoundedRect(1, 6, 46, 3, 2, '#A9812E');
+  g.fillRoundedRect(1, 10, 46, 2, 1, '#6B4A22');
+  g.fillRoundedRect(1, 15, 46, 2, 1, '#6B4A22');
+  g.fillRoundedRect(0, 2, 6, 16, 2, '#6B4A22'); // armrests
+  g.fillRoundedRect(42, 2, 6, 16, 2, '#6B4A22');
+  g.fillRoundedRect(1, 2, 46, 3, 2, '#7A5A2A'); // backrest top rail
+  g.outline(OUTLINE);
   writeGrid('decor_bench', g);
 }
 
 // ── Dumpster ────────────────────────────────────────────────────────────
+// v2: adds a lid-seam highlight, wheels, and a graffiti-tag accent so it
+// reads as a real courtyard object instead of a flat green block.
 {
-  const g = new PixelGrid(38, 36);
-  g.fillRoundedRect(2, 8, 34, 26, 4, '#43A047');
-  g.fillRoundedRect(2, 8, 34, 8, 3, '#2E7D32');
-  g.fillRoundedRect(0, 4, 38, 6, 2, '#1B5E20');
-  g.fillRoundedRect(6, 30, 6, 5, 1, '#1B1B1B');
-  g.fillRoundedRect(26, 30, 6, 5, 1, '#1B1B1B');
-  g.fillCircle(19, 20, 6, '#C8E6C9');
+  const g = new PixelGrid(38, 38);
+  g.fillCircle(8, 34, 3, '#1B1B1B'); // wheels
+  g.fillCircle(30, 34, 3, '#1B1B1B');
+  g.fillRoundedRect(2, 10, 34, 24, 4, '#43A047'); // body
+  g.fillRoundedRect(2, 10, 34, 10, 3, '#2E7D32'); // shadow half
+  g.fillRoundedRect(0, 4, 38, 8, 2, '#1B5E20'); // lid
+  g.fillRoundedRect(0, 4, 38, 3, 2, '#2E7D32'); // lid highlight
+  g.fillRoundedRect(17, 6, 4, 4, 1, '#0F3D0F'); // handle
+  g.fillCircle(19, 22, 6, '#C8E6C9'); // recycling arrows disc
+  g.fillCircle(19, 22, 4, '#2E7D32');
+  g.fillRect(9, 30, 8, 2, '#FFEB3B'); // graffiti tag accent
+  g.outline(OUTLINE);
   writeGrid('decor_dumpster', g);
 }
 
 // ── Flowerbed ───────────────────────────────────────────────────────────
+// v2: darker soil rim, denser leaf clusters between flowers, brighter
+// petal palette so it pops against the courtyard ground texture.
 {
-  const g = new PixelGrid(60, 40);
-  g.fillEllipse(30, 20, 29, 19, '#3D7A28');
-  g.fillEllipse(30, 20, 26, 16, '#4A9430');
-  const petalColors = ['#FF6FA5', '#FFD23D', '#FF6FA5', '#FFD23D', '#FF6FA5', '#FFFFFF'];
+  const g = new PixelGrid(60, 42);
+  g.fillEllipse(30, 22, 29, 19, '#5D4037'); // soil rim
+  g.fillEllipse(30, 21, 27, 17, '#3D7A28');
+  g.fillEllipse(30, 20, 24, 15, '#4A9430');
+  for (const [lx, ly] of [[14, 16], [46, 16], [30, 30], [18, 28], [42, 28]]) {
+    g.fillCircle(lx, ly, 4, '#2E6B1E');
+  }
+  const petalColors = ['#FF6FA5', '#FFD23D', '#FF6FA5', '#7C4DFF', '#FF6FA5', '#FFFFFF'];
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2;
-    const px = 30 + Math.cos(a) * 14;
-    const py = 20 + Math.sin(a) * 8;
-    g.fillCircle(px, py, 4, petalColors[i]);
-    g.fillCircle(px, py, 1.4, '#7A4A00');
+    const px = 30 + Math.cos(a) * 15;
+    const py = 20 + Math.sin(a) * 9;
+    g.fillCircle(px, py, 4.5, petalColors[i]);
+    g.fillCircle(px, py, 1.6, '#7A4A00');
   }
+  g.fillCircle(30, 20, 4, '#FFD23D');
+  g.outline(OUTLINE);
   writeGrid('decor_flowerbed', g);
 }
 
 // ── Tree ────────────────────────────────────────────────────────────────
+// v2: rounder layered canopy with a lit side, visible root flare and bark
+// texture lines on the trunk.
 {
-  const g = new PixelGrid(50, 66);
-  g.fillRoundedRect(21, 46, 8, 18, 2, '#5D4037');
-  g.fillRoundedRect(21, 46, 8, 6, 2, '#4A3226');
-  g.fillEllipse(25, 30, 23, 22, '#2E7D32');
-  g.fillEllipse(18, 22, 15, 15, '#388E3C');
-  g.fillEllipse(32, 20, 13, 13, '#43A047');
-  g.fillEllipse(25, 14, 12, 11, '#4CAF50');
+  const g = new PixelGrid(52, 68);
+  g.fillEllipse(26, 56, 12, 5, '#1B5E20'); // root shadow
+  g.fillRoundedRect(20, 44, 10, 18, 3, '#5D4037');
+  g.fillRect(20, 44, 3, 18, '#4A3226');
+  g.fillRect(27, 44, 3, 18, '#6D4C41');
+  g.fillEllipse(26, 28, 24, 23, '#2E7D32');
+  g.fillEllipse(17, 20, 16, 16, '#388E3C');
+  g.fillEllipse(35, 18, 13, 13, '#2E7D32');
+  g.fillEllipse(26, 12, 13, 12, '#43A047');
+  g.fillEllipse(19, 15, 8, 7, '#66BB6A'); // sunlit highlight
+  g.outline(OUTLINE);
   writeGrid('decor_tree', g);
 }
 
 // ── Lamppost ────────────────────────────────────────────────────────────
+// v2: tapered pole with a rivet band and a warmer glow halo.
 {
-  const g = new PixelGrid(18, 64);
-  g.fillRoundedRect(7, 12, 4, 48, 1, '#37474F');
-  g.fillRoundedRect(2, 58, 14, 4, 1, '#263238');
-  g.fillEllipse(9, 8, 8, 9, '#FFF9C4');
-  g.fillEllipse(9, 8, 5, 6, '#FFEE58');
-  g.fillRoundedRect(4, 0, 10, 4, 2, '#455A64');
+  const g = new PixelGrid(20, 66);
+  g.fillEllipse(10, 8, 9, 10, '#FFF9C440'); // outer glow
+  g.fillRoundedRect(8, 14, 4, 46, 1, '#37474F');
+  g.fillRect(8, 30, 4, 2, '#263238'); // rivet band
+  g.fillRoundedRect(3, 60, 14, 4, 1, '#263238');
+  g.fillEllipse(10, 8, 8, 9, '#FFF9C4');
+  g.fillEllipse(10, 8, 5, 6, '#FFEE58');
+  g.fillRoundedRect(5, 0, 10, 4, 2, '#455A64');
+  g.outline(OUTLINE);
   writeGrid('decor_lamppost', g);
 }
 
 // ── Kvass stand ─────────────────────────────────────────────────────────
+// v2: adds a canopy stripe pattern, serving window highlight, sign text
+// block, and a barrel tap so it reads as a functional kiosk.
 {
-  const g = new PixelGrid(42, 46);
-  g.fillRoundedRect(2, 16, 38, 26, 3, '#E65100');
-  g.fillRoundedRect(2, 16, 38, 6, 2, '#BF360C');
-  g.fillRoundedRect(0, 8, 42, 10, 3, '#FFCA28');
-  g.fillRoundedRect(17, 30, 8, 12, 2, '#FFC107');
-  g.fillCircle(21, 42, 3, '#795548');
+  const g = new PixelGrid(44, 48);
+  g.fillCircle(10, 44, 3, '#3E2A13'); // legs
+  g.fillCircle(34, 44, 3, '#3E2A13');
+  g.fillRoundedRect(3, 18, 38, 26, 3, '#E65100'); // booth body
+  g.fillRoundedRect(3, 18, 38, 8, 2, '#BF360C');
+  g.fillRoundedRect(8, 28, 28, 12, 2, '#4A2E1C'); // serving window
+  g.fillRoundedRect(9, 29, 26, 8, 1, '#2E1C10');
+  g.fillRoundedRect(0, 8, 44, 12, 3, '#FFCA28'); // canopy
+  for (let sx = 2; sx < 42; sx += 8) g.fillRect(sx, 8, 4, 12, '#E65100');
+  g.fillRoundedRect(18, 34, 8, 12, 2, '#FFC107'); // kvass barrel
+  g.fillRect(19, 38, 6, 2, '#B8860B');
+  g.fillCircle(22, 44, 2.4, '#5D4037'); // tap
+  g.outline(OUTLINE);
   writeGrid('decor_kvass_stand', g);
 }
 
 // ── EV charger (broken) ─────────────────────────────────────────────────
+// v2: cracked screen, warning sparks, and a cable coil for visual noise.
 {
-  const g = new PixelGrid(30, 78);
-  g.fillRoundedRect(11, 30, 8, 44, 2, '#546E7A');
-  g.fillRoundedRect(9, 44, 12, 6, 2, '#37474F');
-  g.fillRoundedRect(2, 0, 26, 24, 3, '#1A237E');
-  g.fillRoundedRect(4, 2, 22, 18, 2, '#151B60');
-  g.fillCircle(23, 40, 3, '#FF1744');
+  const g = new PixelGrid(32, 80);
+  g.fillRoundedRect(12, 32, 8, 44, 2, '#546E7A'); // post
+  g.fillRoundedRect(10, 46, 12, 6, 2, '#37474F');
+  g.fillEllipse(9, 62, 3, 6, '#263238'); // cable coil hint
+  g.fillRoundedRect(3, 0, 26, 26, 3, '#1A237E'); // head unit
+  g.fillRoundedRect(5, 2, 22, 20, 2, '#151B60');
+  g.fillRect(7, 4, 18, 14, '#0D103A'); // cracked screen
+  g.fillRect(9, 6, 3, 10, '#1E2470');
+  g.fillRect(15, 4, 2, 14, '#1E2470');
+  g.fillCircle(24, 42, 3, '#FF1744'); // fault light
+  g.fillCircle(24, 42, 1.2, '#FFCDD2');
+  g.outline(OUTLINE);
   writeGrid('decor_ev_charger', g);
 }
 
 // ── Fire hydrant ────────────────────────────────────────────────────────
+// v2: straight-walled cylinder body (not a squashed rounded-rect, which
+// pinched into a heart/berry shape) with a domed cap, flared base, and
+// two side nozzles that sit clear of the body outline.
 {
-  const g = new PixelGrid(20, 30);
-  g.fillRoundedRect(7, 22, 6, 6, 2, '#7A1010');
-  g.fillRoundedRect(4, 8, 12, 16, 4, '#D32F2F');
-  g.fillRoundedRect(2, 12, 4, 6, 2, '#B71C1C');
-  g.fillRoundedRect(14, 12, 4, 6, 2, '#B71C1C');
-  g.fillEllipse(10, 6, 6, 6, '#E53935');
-  g.fillRoundedRect(8, 0, 4, 4, 1, '#B71C1C');
+  const g = new PixelGrid(22, 32);
+  g.fillRoundedRect(4, 25, 14, 5, 2, '#7A1010'); // flared base
+  g.fillRect(5, 12, 12, 15, '#D32F2F'); // straight body
+  g.fillRect(5, 12, 5, 15, '#E53935'); // lit side
+  g.fillRoundedRect(0, 15, 4, 5, 1, '#B71C1C'); // left nozzle
+  g.fillRoundedRect(18, 15, 4, 5, 1, '#B71C1C'); // right nozzle
+  g.fillCircle(2, 17, 1, '#7A1010');
+  g.fillCircle(20, 17, 1, '#7A1010');
+  g.fillRoundedRect(6, 8, 10, 5, 2, '#D32F2F'); // collar
+  g.fillEllipse(11, 6, 6, 6, '#E53935'); // dome cap
+  g.fillEllipse(9, 4, 2.4, 2.4, '#F06B66'); // cap highlight
+  g.fillRoundedRect(9, 0, 4, 4, 1, '#B71C1C'); // bolt
+  g.outline(OUTLINE);
   writeGrid('decor_hydrant', g);
 }
 
 // ── Park trash bin ──────────────────────────────────────────────────────
+// v2: rim highlight, liner peeking over the top, and a foot pedal.
 {
-  const g = new PixelGrid(22, 28);
-  g.fillRoundedRect(3, 6, 16, 20, 3, '#455A64');
-  g.fillRoundedRect(1, 2, 20, 6, 2, '#263238');
-  g.fillRect(9, 10, 4, 12, '#37474F');
+  const g = new PixelGrid(24, 30);
+  g.fillRect(10, 26, 4, 3, '#1B1B1B'); // pedal
+  g.fillRoundedRect(4, 8, 16, 19, 3, '#455A64'); // body
+  g.fillRoundedRect(4, 8, 6, 19, 2, '#54707D'); // lit side
+  g.fillRoundedRect(2, 3, 20, 6, 2, '#263238'); // rim
+  g.fillRoundedRect(3, 3, 18, 2, 1, '#37474F'); // liner peeking over
+  g.fillRect(10, 11, 4, 13, '#37474F'); // seam
+  g.outline(OUTLINE);
   writeGrid('decor_trash_bin', g);
 }
 
 // ── Bicycle rack ────────────────────────────────────────────────────────
+// v2: adds a second bike frame + basket so the rack doesn't read as empty.
 {
-  const g = new PixelGrid(52, 26);
-  g.fillRoundedRect(2, 18, 48, 4, 2, '#455A64');
-  for (const cx of [10, 26, 42]) g.fillRoundedRect(cx - 2, 4, 4, 16, 2, '#607D8B');
-  g.fillCircle(12, 10, 5, '#1565C0');
-  g.fillCircle(30, 8, 5, '#C62828');
+  const g = new PixelGrid(54, 30);
+  g.fillRoundedRect(2, 20, 50, 4, 2, '#455A64'); // rail
+  for (const cx of [10, 27, 44]) g.fillRoundedRect(cx - 2, 6, 4, 16, 2, '#607D8B');
+  g.fillCircle(12, 12, 6, '#1565C0'); // bike 1 wheel
+  g.fillCircle(12, 12, 3, '#0D3E7A');
+  g.fillRoundedRect(12, 6, 10, 2, 1, '#B0BEC5'); // bike 1 frame
+  g.fillCircle(34, 10, 6, '#C62828'); // bike 2 wheel
+  g.fillCircle(34, 10, 3, '#7A1010');
+  g.fillRoundedRect(34, 4, 10, 2, 1, '#B0BEC5'); // bike 2 frame
+  g.fillRoundedRect(40, 2, 6, 4, 1, '#8D6E63'); // basket
+  g.outline(OUTLINE);
   writeGrid('decor_bicycle_rack', g);
 }

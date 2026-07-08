@@ -32,17 +32,20 @@ const SPRITE_KEYS = [
 ];
 
 /** Draw size + vertical anchor offset (px, relative to the decoration's (x,y) point) for each prop sprite. */
+// Dimensions must match the actual generated PNGs in public/sprites/ (see
+// scripts/generate-props.mjs) — offsetY is tuned so each prop's visual base
+// stays anchored to the same world point when its native size changes.
 export const DECOR_SPRITE_META: Record<string, { w: number; h: number; offsetY: number }> = {
-  decor_bench: { w: 48, h: 22, offsetY: 2 },
-  decor_dumpster: { w: 38, h: 36, offsetY: 0 },
-  decor_flowerbed: { w: 60, h: 40, offsetY: 0 },
-  decor_tree: { w: 50, h: 66, offsetY: -7 },
-  decor_lamppost: { w: 18, h: 64, offsetY: 0 },
-  decor_kvass_stand: { w: 42, h: 46, offsetY: -4 },
-  decor_ev_charger: { w: 30, h: 78, offsetY: -14 },
-  decor_hydrant: { w: 20, h: 30, offsetY: -4 },
-  decor_trash_bin: { w: 22, h: 28, offsetY: -4 },
-  decor_bicycle_rack: { w: 52, h: 26, offsetY: 0 },
+  decor_bench: { w: 48, h: 26, offsetY: 0 },
+  decor_dumpster: { w: 38, h: 38, offsetY: -1 },
+  decor_flowerbed: { w: 60, h: 42, offsetY: -1 },
+  decor_tree: { w: 52, h: 68, offsetY: -8 },
+  decor_lamppost: { w: 20, h: 66, offsetY: -1 },
+  decor_kvass_stand: { w: 44, h: 48, offsetY: -5 },
+  decor_ev_charger: { w: 32, h: 80, offsetY: -15 },
+  decor_hydrant: { w: 22, h: 32, offsetY: -5 },
+  decor_trash_bin: { w: 24, h: 30, offsetY: -5 },
+  decor_bicycle_rack: { w: 54, h: 30, offsetY: -2 },
 };
 
 /** Maps car `id` → sprite key, matching colours to doc §7.2 car palette. */

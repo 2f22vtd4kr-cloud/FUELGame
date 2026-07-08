@@ -67,6 +67,7 @@ function buildFrontBack(facing, { legShift, bob }) {
     g.fillEllipse(cx, cy - 15, 9, 8, FUR_SHADE);
   }
 
+  g.outline('#14100C');
   return g;
 }
 
@@ -100,6 +101,7 @@ function buildProfileRight({ legShift, bob }) {
   g.fillCircle(cx + 17, cy - 7, 1.5, EYE);
   g.fillEllipse(cx + 21, cy - 4, 1.5, 1.2, NOSE);
 
+  g.outline('#14100C');
   return g;
 }
 
