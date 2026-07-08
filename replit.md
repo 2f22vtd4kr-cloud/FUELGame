@@ -43,6 +43,15 @@ The game is then available at the Replit preview URL (root path `/`).
 - `artifacts/game/src/components/Lobby.tsx` — character select + game settings
 - `artifacts/game/src/components/GameCanvas.tsx` — mounts canvas, drives RAF loop
 
+## Main menu redesign (in progress)
+
+- `docs/design/main-menu-style-guide.md` — "Propaganda Pop" (Soviet-retro poster) visual style
+  approved for the main menu/lobby screen. Currently only exists as a mockup at
+  `artifacts/mockup-sandbox/src/components/mockups/main-menu/Propaganda.tsx` — **not yet graduated**
+  into `artifacts/game/src/components/Lobby.tsx`. Next session: graduate it into the real Lobby
+  component using this style guide as the reference, then extend the same visual system to other
+  screens (Shop, Leaderboard, Meeting) over time.
+
 ## Design bible
 
 - `attached_assets/1_Game_DOC_1783421374443.md` — Volume I, 1992-line source of truth for all mechanics. **Fully implemented.**
