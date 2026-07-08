@@ -12,6 +12,7 @@ import { loadTextures } from '../game/textures';
 import type { GameNetwork } from '../game/network';
 import VirtualJoystick from './VirtualJoystick';
 import { touchInput, setTouchInteract, toggleTouchSprint, resetTouchInput } from '../game/touchInput';
+import { isTouchDevice } from '../lib/utils';
 
 interface GameCanvasProps {
   onStateSnapshot: (snap: typeof gs) => void;
@@ -254,16 +255,27 @@ export default function GameCanvas({ onStateSnapshot, network, myPlayerId }: Gam
         visible={true}
       />
 
-      {/* Desktop controls hint */}
-      <div style={{
-        position: 'absolute', left: 12, bottom: 12,
-        color: 'rgba(255,255,255,0.4)', fontSize: 10, lineHeight: 1.5,
-        pointerEvents: 'none',
-      }}>
-        WASD — движение &nbsp;|&nbsp; E/Пробел — взаимодействие<br />
-        Shift — спринт (toggle) &nbsp;|&nbsp; Ctrl — присесть &nbsp;|&nbsp; Q — эмоции
-        {network && <><br /><span style={{ color: 'rgba(0,230,118,0.6)' }}>🌐 Мультиплеер</span></>}
-      </div>
+      {/* Desktop controls hint — never shown on touch devices; this is a mobile-first game */}
+      {!isTouchDevice() && (
+        <div style={{
+          position: 'absolute', left: 12, bottom: 12,
+          color: 'rgba(255,255,255,0.4)', fontSize: 10, lineHeight: 1.5,
+          pointerEvents: 'none',
+        }}>
+          WASD — движение &nbsp;|&nbsp; E/Пробел — взаимодействие<br />
+          Shift — спринт (toggle) &nbsp;|&nbsp; Ctrl — присесть &nbsp;|&nbsp; Q — эмоции
+          {network && <><br /><span style={{ color: 'rgba(0,230,118,0.6)' }}>🌐 Мультиплеер</span></>}
+        </div>
+      )}
+      {network && isTouchDevice() && (
+        <div style={{
+          position: 'absolute', left: 12, bottom: 12,
+          color: 'rgba(0,230,118,0.6)', fontSize: 10, lineHeight: 1.5,
+          pointerEvents: 'none',
+        }}>
+          🌐 Мультиплеер
+        </div>
+      )}
     </div>
   );
 }

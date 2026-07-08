@@ -129,6 +129,15 @@ function TapTiming({ mg }: { mg: MiniGameState }) {
 
 // ─── Rapid Tap ────────────────────────────────────────────────────────────────
 
+/** Action label shown on the rapid-tap button, per task — never raw keyboard hints. */
+const RAPID_TAP_LABELS: Partial<Record<TaskDefKey, string>> = {
+  flowers: '🌸 Поливаем!',
+  water_lawn: '💧 Поливаем!',
+  fix_swing: '🔨 Починяем!',
+  pigeons: '🕊️ Корми!',
+  sweep: '🧹 Мети!',
+};
+
 function RapidTap({ mg }: { mg: MiniGameState }) {
   const pct = (mg.tapCount / mg.requiredTaps) * 100;
   return (
@@ -161,7 +170,7 @@ function RapidTap({ mg }: { mg: MiniGameState }) {
           fontWeight: 'bold',
         }}
       >
-        {mg.feedback === 'miss' ? '⏱ Сначала!' : mg.defKey === 'flowers' ? '💧 Поливаем!' : mg.defKey === 'fix_swing' ? '🔨 Починяем!' : '[E] БЫМ!'}
+        {mg.feedback === 'miss' ? '⏱ Сначала!' : RAPID_TAP_LABELS[mg.defKey] ?? 'Жми!'}
       </button>
     </div>
   );

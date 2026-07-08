@@ -89,6 +89,14 @@ pnpm --filter @workspace/game run typecheck
 - Coordinate system: 1200×900 canvas pixels (`MAP_W`, `MAP_H` in `types.ts`)
 - `VISION_RADIUS=420px ≈ 12m`, `INTERACT_RADIUS=65px ≈ 1.5m`
 
+## Production standards
+
+- **Read `docs/PRODUCTION_STANDARDS.md` at the start of every session.** It
+  captures a direct "reset of expectations" from the owner about quality bar,
+  process (stop fixing one thing at a time), mobile-first requirements, and a
+  production checklist. Every change should be checked against it before
+  being considered done.
+
 ## User preferences
 
 - Keep the existing monorepo structure and pnpm workspace conventions
