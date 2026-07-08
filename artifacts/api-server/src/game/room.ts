@@ -1,6 +1,8 @@
 import type { WebSocket } from 'ws';
 import { encode } from '@msgpack/msgpack';
 import type { InputState } from './types';
+
+const logger = { info: (obj: object, msg: string) => console.log(`[INFO] ${msg}`, obj) };
 import { gs, setGs, startGameMultiplayer, createInitialState } from './state';
 import type { HumanPlayerInfo } from './state';
 import { tickGameMulti, submitVote, submitSkipDiscussion, onMiniGameTap, onMiniGameDigitTap, onMiniGameChoice, onMiniGameTaxiTap, onMiniGameWireSource, onMiniGameWireSocket, cancelMiniGame, triggerEmote } from './logic';
