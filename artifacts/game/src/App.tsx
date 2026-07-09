@@ -38,6 +38,9 @@ export default function App() {
       gs.botDifficulty = 'medium';
       startGame('denis', 6, 2, false);
       skipBriefing();
+      // Suppress tutorial + role splash so QA screenshots show the bare canvas
+      localStorage.setItem('95Y_tutorial', 'done');
+      gs.tutorialStep = 0;
       return 'play';
     }
     return 'lobby';

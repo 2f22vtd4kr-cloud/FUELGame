@@ -290,7 +290,9 @@ export default function HUD({ state }: HUDProps) {
   const [showSettings, setShowSettings]         = useState(false);
   const [showPlayerList, setShowPlayerList]     = useState(false);
   const [showFuelDetail, setShowFuelDetail]     = useState(false);
-  const [showRoleSplash, setShowRoleSplash]     = useState(state.phase === 'play');
+  const [showRoleSplash, setShowRoleSplash]     = useState(
+    state.phase === 'play' && !new URLSearchParams(window.location.search).has('qa_autostart'),
+  );
   // Emote wheel lives on gs (not local state) since it can also be opened
   // from the "Q" key or the mobile swipe-up gesture inside <GameCanvas>.
   const showEmoteWheel = state.emoteWheelOpen;
@@ -300,7 +302,7 @@ export default function HUD({ state }: HUDProps) {
   const [isCrouchHeld, setIsCrouchHeld] = useState(false);
 
   useEffect(() => {
-    if (state.phase === 'play') {
+    if (state.phase === 'play' && !new URLSearchParams(window.location.search).has('qa_autostart')) {
       setShowRoleSplash(true);
       const timer = setTimeout(() => setShowRoleSplash(false), 4000);
       return () => clearTimeout(timer);

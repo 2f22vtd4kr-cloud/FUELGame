@@ -1444,9 +1444,11 @@ function drawPlayers(
     ctx.arc(x, y, ringRadius, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Facing direction indicator — dot at sprite edge
+    // Facing direction indicator — dot at sprite/bean edge
     ctx.fillStyle = '#fff';
-    const facingDist = isBarsik ? spriteDisplaySize / 2 + 2 : spriteDisplaySize / 2 + 4;
+    const facingDist = charSprite
+      ? (isBarsik ? spriteDisplaySize / 2 + 2 : spriteDisplaySize / 2 + 4)
+      : playerRadius + 4;
     const fx = x + Math.cos(player.facingAngle) * facingDist;
     const fy = y + Math.sin(player.facingAngle) * facingDist;
     ctx.beginPath();
