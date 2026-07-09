@@ -590,10 +590,13 @@ export default function HUD({ state }: HUDProps) {
         <button
           className="pp-action-btn"
           style={{ 
-            width: 80, height: 80, borderRadius: '50%', fontSize: 13, fontWeight: 900,
-            background: state.bodies.length > 0 ? '#cc2b1d' : 'rgba(0,0,0,0.3)',
-            border: '4px solid #fff', color: '#fff',
-            opacity: state.bodies.length > 0 ? 1 : 0.4
+            width: 80, height: 80, borderRadius: '50%', fontSize: 11, fontWeight: 900,
+            background: state.bodies.length > 0 ? '#cc2b1d' : 'rgba(20,20,20,0.55)',
+            border: state.bodies.length > 0 ? '4px solid #ff8080' : '4px solid rgba(255,255,255,0.35)',
+            color: '#fff', opacity: state.bodies.length > 0 ? 1 : 0.45,
+            boxShadow: state.bodies.length > 0 ? '0 0 18px rgba(204,43,29,0.55)' : 'none',
+            letterSpacing: '0.5px', textShadow: '0 1px 3px rgba(0,0,0,0.9)',
+            transition: 'all 0.15s ease',
           }}
           onClick={() => investigateBody(gs.localPlayerId)}
         >
@@ -604,8 +607,11 @@ export default function HUD({ state }: HUDProps) {
         <button
           className="pp-action-btn"
           style={{ 
-            width: 100, height: 100, borderRadius: '50%', fontSize: 16, fontWeight: 900,
-            background: 'rgba(255,255,255,0.15)', border: '5px solid #fff', color: '#fff'
+            width: 100, height: 100, borderRadius: '50%', fontSize: 15, fontWeight: 900,
+            background: 'rgba(255,255,255,0.18)', border: '5px solid rgba(255,255,255,0.9)',
+            color: '#fff',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.3)',
+            letterSpacing: '0.5px', textShadow: '0 1px 2px rgba(0,0,0,0.8)',
           }}
           onClick={() => {
             const evt = new KeyboardEvent('keydown', { key: 'e', code: 'KeyE' });

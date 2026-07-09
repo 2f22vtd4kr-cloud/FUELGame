@@ -46,6 +46,7 @@ const COLORS = {
 let _camSmoothX = -1; // -1 signals "uninitialised — snap on first frame"
 let _camSmoothY = -1;
 const CAM_LERP = 0.15;
+const CAMERA_ZOOM = 1.6;
 
 // ─── Vision obstacle cache ─────────────────────────────────────────────────
 // buildVisionObstacles is O(n) and called 60× per second. Cars and dumpsters
@@ -144,8 +145,8 @@ export function renderGame(
   _lastAnimTs = _animNow;
 
   // ── §2.2 Camera: smoothly follow local player with lerp at 0.15 ─────────────
-  const targetCamX = localPlayer.pos.x - cw / 2;
-  const targetCamY = localPlayer.pos.y - ch / 2;
+  const targetCamX = localPlayer.pos.x - cw / (2 * CAMERA_ZOOM);
+  const targetCamY = localPlayer.pos.y - ch / (2 * CAMERA_ZOOM);
 
   // Snap on first render or when switching phases (lobby → play)
   if (_camSmoothX === -1 || state.phase === 'briefing') {
@@ -156,10 +157,13 @@ export function renderGame(
     _camSmoothY += (targetCamY - _camSmoothY) * CAM_LERP;
   }
 
-  const camX = Math.round(_camSmoothX);
-  const camY = Math.round(_camSmoothY);
+  const rawCamX = Math.round(_camSmoothX);
+  const rawCamY = Math.round(_camSmoothY);
+  const camX = Math.max(0, Math.min(rawCamX, MAP_W - cw / CAMERA_ZOOM));
+  const camY = Math.max(0, Math.min(rawCamY, MAP_H - ch / CAMERA_ZOOM));
 
   ctx.save();
+  ctx.scale(CAMERA_ZOOM, CAMERA_ZOOM);
   ctx.translate(-camX, -camY);
 
   // ── §2.3 Vision polygon (computed once per frame) ────────────────────────────
@@ -204,8 +208,10 @@ export function renderGame(
   // ── World layers (drawn before fog overlay) ──────────────────────────────────
   drawBackground(ctx);
   drawParkingLot(ctx);
+  drawLampGlows(ctx);      // warm floor pools under lamp posts
   drawDecorations(ctx);
   drawSabotageFlood(ctx, state);   // §2.9 flood effect under entities
+  drawTaskGlows(ctx, state);
   drawTasks(ctx, state);
   drawCars(ctx, state);
   drawImmunityTickets(ctx, state);
@@ -240,36 +246,34 @@ function drawFogOfWar(ctx: CanvasRenderingContext2D, poly: Vec2[]): void {
 
   ctx.save();
 
-  // Soft gradient ring at the vision boundary (gives a slight glow at the edge)
-  // The flat fog fill below covers everywhere beyond the gradient.
-  ctx.fillStyle = 'rgba(0, 0, 10, 0.88)';
+  // Pass 1: Hard fog fill with evenodd hole (actual vision mask — preserves wall occlusion)
+  ctx.fillStyle = 'rgba(0, 0, 10, 0.92)';
   ctx.beginPath();
-  // Outer frame — entire map plus bleed
   ctx.rect(-120, -120, MAP_W + 240, MAP_H + 240);
-  // Inner cutout — the visible polygon (evenodd punches a hole)
   ctx.moveTo(poly[0].x, poly[0].y);
   for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i].x, poly[i].y);
   ctx.closePath();
   ctx.fill('evenodd');
 
-  // Soft inner vignette ring around the vision polygon edge (aesthetic)
-  // Replicated as a second semi-transparent path with a slightly larger fog area
-  ctx.globalAlpha = 0.28;
-  ctx.fillStyle = 'rgba(0, 0, 10, 1)';
+  // Pass 2: Soft vignette ring inside the vision polygon (Among Us aesthetic)
+  // Clip to vision polygon, draw radial gradient: transparent center → semi-opaque edge
+  const cx = poly.reduce((s, p) => s + p.x, 0) / poly.length;
+  const cy = poly.reduce((s, p) => s + p.y, 0) / poly.length;
+  const avgR = poly.reduce((s, p) => s + Math.hypot(p.x - cx, p.y - cy), 0) / poly.length;
+
   ctx.beginPath();
-  ctx.rect(-120, -120, MAP_W + 240, MAP_H + 240);
-  // Vision polygon shrunk by 18 px so the vignette bleeds inward slightly
-  const cx = poly[0].x;
-  const cy = poly[0].y;
-  ctx.moveTo(cx, cy);
-  for (let i = 1; i < poly.length; i++) {
-    const nx = cx + (poly[i].x - cx) * 0.96;
-    const ny = cy + (poly[i].y - cy) * 0.96;
-    ctx.lineTo(nx, ny);
-  }
+  ctx.moveTo(poly[0].x, poly[0].y);
+  for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i].x, poly[i].y);
   ctx.closePath();
-  ctx.fill('evenodd');
-  ctx.globalAlpha = 1;
+  ctx.clip();
+
+  const grad = ctx.createRadialGradient(cx, cy, avgR * 0.5, cx, cy, avgR * 1.05);
+  grad.addColorStop(0,   'rgba(0,0,10,0)');
+  grad.addColorStop(0.65,'rgba(0,0,10,0)');
+  grad.addColorStop(1,   'rgba(0,0,10,0.70)');
+
+  ctx.fillStyle = grad;
+  ctx.fillRect(-120, -120, MAP_W + 240, MAP_H + 240);
 
   ctx.restore();
 }
@@ -724,6 +728,22 @@ function drawParkingLot(_ctx: CanvasRenderingContext2D): void {
 
 // ─── Decorations ─────────────────────────────────────────────────────────────
 
+function drawLampGlows(ctx: CanvasRenderingContext2D): void {
+  // Draw before decorations so lamp posts render on top of their glow
+  for (const dec of DECORATIONS) {
+    if (dec.type !== 'lamppost') continue;
+    const { x, y } = dec.pos;
+    const grad = ctx.createRadialGradient(x, y + 10, 0, x, y + 10, 80);
+    grad.addColorStop(0,    'rgba(255,240,140,0.18)');
+    grad.addColorStop(0.45, 'rgba(255,220,100,0.08)');
+    grad.addColorStop(1,    'rgba(255,200,80,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.ellipse(x, y + 10, 80, 55, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
 function drawDecorations(ctx: CanvasRenderingContext2D): void {
   for (const deco of DECORATIONS) {
     const { x, y } = deco.pos;
@@ -773,17 +793,47 @@ function drawDecorations(ctx: CanvasRenderingContext2D): void {
 
 // ─── Tasks ────────────────────────────────────────────────────────────────────
 
+function drawTaskGlows(ctx: CanvasRenderingContext2D, state: GameState): void {
+  const pulse = 0.6 + 0.4 * Math.sin(Date.now() / 600);
+
+  for (const task of state.tasks) {
+    if (task.isComplete) continue;  // no glow for completed tasks
+
+    const { x, y } = task.pos;
+
+    ctx.save();
+    ctx.globalAlpha = pulse * 0.55;
+
+    // Gentle radial glow — golden/amber for tasks
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, 42);
+    grad.addColorStop(0,   'rgba(255,200,60,0.45)');
+    grad.addColorStop(0.5, 'rgba(255,180,40,0.15)');
+    grad.addColorStop(1,   'rgba(255,160,20,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(x, y, 42, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+}
+
 function drawTasks(ctx: CanvasRenderingContext2D, state: GameState): void {
   for (const task of state.tasks) {
     if (task.isComplete) continue;
     const { x, y } = task.pos;
     const def = TASK_DEFS[task.defKey];
 
-    // Glowing circle
+    // Glowing circle with subtle fill
     const alpha = 0.3 + 0.3 * Math.sin(Date.now() / 500);
+    ctx.globalAlpha = alpha * 0.18;
+    ctx.fillStyle = def.color;
+    ctx.beginPath();
+    ctx.arc(x, y, 26, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = alpha;
     ctx.strokeStyle = def.color;
     ctx.lineWidth = 2;
-    ctx.globalAlpha = alpha;
     ctx.beginPath();
     ctx.arc(x, y, 26, 0, Math.PI * 2);
     ctx.stroke();
@@ -804,10 +854,24 @@ function drawTasks(ctx: CanvasRenderingContext2D, state: GameState): void {
       ctx.stroke();
     }
 
-    // Label
-    ctx.font = '9px sans-serif';
-    ctx.fillStyle = '#fff';
-    ctx.fillText(def.label, x, y + 30);
+    // Label — Among Us style pill background with white text
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    const labelMetrics = ctx.measureText(def.label);
+    const labelW = labelMetrics.width;
+    const pillPadX = 8;
+    const pillPadY = 4;
+    const pillH = 16;
+    const pillW = labelW + pillPadX * 2;
+    const pillX = x - pillW / 2;
+    const pillY = y + 32 - pillH + pillPadY;
+    ctx.fillStyle = 'rgba(0,0,0,0.62)';
+    ctx.beginPath();
+    ctx.roundRect(pillX, pillY, pillW, pillH, 8);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(def.label, x, y + 32);
     ctx.textBaseline = 'alphabetic';
   }
 }
@@ -964,38 +1028,94 @@ function drawCars(ctx: CanvasRenderingContext2D, state: GameState): void {
 // ─── Immunity Tickets (§10.2) ────────────────────────────────────────────────
 
 function drawImmunityTickets(ctx: CanvasRenderingContext2D, state: GameState): void {
-  const pulse = 0.6 + 0.4 * Math.sin(Date.now() / 400);
+  const t = Date.now();
+  const pulse = 0.6 + 0.4 * Math.sin(t / 400);
+  const shimmer = 0.5 + 0.5 * Math.sin(t / 250);
+
   for (const ticket of state.immunityTickets) {
     const { x, y } = ticket.pos;
-    // Golden glow
-    ctx.globalAlpha = pulse * 0.45;
-    ctx.fillStyle = '#FFD700';
+
+    ctx.save();
+
+    // Drop shadow
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = '#000';
     ctx.beginPath();
-    ctx.arc(x, y, 22, 0, Math.PI * 2);
+    ctx.ellipse(x + 2, y + 3, 20, 8, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 1;
 
-    // Ticket icon background
-    ctx.fillStyle = '#FFC107';
+    // Outer pulsing golden aura
+    const auraGrad = ctx.createRadialGradient(x, y, 4, x, y, 28);
+    auraGrad.addColorStop(0, `rgba(255,215,0,${0.35 * pulse})`);
+    auraGrad.addColorStop(0.5, `rgba(255,180,0,${0.18 * pulse})`);
+    auraGrad.addColorStop(1, 'rgba(255,215,0,0)');
+    ctx.fillStyle = auraGrad;
     ctx.beginPath();
-    ctx.roundRect(x - 14, y - 10, 28, 20, 4);
+    ctx.arc(x, y, 28, 0, Math.PI * 2);
     ctx.fill();
+
+    // Pill / card body — golden ticket shape
+    const pw = 34;
+    const ph = 20;
+    ctx.fillStyle = '#D4A017';
+    ctx.beginPath();
+    ctx.roundRect(x - pw / 2, y - ph / 2, pw, ph, 6);
+    ctx.fill();
+
+    // Lighter golden gradient overlay for sheen
+    const sheenGrad = ctx.createLinearGradient(x - pw / 2, y - ph / 2, x + pw / 2, y + ph / 2);
+    sheenGrad.addColorStop(0, `rgba(255,255,200,${0.45 + 0.3 * shimmer})`);
+    sheenGrad.addColorStop(0.5, 'rgba(255,220,80,0.1)');
+    sheenGrad.addColorStop(1, 'rgba(200,140,0,0.15)');
+    ctx.fillStyle = sheenGrad;
+    ctx.beginPath();
+    ctx.roundRect(x - pw / 2, y - ph / 2, pw, ph, 6);
+    ctx.fill();
+
+    // Thick golden outline
     ctx.strokeStyle = '#FFD700';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(x - pw / 2, y - ph / 2, pw, ph, 6);
     ctx.stroke();
 
-    // Ticket emoji
-    ctx.font = '14px serif';
+    // Notched edges (classic ticket look)
+    ctx.fillStyle = '#2a7a2a'; // background colour for notch cutouts
+    ctx.beginPath();
+    ctx.arc(x - pw / 2, y, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x + pw / 2, y, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Star icon
+    ctx.font = '11px serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('🎟️', x, y);
+    ctx.fillText('⭐', x, y + 0.5);
     ctx.textBaseline = 'alphabetic';
 
-    // Label
-    ctx.font = 'bold 8px sans-serif';
+    // Sparkle dots at corners (shimmer effect)
+    const sparkAlpha = 0.5 + 0.5 * shimmer;
+    ctx.fillStyle = `rgba(255,255,180,${sparkAlpha})`;
+    for (const [sx, sy] of [
+      [x - pw / 2 + 4, y - ph / 2 + 3],
+      [x + pw / 2 - 4, y - ph / 2 + 3],
+      [x, y - ph / 2 - 5],
+    ] as [number, number][]) {
+      ctx.beginPath();
+      ctx.arc(sx, sy, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Label below
+    ctx.font = 'bold 7px sans-serif';
     ctx.fillStyle = '#FFF9C4';
     ctx.textAlign = 'center';
-    ctx.fillText('ТАЛОН', x, y + 20);
+    ctx.fillText('ТАЛОН', x, y + ph / 2 + 9);
+
+    ctx.restore();
   }
 }
 
@@ -1006,50 +1126,68 @@ function drawBodies(ctx: CanvasRenderingContext2D, state: GameState): void {
   for (const body of sortedBodies) {
     const { x, y } = body.pos;
 
-    // Shadow
-    ctx.globalAlpha = 0.4;
-    ctx.fillStyle = '#000';
-    ctx.beginPath();
-    ctx.ellipse(x, y + 16, 18, 8, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalAlpha = 1;
-
-    // Body silhouette (lying down)
-    const charDef = CHARACTERS[body.character];
-    ctx.fillStyle = charDef.color;
+    // Pulsing red report indicator (drawn first so body renders on top)
+    const bodyPulse = 0.5 + 0.5 * Math.sin(Date.now() / 500);
     ctx.save();
+    ctx.globalAlpha = bodyPulse * 0.4;
+    ctx.strokeStyle = '#FF1744';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.arc(x, y, 22, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    // Drop shadow beneath body
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.ellipse(x, y + 18, 22, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Body silhouette (lying down) — ~15% larger than before (was r=12/rect 20×35)
+    const charDef = CHARACTERS[body.character];
+    ctx.save();
+    ctx.fillStyle = charDef.color;
     ctx.translate(x, y);
     ctx.rotate(Math.PI / 2);
-    ctx.fillRect(-10, -20, 20, 35);
+    // Body torso (was -10,-20,20,35 → scaled ~15%: -11.5,-23,23,40)
     ctx.beginPath();
-    ctx.arc(0, -25, 12, 0, Math.PI * 2);
+    ctx.roundRect(-11.5, -23, 23, 40, 5);
     ctx.fill();
+    // Head (was r=12 → r=13.8)
+    ctx.beginPath();
+    ctx.arc(0, -28, 13.8, 0, Math.PI * 2);
+    ctx.fill();
+    // Teal visor detail (visible even on dead bodies — Among Us bean style)
+    ctx.fillStyle = 'rgba(0, 220, 220, 0.55)';
+    ctx.beginPath();
+    ctx.ellipse(3, -30, 7, 5, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+    // Dark outline for the head
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = 0.5;
+    ctx.beginPath();
+    ctx.arc(0, -28, 13.8, 0, Math.PI * 2);
+    ctx.stroke();
     ctx.restore();
 
     // X eyes
     ctx.font = '14px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('✕', x, y - 22);
+    ctx.fillText('✕', x, y - 25);
     ctx.textBaseline = 'alphabetic';
-
-    // Report prompt glow
-    const pulsing = Math.sin(Date.now() / 400) > 0;
-    if (pulsing) {
-      ctx.strokeStyle = '#FF5722';
-      ctx.lineWidth = 2;
-      ctx.globalAlpha = 0.6;
-      ctx.beginPath();
-      ctx.arc(x, y, 38, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-    }
 
     // Name tag
     ctx.font = 'bold 10px sans-serif';
     ctx.fillStyle = '#FF5722';
     ctx.textAlign = 'center';
-    ctx.fillText(`💀 ${body.name}`, x, y + 38);
+    ctx.fillText(`💀 ${body.name}`, x, y + 42);
   }
 }
 
@@ -1057,27 +1195,77 @@ function drawBodies(ctx: CanvasRenderingContext2D, state: GameState): void {
 
 function drawCanisters(ctx: CanvasRenderingContext2D, state: GameState): void {
   const sortedCans = [...state.canisters].sort((a, b) => a.pos.y - b.pos.y);
+  const t = Date.now();
+  const glowAlpha = 0.3 + 0.2 * Math.sin(t / 700);
+
   for (const can of sortedCans) {
     const { x, y } = can.pos;
+    const mainColor = can.isFull ? '#F5A623' : '#BDBDBD';
+    const glowColor = can.isFull ? '#F5A623' : '#90A4AE';
 
-    // Canister shape
-    ctx.fillStyle = can.isFull ? '#F5A623' : '#BDBDBD';
-    ctx.fillRect(x - 10, y - 14, 20, 24);
+    ctx.save();
+
+    // Drop shadow
+    ctx.globalAlpha = 0.4;
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.ellipse(x + 2, y + 14, 11, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Pulsing gold aura (ground glow)
+    const auraGrad = ctx.createRadialGradient(x, y, 4, x, y, 24);
+    auraGrad.addColorStop(0, `rgba(245,166,35,${glowAlpha})`);
+    auraGrad.addColorStop(0.6, `rgba(245,166,35,${glowAlpha * 0.4})`);
+    auraGrad.addColorStop(1, 'rgba(245,166,35,0)');
+    ctx.fillStyle = auraGrad;
+    ctx.beginPath();
+    ctx.arc(x, y, 24, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Canister body with thick black outline
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2.5;
+    ctx.fillStyle = mainColor;
+    ctx.beginPath();
+    ctx.roundRect(x - 10, y - 14, 20, 24, 3);
+    ctx.fill();
+    ctx.stroke();
+
+    // Sheen highlight on body
+    const sheenGrad = ctx.createLinearGradient(x - 10, y - 14, x + 10, y - 14);
+    sheenGrad.addColorStop(0, 'rgba(255,255,255,0.35)');
+    sheenGrad.addColorStop(0.5, 'rgba(255,255,255,0.08)');
+    sheenGrad.addColorStop(1, 'rgba(0,0,0,0.1)');
+    ctx.fillStyle = sheenGrad;
+    ctx.beginPath();
+    ctx.roundRect(x - 10, y - 14, 20, 24, 3);
+    ctx.fill();
+
+    // Nozzle / cap — thick black outline
     ctx.fillStyle = '#78909C';
-    ctx.fillRect(x - 4, y - 18, 8, 6);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(x - 4, y - 20, 8, 8, 2);
+    ctx.fill();
+    ctx.stroke();
 
     // Spill droplet
     ctx.fillStyle = '#1E88E5';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.arc(x + 8, y + 8, 4, 0, Math.PI * 2);
     ctx.fill();
+    ctx.stroke();
 
-    // Pulsing highlight
-    ctx.globalAlpha = 0.3 + 0.3 * Math.sin(Date.now() / 350);
-    ctx.strokeStyle = '#F5A623';
+    // Pulsing glow ring
+    ctx.globalAlpha = glowAlpha + 0.15;
+    ctx.strokeStyle = glowColor;
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(x, y, 20, 0, Math.PI * 2);
+    ctx.arc(x, y, 18, 0, Math.PI * 2);
     ctx.stroke();
     ctx.globalAlpha = 1;
 
@@ -1085,7 +1273,9 @@ function drawCanisters(ctx: CanvasRenderingContext2D, state: GameState): void {
     ctx.font = '8px sans-serif';
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
-    ctx.fillText(can.isFull ? '🪣 полная' : '🪣 улика', x, y + 18);
+    ctx.fillText(can.isFull ? '🪣 полная' : '🪣 улика', x, y + 22);
+
+    ctx.restore();
   }
 }
 
@@ -1383,12 +1573,12 @@ function drawPlayers(
     // AFTER the fog overlay so it pierces the fog (§3.1.2 team awareness).
 
     // Shadow — flat ellipse, consistent with car/body/NPC shadow style (no per-frame gradient alloc)
-    const shadowR = player.character === 'barsik' ? 10 : 18;
+    const shadowR = player.character === 'barsik' ? 12 : 24;
     ctx.save();
-    ctx.globalAlpha = 0.28;
+    ctx.globalAlpha = 0.30;
     ctx.fillStyle = '#000';
     ctx.beginPath();
-    ctx.ellipse(x, y + 14, shadowR, shadowR * 0.35, 0, 0, Math.PI * 2);
+    ctx.ellipse(x + 2, y + 16, shadowR, shadowR * 0.30, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
@@ -1400,7 +1590,7 @@ function drawPlayers(
     const charSprite = getSprite(`char_${player.character}`);
     const sheetMeta = SPRITE_SHEETS[`char_${player.character}`];
     // Display size for the sprite (AI-generated 128×128 originals)
-    const spriteDisplaySize = isBarsik ? 40 : 60;
+    const spriteDisplaySize = isBarsik ? 52 : 82;
 
     if (charSprite && sheetMeta) {
       // Directional walk-cycle sheet: slice the current (row, frame)
@@ -1437,23 +1627,43 @@ function drawPlayers(
 
     // Identification ring — gold for local player, translucent white for others.
     // Ring radius matched to sprite size so it wraps just outside the sprite.
-    const ringRadius = charSprite ? spriteDisplaySize / 2 + 3 : playerRadius + 2;
-    ctx.strokeStyle = isLocal ? '#FFD700' : 'rgba(255,255,255,0.55)';
-    ctx.lineWidth = isLocal ? 2.5 : 1.5;
+    // Ring matches the bean's actual half-height (RH for vecDraw bean)
+    const ringRadius = charSprite ? spriteDisplaySize / 2 + 3 : 24; // 24 ≈ RH=22 + small gap
+    // Local player: gold ring; others: subtle white ring
+    if (isLocal) {
+      // Soft gold glow halo
+      ctx.globalAlpha = 0.20;
+      ctx.strokeStyle = '#FFD700';
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.arc(x, y, ringRadius + 2, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      // Sharp gold ring
+      ctx.strokeStyle = '#FFD700';
+      ctx.lineWidth = 2.5;
+    } else {
+      ctx.strokeStyle = 'rgba(255,255,255,0.40)';
+      ctx.lineWidth = 1.5;
+    }
     ctx.beginPath();
     ctx.arc(x, y, ringRadius, 0, Math.PI * 2);
     ctx.stroke();
+    ctx.globalAlpha = 1;
 
-    // Facing direction indicator — dot at sprite/bean edge
-    ctx.fillStyle = '#fff';
+    // Facing direction dot — larger, outlined for readability against any background
     const facingDist = charSprite
       ? (isBarsik ? spriteDisplaySize / 2 + 2 : spriteDisplaySize / 2 + 4)
-      : playerRadius + 4;
+      : 26; // just past the bean edge
     const fx = x + Math.cos(player.facingAngle) * facingDist;
     const fy = y + Math.sin(player.facingAngle) * facingDist;
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.arc(fx, fy, 3, 0, Math.PI * 2);
+    ctx.arc(fx, fy, 4, 0, Math.PI * 2);
     ctx.fill();
+    ctx.stroke();
 
     // Crouching indicator
     if (player.isCrouching) {
@@ -1465,16 +1675,23 @@ function drawPlayers(
       ctx.globalAlpha = 1;
     }
 
-    // Sprint dust trail
+    // Sprint dust trail — 3 fading particles trailing behind the movement direction
     if (player.isSprinting) {
-      ctx.globalAlpha = 0.3;
-      ctx.fillStyle = '#fff';
-      ctx.beginPath();
-      const bx = x - Math.cos(player.facingAngle) * 18;
-      const by = y - Math.sin(player.facingAngle) * 18;
-      ctx.arc(bx, by, 8, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
+      const trailDir = player.facingAngle + Math.PI; // opposite of facing = trail direction
+      for (let t = 1; t <= 3; t++) {
+        const dist = t * 12;
+        const tx = x + Math.cos(trailDir) * dist;
+        const ty = y + Math.sin(trailDir) * dist;
+        const alpha = 0.25 - t * 0.07;
+        const r = 5 - t;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = '#E0E0E0';
+        ctx.beginPath();
+        ctx.ellipse(tx, ty, r * 1.5, r * 0.7, trailDir, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
     }
 
     // Canister indicator
@@ -1524,8 +1741,8 @@ function drawPlayers(
     }
 
     // Name tag — positioned ABOVE character
-    const nameTagY = y - effectiveHalf - 15;
-    ctx.font = `${isLocal ? 'bold ' : ''}11px sans-serif`;
+    const nameTagY = y - effectiveHalf - 18;
+    ctx.font = `${isLocal ? 'bold ' : ''}12px sans-serif`;
     ctx.textAlign = 'center';
 
     // Dark pill background (Among Us style)
@@ -1572,20 +1789,78 @@ function drawPlayers(
 function drawAlarmButton(ctx: CanvasRenderingContext2D, state: GameState): void {
   if (state.meetingCooldown > 0) return;
   const { x, y } = ENTRANCE_POS;
-  const t = Date.now() / 500;
-  const alpha = 0.5 + 0.5 * Math.sin(t);
+  const bx = x;
+  const by = y - 10;
 
-  ctx.globalAlpha = alpha;
-  ctx.fillStyle = '#FF5252';
+  const pulse = 0.6 + 0.4 * Math.sin(Date.now() / 400);
+  const glowColor = '#CC1A1A';
+
+  // Outer concentric glow rings (3 rings fading outward)
+  const ringRadii = [40, 30, 22];
+  const ringAlphas = [0.10, 0.14, 0.18];
+  for (let i = 0; i < ringRadii.length; i++) {
+    ctx.save();
+    ctx.globalAlpha = pulse * ringAlphas[i];
+    ctx.fillStyle = glowColor;
+    ctx.beginPath();
+    ctx.arc(bx, by, ringRadii[i], 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Radial gradient fill for the button body
+  const grad = ctx.createRadialGradient(bx - 4, by - 4, 2, bx, by, 15);
+  grad.addColorStop(0, '#FF5252');
+  grad.addColorStop(0.6, '#D32F2F');
+  grad.addColorStop(1, '#B71C1C');
+
+  // Dark thick outline
+  ctx.save();
   ctx.beginPath();
-  ctx.arc(x, y - 10, ALARM_RADIUS * 0.4, 0, Math.PI * 2);
+  ctx.arc(bx, by, 16, 0, Math.PI * 2);
+  ctx.fillStyle = '#1A0000';
   ctx.fill();
-  ctx.globalAlpha = 1;
+  ctx.restore();
 
-  ctx.font = '12px sans-serif';
+  // Button body
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(bx, by, 14, 0, Math.PI * 2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.restore();
+
+  // Inner highlight ring
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(bx, by, 14, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(255,200,200,0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.restore();
+
+  // Sheen highlight (top-left arc)
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(bx - 3, by - 4, 7, Math.PI * 1.1, Math.PI * 1.7);
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+  ctx.restore();
+
+  // Label "СХОДКА" centered on the button
+  ctx.save();
+  ctx.font = 'bold 7px sans-serif';
   ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
   ctx.fillStyle = '#fff';
-  ctx.fillText('🔔 Сходка', x, y + 6);
+  ctx.shadowColor = 'rgba(0,0,0,0.8)';
+  ctx.shadowBlur = 3;
+  ctx.fillText('СХОДКА', bx, by);
+  ctx.shadowBlur = 0;
+  ctx.textBaseline = 'alphabetic';
+  ctx.restore();
 }
 
 function drawEntrance(ctx: CanvasRenderingContext2D): void {
@@ -1676,10 +1951,14 @@ function drawUI(
     const { x, y } = local.pos;
     const barW = 36; const barH = 5;
     const bx = x - barW / 2; const by = y - 42;
-    ctx.fillStyle = 'rgba(0,0,0,0.4)';
-    ctx.fillRect(bx - 1, by - 1, barW + 2, barH + 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.beginPath();
+    ctx.roundRect(bx - 1, by - 1, barW + 2, barH + 2, 3);
+    ctx.fill();
     ctx.fillStyle = local.isSprinting ? '#FFF176' : '#81D4FA';
-    ctx.fillRect(bx, by, (local.stamina / 5) * barW, barH);
+    ctx.beginPath();
+    ctx.roundRect(bx, by, (local.stamina / 5) * barW, barH, 2);
+    ctx.fill();
     ctx.font = '7px sans-serif';
     ctx.fillStyle = '#FFD54F';
     ctx.textAlign = 'center';

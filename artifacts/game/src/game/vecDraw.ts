@@ -28,12 +28,12 @@ export const VC = {
   // Parking lines
   parkLine:     'rgba(255,255,255,0.55)',
   // Subtle grid
-  asphaltGrid:  'rgba(255,255,255,0.045)',
-  grassGrid:    'rgba(0,0,0,0.07)',
+  asphaltGrid:  'rgba(255,255,255,0.09)',
+  grassGrid:    'rgba(0,0,0,0.13)',
   // Character visor
-  visor:        '#7DD0CC',
-  visorShine:   'rgba(255,255,255,0.35)',
-  visorShadow:  '#4AACB0',
+  visor:        '#5ECFE8',
+  visorShine:   'rgba(255,255,255,0.50)',
+  visorShadow:  '#2EAED4',
 };
 
 // ── Utility ───────────────────────────────────────────────────────────────────
@@ -42,6 +42,19 @@ function outline(ctx: CanvasRenderingContext2D, lw = 2.5) {
   ctx.strokeStyle = VC.outline;
   ctx.lineWidth = lw;
   ctx.lineJoin = 'round' as CanvasLineJoin;
+}
+
+// Shared drop shadow for world props — call BEFORE drawing the prop body
+function propShadow(
+  ctx: CanvasRenderingContext2D,
+  cx: number, cy: number, rx: number, ry: number,
+): void {
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  ctx.beginPath();
+  ctx.ellipse(cx + 3, cy + 4, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
 // Flat rect with thick outline
@@ -212,6 +225,9 @@ export function drawBackgroundVec(
   ctx.beginPath();
   ctx.moveTo(90, 470.5); ctx.lineTo(1110, 470.5);
   ctx.stroke();
+  // Depth shadow on garden side of divider
+  ctx.fillStyle = 'rgba(0,0,0,0.15)';
+  ctx.fillRect(90, 471, 1020, 10);
 
   // ── Playground ────────────────────────────────────────────────────────────
   ctx.fillStyle = VC.play;
@@ -222,12 +238,13 @@ export function drawBackgroundVec(
   ctx.strokeRect(PLAYGROUND.x + 1, PLAYGROUND.y + 1, PLAYGROUND.w - 2, PLAYGROUND.h - 2);
   ctx.setLineDash([]);
   // Label (like Among Us room names)
-  ctx.fillStyle = VC.playBorder;
-  ctx.globalAlpha = 0.55;
-  ctx.font = 'bold 12px sans-serif';
+  ctx.save();
+  ctx.font = 'bold 26px sans-serif';
+  ctx.fillStyle = 'rgba(0,0,0,0.13)';
   ctx.textAlign = 'center';
-  ctx.fillText('🛝 Детская', PLAYGROUND.x + PLAYGROUND.w / 2, PLAYGROUND.y + PLAYGROUND.h / 2);
-  ctx.globalAlpha = 1;
+  ctx.textBaseline = 'middle';
+  ctx.fillText('ДЕТСКАЯ', PLAYGROUND.x + PLAYGROUND.w / 2, PLAYGROUND.y + PLAYGROUND.h / 2);
+  ctx.restore();
 
   // ── Building strips (re-draw on top to cover any overflow) ────────────────
   const strips = [
@@ -316,19 +333,58 @@ export function drawBackgroundVec(
   ctx.textAlign = 'center';
   ctx.fillText('ВЪЕЗД', 600, 862);
 
+  // ── Ambient zone atmosphere ────────────────────────────────────────────
+  ctx.save();
+  
+  // Parking zone — very subtle cool-to-neutral gradient (overhead concrete feel)
+  const parkGrad = ctx.createLinearGradient(90, 90, 90, 470);
+  parkGrad.addColorStop(0,   'rgba(100,120,160,0.06)');
+  parkGrad.addColorStop(0.5, 'rgba(100,120,160,0.02)');
+  parkGrad.addColorStop(1,   'rgba(0,0,0,0.06)');
+  ctx.fillStyle = parkGrad;
+  ctx.fillRect(90, 90, 1020, 380);
+  
+  // Garden zone — very subtle warm-green gradient (open sky feel)
+  const gardenGrad = ctx.createLinearGradient(90, 470, 90, 810);
+  gardenGrad.addColorStop(0,   'rgba(0,0,0,0.04)');
+  gardenGrad.addColorStop(0.5, 'rgba(80,160,60,0.04)');
+  gardenGrad.addColorStop(1,   'rgba(40,80,20,0.08)');
+  ctx.fillStyle = gardenGrad;
+  ctx.fillRect(90, 470, 1020, 340);
+  
+  // Corner vignettes — darkens the 4 interior corners for depth
+  const corners = [
+    [90, 90], [1030, 90], [90, 720], [1030, 720]
+  ] as [number, number][];
+  for (const [cx, cy] of corners) {
+    const cg = ctx.createRadialGradient(cx + 90, cy + 90, 0, cx + 90, cy + 90, 200);
+    cg.addColorStop(0,   'rgba(0,0,0,0.18)');
+    cg.addColorStop(0.6, 'rgba(0,0,0,0.06)');
+    cg.addColorStop(1,   'rgba(0,0,0,0)');
+    ctx.fillStyle = cg;
+    ctx.fillRect(Math.min(cx, cx + 90) - 60, Math.min(cy, cy + 90) - 60, 260, 260);
+  }
+  
+  ctx.restore();
+
   // ── Security cameras ───────────────────────────────────────────────────────
   drawCamera(ctx, 128, 92, false);
   drawCamera(ctx, 1072, 92, true);
   drawCamera(ctx, 128, 808, false);
   drawCamera(ctx, 1072, 808, true);
 
-  // ── Zone labels (Among Us room name style — subtle, low-opacity) ───────────
-  ctx.fillStyle = 'rgba(255,255,255,0.12)';
-  ctx.font = 'bold 18px sans-serif';
+  // Room labels — Among Us style: large, low-opacity, centered
+  ctx.save();
   ctx.textAlign = 'center';
-  ctx.fillText('ПАРКОВКА', 600, 290);
-  ctx.fillText('ДВОР', 320, 660);
-  ctx.fillText('ДВОР', 860, 660);
+  ctx.textBaseline = 'middle';
+  ctx.font = 'bold 56px sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.09)';
+  ctx.fillText('ПАРКОВКА', 600, 280);
+  ctx.font = 'bold 44px sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.08)';
+  ctx.fillText('ДВОР', 295, 640);
+  ctx.fillText('ДВОР', 875, 640);
+  ctx.restore();
 }
 
 // ── Character (Among Us bean-style, adapted for Soviet neighbours) ────────────
@@ -351,8 +407,8 @@ export function drawCharacterVec(
   isBarsik: boolean,
 ): void {
   const s  = isCrouching ? 0.80 : 1.0;
-  const RW = (isBarsik ? 9 : 14) * s;   // half-width
-  const RH = (isBarsik ? 10 : 17) * s;  // half-height (slightly taller)
+  const RW = (isBarsik ? 11 : 18) * s;   // half-width
+  const RH = (isBarsik ? 13 : 22) * s;  // half-height (slightly taller)
 
   // Determine cardinal facing direction
   const a = ((facingAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
@@ -366,9 +422,9 @@ export function drawCharacterVec(
   ctx.translate(x, y);
 
   // ── Shadow (subtle drop shadow ellipse) ───────────────────────────────────
-  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.fillStyle = 'rgba(0,0,0,0.32)';
   ctx.beginPath();
-  ctx.ellipse(0, RH * 0.85, RW * 1.1, RH * 0.35, 0, 0, Math.PI * 2);
+  ctx.ellipse(2, RH * 0.88, RW * 1.2, RH * 0.30, 0, 0, Math.PI * 2);
   ctx.fill();
 
   // ── Backpack (rounded rect peeking out on back side) ──────────────────────
@@ -439,7 +495,21 @@ export function drawCharacterVec(
     ctx.fillRect(vx + RW * 0.8, vy + vh - 9, 3, 3);
   }
 
+  // Visor inner edge darkening — depth effect
+  ctx.strokeStyle = 'rgba(0,60,80,0.35)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, RW - 0.5, RH - 0.5, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
   ctx.restore(); // unclip
+
+  // Body highlight (top rim catch-light)
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(-RW * 0.2, -RH * 0.45, RW * 0.55, RH * 0.3, -0.4, Math.PI * 1.1, Math.PI * 1.8);
+  ctx.stroke();
 
   ctx.restore();
 }
@@ -457,13 +527,21 @@ export function drawCarVec(
   y: number,
   color: string,
 ): void {
-  const CW = 26; // half-width (total = 52)
-  const CH = 36; // half-height (total = 72)
+  const CW = 28; // half-width (total = 56)
+  const CH = 38; // half-height (total = 76)
   const WW = 11; // wheel width
   const WH = 14; // wheel height
 
   ctx.save();
   ctx.translate(x, y);
+
+  // Car shadow (drawn first, behind everything)
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.32)';
+  ctx.beginPath();
+  ctx.ellipse(3, CH * 0.8, CW * 1.25, CH * 0.32, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 
   // ── Wheels (back, drawn first so body covers inner edge) ──────────────────
   ctx.fillStyle = '#252220';
@@ -485,7 +563,14 @@ export function drawCarVec(
     ctx.beginPath();
     ctx.ellipse(wx + WW / 2, wy + WH / 2, WW * 0.28, WH * 0.28, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = '#252220'; // reset for next wheel
+    // Wheel spoke cross
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(wx + WW * 0.2, wy + WH / 2); ctx.lineTo(wx + WW * 0.8, wy + WH / 2);
+    ctx.moveTo(wx + WW / 2, wy + WH * 0.2); ctx.lineTo(wx + WW / 2, wy + WH * 0.8);
+    ctx.stroke();
+    ctx.fillStyle = '#252220'; // reset
   }
 
   // ── Body ──────────────────────────────────────────────────────────────────
@@ -535,6 +620,14 @@ export function drawCarVec(
   ctx.lineTo( CW - 4, -CH + CH * 0.55);
   ctx.stroke();
 
+  // Roof detail — subtle center crease line
+  ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, -CH + 4);
+  ctx.lineTo(0, -CH + CH * 0.52);
+  ctx.stroke();
+
   ctx.restore();
 }
 
@@ -546,6 +639,7 @@ export function drawCarVec(
 export function drawBenchVec(ctx: CanvasRenderingContext2D, x: number, y: number): void {
   ctx.save();
   ctx.translate(x, y);
+  propShadow(ctx, 0, 8, 26, 5);
   // Seat planks
   ctx.fillStyle = '#9C7A3C';
   ctx.strokeStyle = VC.outline;
@@ -570,6 +664,7 @@ export function drawBenchVec(ctx: CanvasRenderingContext2D, x: number, y: number
 export function drawDumpsterVec(ctx: CanvasRenderingContext2D, x: number, y: number): void {
   ctx.save();
   ctx.translate(x, y);
+  propShadow(ctx, 0, 12, 16, 4);
   // Body
   vecRRect(ctx, -18, -10, 36, 24, 3, '#3E7D40');
   // Lid
@@ -640,6 +735,7 @@ export function drawFlowerbedVec(ctx: CanvasRenderingContext2D, x: number, y: nu
 export function drawTreeVec(ctx: CanvasRenderingContext2D, x: number, y: number): void {
   ctx.save();
   ctx.translate(x, y);
+  propShadow(ctx, 0, 16, 18, 5);
   // Trunk
   vecRRect(ctx, -5, 8, 10, 16, 2, '#6D4C28');
   // Shadow ellipse under canopy
@@ -662,6 +758,7 @@ export function drawTreeVec(ctx: CanvasRenderingContext2D, x: number, y: number)
 export function drawLampVec(ctx: CanvasRenderingContext2D, x: number, y: number): void {
   ctx.save();
   ctx.translate(x, y);
+  propShadow(ctx, 0, 14, 6, 3);
   // Post shadow (elongated ellipse)
   ctx.fillStyle = 'rgba(0,0,0,0.20)';
   ctx.beginPath(); ctx.ellipse(10, 12, 6, 24, 0.3, 0, Math.PI * 2); ctx.fill();
@@ -776,11 +873,15 @@ export function drawTrashBinVec(ctx: CanvasRenderingContext2D, x: number, y: num
   // Post
   ctx.fillStyle = '#546E7A';
   ctx.fillRect(-2, -6, 4, 18);
+  ctx.strokeStyle = VC.outline; ctx.lineWidth = 1.5;
+  ctx.strokeRect(-2, -6, 4, 18);
   // Bin
   vecRRect(ctx, -10, -14, 20, 18, 3, '#78909C');
   // Rim
   ctx.fillStyle = '#546E7A';
   ctx.fillRect(-11, -14, 22, 4);
+  ctx.strokeStyle = VC.outline; ctx.lineWidth = 1.5;
+  ctx.strokeRect(-11, -14, 22, 4);
   ctx.restore();
 }
 
