@@ -18,7 +18,8 @@
 - [95-Y viral mechanics and tutorial](game-viral-tutorial.md) — §9.4 share prompts + friend invite deep link (+ startapp consumption); §12.4 4-step Tutorial.tsx; §3.5 daily-exclusive hats; isFirstWin detection in rewards.ts
 - [95-Y session 9 gaps](game-session9-gaps.md) — interpolation ring buffer, Stars backend invoice, camera lerp, api-server +30s task extension, low-fuel warning
 - [95-Y session 10 cosmetics/visuals](game-session10-cosmetics-visuals.md) — character silhouettes, pets/car skins shop, report button §5.6, neutral-role ejection text
-- [95-Y sprite art system](game-sprite-art.md) — AI-generated 128×128 chibi pixel art PNGs for all 10 chars + 6 cars; SPRITE_SHEETS cleared → single-sprite no-rotation path; spriteDisplaySize=60 humans/40 barsik; annotations use effectiveHalf
+- [95-Y visual overhaul — vecDraw primary](game-visual-overhaul-vec.md) — SPRITE_KEYS=[] disables all AI PNGs; vecDraw is sole renderer; drawBackground→drawBackgroundVec; all props/chars/cars use named vecDraw functions
+- [95-Y sprite art system](game-sprite-art.md) — AI-generated PNGs still on disk but SPRITE_KEYS=[] means none are loaded; vecDraw replaced everything
 - [Redis persistence + daily leaderboard](redis-persistence.md) — ioredis room snapshots; game loops resume on first reconnect (not on restore); removeClient takes ws param to prevent reconnect-race eviction; knownPlayerIds set for reconnect auth
 - [95-Y A* pathfinding](game-pathfinding.md) — §4.5 grid A* in pathfinder.ts (both packages); heap sized N×8 + closed set; start+dest snapped to walkable; LOS enforces diagonal corner-clearance; LOD at 240wu
 - [95-Y accessibility + msgpack](game-vol1-accessibility-protocol.md) — §13.1 accessibility persisted in profile; §12.4 card tutorial removed (in-game shawarma tutorial only); §05.2 WS is binary msgpack (never JSON)

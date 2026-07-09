@@ -171,9 +171,17 @@ export function drawBackgroundVec(
   // Parking spot lines — thick & clean
   ctx.strokeStyle = VC.parkLine;
   ctx.lineWidth = 2;
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 10px sans-serif';
+  ctx.fillStyle = VC.parkLine;
+  let spotNum = 1;
   for (let px = 140; px < 1090; px += 130) {
     ctx.strokeRect(px + 1.5, 101, 108, 178);
+    ctx.fillText(spotNum.toString(), px + 55, 120);
+    spotNum++;
     ctx.strokeRect(px + 1.5, 293, 108, 168);
+    ctx.fillText(spotNum.toString(), px + 55, 312);
+    spotNum++;
   }
 
   // ── Grass garden zone ──────────────────────────────────────────────────────
@@ -200,9 +208,9 @@ export function drawBackgroundVec(
 
   // ── Zone divider (parking ↔ garden) ───────────────────────────────────────
   ctx.strokeStyle = VC.outline;
-  ctx.lineWidth = 2.5;
+  ctx.lineWidth = 4;
   ctx.beginPath();
-  ctx.moveTo(90, 470); ctx.lineTo(1110, 470);
+  ctx.moveTo(90, 470.5); ctx.lineTo(1110, 470.5);
   ctx.stroke();
 
   // ── Playground ────────────────────────────────────────────────────────────
@@ -234,10 +242,26 @@ export function drawBackgroundVec(
     ctx.fillRect(bx, by, bw, bh);
     // Inward shadow edge
     ctx.fillStyle = VC.buildingDark;
-    if (by === 0)   ctx.fillRect(bx, by + bh - 8, bw, 8);
-    if (by === 810) ctx.fillRect(bx, by, bw, 8);
-    if (bx === 0 && bw === 90)    ctx.fillRect(bx + bw - 8, by, 8, bh);
-    if (bx === 1110)               ctx.fillRect(bx, by, 8, bh);
+    if (by === 0) {
+      ctx.fillRect(bx, by + bh - 8, bw, 8);
+      ctx.fillStyle = 'rgba(0,0,0,0.15)';
+      ctx.fillRect(bx, by + bh - 4, bw, 4);
+    }
+    if (by === 810) {
+      ctx.fillRect(bx, by, bw, 8);
+      ctx.fillStyle = 'rgba(0,0,0,0.15)';
+      ctx.fillRect(bx, by, bw, 4);
+    }
+    if (bx === 0 && bw === 90) {
+      ctx.fillRect(bx + bw - 8, by, 8, bh);
+      ctx.fillStyle = 'rgba(0,0,0,0.15)';
+      ctx.fillRect(bx + bw - 4, by, 4, bh);
+    }
+    if (bx === 1110) {
+      ctx.fillRect(bx, by, 8, bh);
+      ctx.fillStyle = 'rgba(0,0,0,0.15)';
+      ctx.fillRect(bx, by, 4, bh);
+    }
   }
 
   // ── Building outline borders (Among Us thick outlines) ─────────────────────
@@ -287,8 +311,8 @@ export function drawBackgroundVec(
   ctx.beginPath(); ctx.moveTo(600, 813); ctx.lineTo(600, 897); ctx.stroke();
   ctx.setLineDash([]);
   // Arch label
-  ctx.fillStyle = 'rgba(255,255,255,0.25)';
-  ctx.font = 'bold 10px sans-serif';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = 'bold 12px sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText('ВЪЕЗД', 600, 862);
 
@@ -341,6 +365,12 @@ export function drawCharacterVec(
   ctx.save();
   ctx.translate(x, y);
 
+  // ── Shadow (subtle drop shadow ellipse) ───────────────────────────────────
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.beginPath();
+  ctx.ellipse(0, RH * 0.85, RW * 1.1, RH * 0.35, 0, 0, Math.PI * 2);
+  ctx.fill();
+
   // ── Backpack (rounded rect peeking out on back side) ──────────────────────
   if (!isBarsik) {
     const BP_W = RW * 0.55;
@@ -388,10 +418,26 @@ export function drawCharacterVec(
 
   // Visor shine (small highlight stripe near edge)
   ctx.fillStyle = VC.visorShine;
-  if (dir === 'r') ctx.fillRect(vx + 2, vy + RH * 0.2,  RW * 0.28, RH * 0.4);
-  if (dir === 'l') ctx.fillRect(vx + vw - RW * 0.28 - 2, vy + RH * 0.2, RW * 0.28, RH * 0.4);
-  if (dir === 'd') ctx.fillRect(vx + RW * 0.2, vy + 2, RW * 0.5, RH * 0.28);
-  if (dir === 'u') ctx.fillRect(vx + RW * 0.2, vy + vh - RH * 0.28 - 2, RW * 0.5, RH * 0.28);
+  if (dir === 'r') {
+    ctx.fillRect(vx + 2, vy + RH * 0.2, RW * 0.28, RH * 0.4);
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.fillRect(vx + 6, vy + RH * 0.7, 3, 3);
+  }
+  if (dir === 'l') {
+    ctx.fillRect(vx + vw - RW * 0.28 - 2, vy + RH * 0.2, RW * 0.28, RH * 0.4);
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.fillRect(vx + vw - 9, vy + RH * 0.7, 3, 3);
+  }
+  if (dir === 'd') {
+    ctx.fillRect(vx + RW * 0.2, vy + 2, RW * 0.5, RH * 0.28);
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.fillRect(vx + RW * 0.8, vy + 6, 3, 3);
+  }
+  if (dir === 'u') {
+    ctx.fillRect(vx + RW * 0.2, vy + vh - RH * 0.28 - 2, RW * 0.5, RH * 0.28);
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.fillRect(vx + RW * 0.8, vy + vh - 9, 3, 3);
+  }
 
   ctx.restore(); // unclip
 
@@ -699,5 +745,61 @@ export function drawEvChargerVec(ctx: CanvasRenderingContext2D, x: number, y: nu
   // Broken LED
   ctx.fillStyle = '#FF1744';
   ctx.beginPath(); ctx.arc(10, -46, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+/**
+ * Draw a fire hydrant.
+ */
+export function drawHydrantVec(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+  ctx.save();
+  ctx.translate(x, y);
+  // Body
+  vecRRect(ctx, -8, -14, 16, 28, 4, '#D32F2F');
+  // Caps
+  ctx.fillStyle = '#B71C1C';
+  ctx.strokeStyle = VC.outline;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(-12, -8, 6, 6, 1); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.roundRect(6, -8, 6, 6, 1); ctx.fill(); ctx.stroke();
+  // Top nut
+  ctx.beginPath(); ctx.arc(0, -14, 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+
+/**
+ * Draw a small trash bin.
+ */
+export function drawTrashBinVec(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+  ctx.save();
+  ctx.translate(x, y);
+  // Post
+  ctx.fillStyle = '#546E7A';
+  ctx.fillRect(-2, -6, 4, 18);
+  // Bin
+  vecRRect(ctx, -10, -14, 20, 18, 3, '#78909C');
+  // Rim
+  ctx.fillStyle = '#546E7A';
+  ctx.fillRect(-11, -14, 22, 4);
+  ctx.restore();
+}
+
+/**
+ * Draw a bicycle rack.
+ */
+export function drawBicycleRackVec(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.strokeStyle = '#90A4AE';
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  for (let i = -24; i <= 24; i += 16) {
+    ctx.beginPath();
+    ctx.moveTo(i, 12);
+    ctx.lineTo(i, -12);
+    ctx.arc(i + 4, -12, 4, Math.PI, 0);
+    ctx.lineTo(i + 8, 12);
+    ctx.stroke();
+  }
   ctx.restore();
 }

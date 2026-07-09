@@ -290,6 +290,7 @@ export default function HUD({ state }: HUDProps) {
   const [showSettings, setShowSettings]         = useState(false);
   const [showPlayerList, setShowPlayerList]     = useState(false);
   const [showFuelDetail, setShowFuelDetail]     = useState(false);
+  const [showRoleSplash, setShowRoleSplash]     = useState(state.phase === 'play');
   // Emote wheel lives on gs (not local state) since it can also be opened
   // from the "Q" key or the mobile swipe-up gesture inside <GameCanvas>.
   const showEmoteWheel = state.emoteWheelOpen;
@@ -297,6 +298,15 @@ export default function HUD({ state }: HUDProps) {
     gs.emoteWheelOpen = typeof v === 'function' ? v(gs.emoteWheelOpen) : v;
   };
   const [isCrouchHeld, setIsCrouchHeld] = useState(false);
+
+  useEffect(() => {
+    if (state.phase === 'play') {
+      setShowRoleSplash(true);
+      const timer = setTimeout(() => setShowRoleSplash(false), 4000);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [state.phase]);
 
   // §12.4 Tutorial triggers — must be above any early-return to satisfy Rules of Hooks
   useEffect(() => {
@@ -371,6 +381,31 @@ export default function HUD({ state }: HUDProps) {
         </div>
       )}
 
+      {/* ── Role display — Among Us style splash ── */}
+      {showRoleSplash && (
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'rgba(0,0,0,0.8)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          pointerEvents: 'none', zIndex: 90,
+          animation: 'pp-fade-out 0.5s ease-in 3.5s forwards',
+        }}>
+          <div style={{
+            color: isSlivshchik ? '#cc2b1d' : '#2196F3',
+            fontSize: 48, fontWeight: 900, textTransform: 'uppercase',
+            letterSpacing: '0.1em', marginBottom: 10,
+            textShadow: '0 0 20px rgba(0,0,0,0.5)',
+          }}>
+            {isSlivshchik ? t('role_slivshchik', state.language) : t('role_khozain', state.language)}
+          </div>
+          <div style={{ color: '#fff', fontSize: 16, opacity: 0.8, maxWidth: 300, textAlign: 'center' }}>
+            {isSlivshchik 
+              ? 'Сливайте топливо незаметно и устраняйте Жильцов.' 
+              : 'Выполняйте задачи и вычислите Сливщика.'}
+          </div>
+        </div>
+      )}
+
       {/* ── §2.9 Active sabotage banners ── */}
       {state.activeSabotages.length > 0 && (
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, pointerEvents: 'none' }}>
@@ -395,150 +430,135 @@ export default function HUD({ state }: HUDProps) {
       )}
 
       {/* ════════════════════════════════════════════════════════════════════
-          TOP STRIP — black bar: unity meter · role badge · timer · fuel
+          TOP STRIP — parchment: task meter · timer · news · fuel/alive
           ════════════════════════════════════════════════════════════════════ */}
       <div className="pp-topstrip" style={{
         marginTop: state.activeSabotages.length > 0 ? state.activeSabotages.length * 27 : 0,
+        height: 38, padding: '0 12px', boxSizing: 'border-box',
       }}>
 
-        {/* Unity meter — left */}
-        <div style={{ flex: 1, maxWidth: 180 }}>
+        {/* Task progress — top-left */}
+        <div style={{ flex: 1, maxWidth: 220, display: 'flex', flexDirection: 'column', gap: 2 }}>
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            marginBottom: 3,
           }}>
-            <span style={{ fontSize: 8, fontWeight: 800, textTransform: 'uppercase',
-              letterSpacing: '0.1em', color: 'rgba(26,26,26,0.6)' }}>
-              🤝 {t('hud_unity', state.language)}
+            <span style={{ fontSize: 9, fontWeight: 900, textTransform: 'uppercase',
+              letterSpacing: '0.05em', color: '#1a1a1a' }}>
+              {t('hud_unity', state.language)}
             </span>
-            <span style={{ fontSize: 8, fontWeight: 800, color: '#cc2b1d' }}>
+            <span style={{ fontSize: 9, fontWeight: 900, color: '#cc2b1d' }}>
               {Math.round(state.unityMeter)}%
             </span>
           </div>
-          <div className="pp-unity-track">
-            <div className="pp-unity-fill" style={{ width: `${state.unityMeter}%` }} />
+          <div className="pp-unity-track" style={{ height: 6, border: '1.5px solid #1a1a1a', background: 'rgba(0,0,0,0.1)' }}>
+            <div className="pp-unity-fill" style={{ 
+              width: `${state.unityMeter}%`, 
+              background: '#4CAF50', 
+              boxShadow: 'none',
+              borderRadius: 0
+            }} />
           </div>
         </div>
 
-        {/* Role badge + timer — center */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-          <div className={isSlivshchik ? 'pp-role-slivshchik' : 'pp-role-khozain'}>
-            {isSlivshchik ? t('role_slivshchik', state.language) : t('role_khozain', state.language)}
-            {localPlayer.neutralRole === 'barsik'     && ' 😺'}
-            {localPlayer.neutralRole === 'policeman'  && ' 🕵️'}
-            {localPlayer.neutralRole === 'janitor'    && ' 🧹'}
-          </div>
+        {/* Timer — center */}
+        <div style={{ 
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(0,0,0,0.05)', padding: '4px 12px',
+          borderLeft: '2px solid #1a1a1a', borderRight: '2px solid #1a1a1a',
+          height: '100%', minWidth: 80, flexShrink: 0
+        }}>
           <div style={{
-            fontSize: 11, fontWeight: 900, letterSpacing: '0.04em',
+            fontSize: 14, fontWeight: 900, letterSpacing: '0.02em',
             color: timerUrgent ? '#cc2b1d' : '#1a1a1a',
             fontVariantNumeric: 'tabular-nums',
           }}>
-            ⏱ {mins}:{secs}
+            {mins}:{secs}
+          </div>
+        </div>
+
+        {/* Ticker / Status — flex middle */}
+        <div style={{ flex: 2, padding: '0 15px', overflow: 'hidden', height: '100%', display: 'flex', alignItems: 'center' }}>
+          <div style={{ 
+            fontSize: 10, fontWeight: 700, color: '#1a1a1a', opacity: 0.7, 
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' 
+          }}>
+            ★ {NEWS_HEADLINES[state.tickerIndex]}
           </div>
         </div>
 
         {/* Fuel + alive — right */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, pointerEvents: 'all', position: 'relative', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, pointerEvents: 'all', flexShrink: 0 }}>
           {/* Fuel badge */}
           <button
             onClick={() => setShowFuelDetail(v => !v)}
             style={{
-              background: 'transparent', border: `1.5px solid ${fuelAlertColor}66`,
-              borderRadius: 2, padding: '2px 7px',
-              fontSize: 10, fontWeight: 800, color: fuelAlertColor,
+              background: 'transparent', border: 'none',
+              fontSize: 11, fontWeight: 900, color: fuelAlertColor,
               cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
-              textTransform: 'uppercase', letterSpacing: '0.04em',
+              textTransform: 'uppercase',
             }}
           >
-            🚗 {Math.round(minFuel)}%{anySiphoning ? ' 🪣' : ''}
+            🚗 {Math.round(minFuel)}%
           </button>
-          {/* Alive count — compact */}
+          
+          {/* Alive count */}
           <button
             onClick={() => setShowPlayerList(v => !v)}
             style={{
               background: 'transparent', border: 'none',
-              fontSize: 10, fontWeight: 800, color: 'rgba(26,26,26,0.65)',
-              cursor: 'pointer', letterSpacing: '0.04em',
-              padding: '0 2px',
-              display: 'flex', alignItems: 'center', gap: 5,
+              fontSize: 11, fontWeight: 900, color: '#1a1a1a',
+              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 4,
             }}
           >
-            🏠 {aliveKhozaeva}
-            {isSlivshchik && <span style={{ color: '#cc2b1d' }}>🪣 {aliveSlivshchiki}</span>}
-            {!isSlivshchik && <span style={{ opacity: 0.5 }}>/{state.players.length}</span>}
+            👥 {state.players.filter(p => p.isAlive).length}/{state.players.length}
           </button>
-
-          {/* Fuel detail dropdown */}
-          {showFuelDetail && (
-            <div className="pp-dropdown" style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, zIndex: 60, minWidth: 120 }}>
-              {state.cars.map(car => {
-                const col = state.colorblindMode
-                  ? car.fuel > 40 ? '#2196F3' : car.fuel > 20 ? '#FF9800' : '#FF5722'
-                  : car.fuel > 40 ? '#4CAF50' : car.fuel > 20 ? '#FF9800' : '#F44336';
-                return (
-                  <div key={car.id} style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end', marginBottom: 4 }}>
-                    <span style={{ fontSize: 9, color: '#f4ebd0', opacity: 0.6, minWidth: 28 }}>{Math.round(car.fuel)}%</span>
-                    <div style={{ width: 64, height: 6, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.12)', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${car.fuel}%`, background: col }} />
-                    </div>
-                    {car.siphonPhase === 2 && <span style={{ fontSize: 9, color: '#FF1744' }}>🪣</span>}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Player list dropdown */}
-          {showPlayerList && (
-            <div className="pp-dropdown" style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, zIndex: 60, minWidth: 150, maxHeight: 200, overflowY: 'auto' }}>
-              {state.players.map(p => {
-                const charDef = CHARACTERS[p.character];
-                const isLocal = p.id === state.localPlayerId;
-                const showAsSlivshchik = isLocal || (isSlivshchik && p.role === 'slivshchik');
-                return (
-                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 5, opacity: p.isAlive ? 1 : 0.35, marginBottom: 3 }}>
-                    <div style={{
-                      width: 8, height: 8, borderRadius: '50%', background: charDef.color,
-                      border: isLocal ? '2px solid #e5a50a' : '1px solid rgba(255,255,255,0.3)',
-                      flexShrink: 0,
-                    }} />
-                    <div style={{
-                      fontSize: 10, color: p.isAlive ? (isLocal ? '#e5a50a' : '#f4ebd0') : '#666',
-                      textDecoration: p.isAlive ? 'none' : 'line-through', whiteSpace: 'nowrap',
-                      fontWeight: isLocal ? 800 : 500,
-                    }}>
-                      {p.name}{!p.isAlive && ' 💀'}
-                      {showAsSlivshchik && p.role === 'slivshchik' && <span style={{ color: '#FF5252', marginLeft: 3 }}>🪣</span>}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
+
+        {/* Dropdowns remain positioned absolute to this container */}
+        {showFuelDetail && (
+          <div className="pp-dropdown" style={{ position: 'absolute', top: '100%', right: 60, marginTop: 2, zIndex: 60, minWidth: 120 }}>
+            {state.cars.map(car => {
+              const col = car.fuel > 40 ? '#4CAF50' : car.fuel > 20 ? '#FF9800' : '#F44336';
+              return (
+                <div key={car.id} style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end', marginBottom: 4 }}>
+                  <span style={{ fontSize: 9, color: '#f4ebd0', opacity: 0.6, minWidth: 28 }}>{Math.round(car.fuel)}%</span>
+                  <div style={{ width: 64, height: 6, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${car.fuel}%`, background: col }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {showPlayerList && (
+          <div className="pp-dropdown" style={{ position: 'absolute', top: '100%', right: 10, marginTop: 2, zIndex: 60, minWidth: 150, maxHeight: 200, overflowY: 'auto' }}>
+            {state.players.map(p => (
+              <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 5, opacity: p.isAlive ? 1 : 0.35, marginBottom: 3 }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: CHARACTERS[p.character].color }} />
+                <span style={{ fontSize: 10, color: '#f4ebd0', fontWeight: 700 }}>{p.name}</span>
+                {!p.isAlive && <span style={{ fontSize: 9 }}>💀</span>}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* ── Stamina bar (only when active) ── */}
+      {/* ── Stamina bar — compact at top left ── */}
       {(localPlayer.isSprinting || localPlayer.stamina < SPRINT_MAX - 0.1) && (
         <div style={{
-          padding: '2px 8px',
-          background: 'rgba(26,26,26,0.75)',
-          borderBottom: '2px solid rgba(229,165,10,0.4)',
-          display: 'flex', alignItems: 'center', gap: 7,
+          position: 'absolute', top: 40, left: 12,
+          display: 'flex', alignItems: 'center', gap: 5,
+          zIndex: 20,
         }}>
-          <span style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase',
-            letterSpacing: '0.08em', color: localPlayer.isSprinting ? '#e5a50a' : 'rgba(244,235,208,0.45)', flexShrink: 0 }}>
-            {localPlayer.isSprinting ? '🏃 СПРИНТ' : '😮‍💨 УСТАЛОСТЬ'}
-          </span>
           <div style={{
-            flex: 1, maxWidth: 110, height: 5,
-            background: 'rgba(255,255,255,0.1)',
-            border: '1px solid rgba(255,255,255,0.12)',
+            width: 80, height: 4, background: 'rgba(0,0,0,0.2)',
+            border: '1px solid #1a1a1a', overflow: 'hidden'
           }}>
             <div style={{
               height: '100%', width: `${staminaPct}%`,
-              background: localPlayer.isSprinting ? '#e5a50a' : '#81D4FA',
-              transition: 'width 0.1s',
+              background: localPlayer.isSprinting ? '#cc2b1d' : '#4CAF50',
             }} />
           </div>
         </div>
@@ -546,197 +566,147 @@ export default function HUD({ state }: HUDProps) {
 
       {/* ── Interaction prompt ── */}
       {state.promptText && !state.activeMiniGame && (
-        <div style={{ textAlign: 'center', padding: '5px 0', pointerEvents: 'none' }}>
-          <span className="pp-prompt" style={{ fontSize: Math.round(12 * textScale) }}>
+        <div style={{ 
+          position: 'absolute', left: '50%', bottom: '25%', transform: 'translateX(-50%)',
+          pointerEvents: 'none', zIndex: 35, textAlign: 'center' 
+        }}>
+          <span className="pp-prompt">
             {touchPrompt(state.promptText)}
           </span>
         </div>
       )}
 
       {/* ════════════════════════════════════════════════════════════════════
-          RIGHT COLUMN — one compact stack of same-size action buttons.
-          Consolidates what used to be two separate button clusters (this
-          HUD's own row plus a duplicate sprint/crouch/emote row rendered by
-          <GameCanvas>) into a single 40px-button column so it stops eating
-          into the play area.
-          ════════════════════════════════════════════════════════════════════ */}
-      <div className="pp-action-stack">
-
-        {/* ── Sabotage (slivshchik only) ── */}
-        {isSlivshchik && localPlayer.isAlive && (
-          <div style={{ position: 'relative' }}>
-            {showSabotageMenu && (
-              <div className="pp-dropdown" style={{ position: 'absolute', bottom: 48, right: 0, minWidth: 220, zIndex: 55 }}>
-                <div style={{ fontSize: 10, color: '#cc2b1d', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>
-                  ★ ДИВЕРСИИ
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {SABOTAGE_KEYS.map(key => {
-                    const isActive = state.activeSabotages.some(s => s.key === key && !s.isResolved);
-                    const onCooldown = sabotageCooldown > 0;
-                    const blocked = isActive || onCooldown;
-                    return (
-                      <button key={key}
-                        className="pp-btn"
-                        disabled={blocked}
-                        onClick={() => { triggerSabotage(key); setShowSabotageMenu(false); }}
-                        style={{
-                          padding: '7px 10px', textAlign: 'left',
-                          background: blocked ? 'rgba(255,255,255,0.04)' : 'rgba(204,43,29,0.18)',
-                          border: `1.5px solid ${blocked ? 'rgba(255,255,255,0.1)' : 'rgba(204,43,29,0.5)'}`,
-                          borderRadius: 2, color: blocked ? '#555' : '#f4ebd0',
-                          fontSize: 10, cursor: blocked ? 'not-allowed' : 'pointer',
-                          display: 'flex', flexDirection: 'column', gap: 2,
-                          boxShadow: blocked ? 'none' : '2px 2px 0 rgba(0,0,0,0.7)',
-                          textTransform: 'none', letterSpacing: 'normal', fontWeight: 600,
-                        }}
-                      >
-                        <span>{SABOTAGE_LABELS[key]}</span>
-                        <span style={{ fontSize: 8, color: '#888', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                          {isActive ? '⚡ Уже активно' : onCooldown ? `⏱ ${Math.ceil(sabotageCooldown)}с` : `Кд ${SABOTAGE_COOLDOWNS[key]}с`}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <button onClick={() => setShowSabotageMenu(false)}
-                  style={{ marginTop: 6, width: '100%', background: 'transparent', border: 'none',
-                    color: 'rgba(244,235,208,0.3)', fontSize: 9, cursor: 'pointer',
-                    textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 800 }}>
-                  ЗАКРЫТЬ
-                </button>
-              </div>
-            )}
-            <button
-              className={`pp-action-btn${sabotageCooldown > 0 ? ' cooldown' : ''}`}
-              onClick={() => setShowSabotageMenu(v => !v)}
-              title="Диверсии"
-              style={{ position: 'relative', background: 'var(--pp-red)' }}
-            >
-              🔧
-              {sabotageCooldown > 0 && (
-                <div style={{
-                  position: 'absolute', bottom: -14, left: '50%', transform: 'translateX(-50%)',
-                  fontSize: 8, color: '#888', whiteSpace: 'nowrap', fontWeight: 800,
-                }}>
-                  {Math.ceil(sabotageCooldown)}с
-                </div>
-              )}
-            </button>
-          </div>
-        )}
-
-        {/* ── Sprint toggle ── */}
-        {localPlayer.isAlive && (
-          <button
-            className={`pp-action-btn${localPlayer.isSprinting ? ' active' : ''}`}
-            onClick={() => { audio.init(); toggleTouchSprint(); }}
-            title="Спринт (или двойное нажатие E)"
-          >
-            🏃
-          </button>
-        )}
-
-        {/* ── Crouch (hold) ── */}
-        {localPlayer.isAlive && (
-          <button
-            className={`pp-action-btn${isCrouchHeld ? ' active' : ''}`}
-            onPointerDown={() => { audio.init(); setIsCrouchHeld(true); setTouchCrouch(true); }}
-            onPointerUp={() => { setIsCrouchHeld(false); setTouchCrouch(false); }}
-            onPointerLeave={() => { setIsCrouchHeld(false); setTouchCrouch(false); }}
-            title="Пригнуться (удерживать)"
-          >
-            🦆
-          </button>
-        )}
-
-        {/* ── Emote wheel ── */}
-        {localPlayer.isAlive && (
-          <div style={{ position: 'relative' }}>
-            {showEmoteWheel && (
-              <div style={{
-                position: 'absolute', bottom: 48, right: 0,
-                display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5,
-              }}>
-                {PLAY_EMOTES.map((emote, i) => (
-                  <button key={i} className="pp-emote-btn"
-                    onClick={() => { triggerEmote(gs.localPlayerId, emote); setShowEmoteWheel(false); }}
-                  >{emote}</button>
-                ))}
-              </div>
-            )}
-            <button
-              className={`pp-action-btn${showEmoteWheel ? ' active' : ''}`}
-              onClick={() => setShowEmoteWheel(v => !v)}
-              title="Эмоция (Q)"
-            >
-              😊
-            </button>
-          </div>
-        )}
-
-        {/* ── "Что делать?" button ── */}
-        {localPlayer.isAlive && (
-          <div style={{ position: 'relative' }}>
-            <button
-              className={`pp-action-btn${showObjective ? ' active' : ''}`}
-              onClick={() => setShowObjective(o => !o)}
-              title="Что делать?"
-            >
-              ❓
-            </button>
-            {showObjective && (
-              <div className="pp-dropdown" style={{ position: 'absolute', bottom: 48, right: 0, width: 220, zIndex: 50 }}>
-                {isSlivshchik ? (
-                  <>
-                    <div style={{ color: '#cc2b1d', fontWeight: 900, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>★ Ты — Сливщик</div>
-                    {['Подойди к машине → сливай бензин', 'Подними канистру после слива', 'Выброси канистру у мусорки', 'Делай вид, что выполняешь задачи', 'Вызывай диверсии через кнопку 🔧', 'Устраивай засаду в одиночестве'].map((s, i) => (
-                      <div key={i} style={{ fontSize: 10, color: '#f4ebd0', opacity: 0.75, marginBottom: 3 }}>• {s}</div>
-                    ))}
-                  </>
-                ) : (
-                  <>
-                    <div style={{ color: '#e5a50a', fontWeight: 900, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>★ Ты — Хозяин</div>
-                    {['Выполняй задачи → метр единства', 'Следи за уровнем бензина в машинах', 'У арки → вызвать сходку', 'На сходке голосуй за подозреваемых', 'Выгони сливщиков или доведи метр до 100%'].map((s, i) => (
-                      <div key={i} style={{ fontSize: 10, color: '#f4ebd0', opacity: 0.75, marginBottom: 3 }}>• {s}</div>
-                    ))}
-                  </>
-                )}
-                <div style={{ marginTop: 6, borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 5, fontSize: 8, color: 'rgba(244,235,208,0.3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                  Нажми снова чтобы закрыть
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ════════════════════════════════════════════════════════════════════
-          LEFT COLUMN — minimap + settings, bottom-left
+          ACTION BUTTONS — Among Us style (bottom-right)
           ════════════════════════════════════════════════════════════════════ */}
       <div style={{
-        position: 'absolute', bottom: 30, left: 10,
-        display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8,
-        pointerEvents: 'all',
+        position: 'absolute', bottom: 30, right: 30,
+        display: 'flex', alignItems: 'flex-end', gap: 15,
+        pointerEvents: 'all', zIndex: 40,
       }}>
-        {/* Minimap */}
-        <div style={{ pointerEvents: 'none' }}>
-          <Minimap state={state} />
-        </div>
+        {/* REPORT Button */}
+        <button
+          className="pp-action-btn"
+          style={{ 
+            width: 80, height: 80, borderRadius: '50%', fontSize: 13, fontWeight: 900,
+            background: state.bodies.length > 0 ? '#cc2b1d' : 'rgba(0,0,0,0.3)',
+            border: '4px solid #fff', color: '#fff',
+            opacity: state.bodies.length > 0 ? 1 : 0.4
+          }}
+          onClick={() => investigateBody(gs.localPlayerId)}
+        >
+          REPORT
+        </button>
 
-        {/* Settings */}
-        <div style={{ position: 'relative', pointerEvents: 'all' }}>
-          {showSettings && <SettingsPanel state={state} />}
+        {/* USE Button */}
+        <button
+          className="pp-action-btn"
+          style={{ 
+            width: 100, height: 100, borderRadius: '50%', fontSize: 16, fontWeight: 900,
+            background: 'rgba(255,255,255,0.15)', border: '5px solid #fff', color: '#fff'
+          }}
+          onClick={() => {
+            const evt = new KeyboardEvent('keydown', { key: 'e', code: 'KeyE' });
+            window.dispatchEvent(evt);
+            setTimeout(() => {
+              const upEvt = new KeyboardEvent('keyup', { key: 'e', code: 'KeyE' });
+              window.dispatchEvent(upEvt);
+            }, 100);
+          }}
+        >
+          USE
+        </button>
+
+        {/* Mobile-only Sprint/Crouch stack */}
+        {IS_TOUCH && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+             <button
+              className={`pp-action-btn ${localPlayer.isSprinting ? 'active' : ''}`}
+              style={{ width: 50, height: 50 }}
+              onClick={() => toggleTouchSprint()}
+            >
+              🏃
+            </button>
+            <button
+              className={`pp-action-btn ${isCrouchHeld ? 'active' : ''}`}
+              style={{ width: 50, height: 50 }}
+              onPointerDown={() => { setIsCrouchHeld(true); setTouchCrouch(true); }}
+              onPointerUp={() => { setIsCrouchHeld(false); setTouchCrouch(false); }}
+              onPointerLeave={() => { setIsCrouchHeld(false); setTouchCrouch(false); }}
+            >
+              🦆
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── §2.2 Corner buttons: settings / objective ── */}
+      <div style={{
+        position: 'absolute', top: 50, right: 10,
+        display: 'flex', flexDirection: 'column', gap: 8,
+        pointerEvents: 'all', zIndex: 30,
+      }}>
+        <button
+          className={`pp-corner-btn ${showSettings ? 'active' : ''}`}
+          onClick={() => setShowSettings(v => !v)}
+        >
+          ⚙️
+        </button>
+        <button
+          className={`pp-corner-btn ${showObjective ? 'active' : ''}`}
+          onClick={() => setShowObjective(v => !v)}
+        >
+          📋
+        </button>
+        {showSettings && <SettingsPanel state={state} />}
+        {showObjective && (
+          <div className="pp-dropdown" style={{ position: 'absolute', top: 0, right: 46, width: 200 }}>
+             <div style={{ color: isSlivshchik ? '#cc2b1d' : '#e5a50a', fontWeight: 900, fontSize: 10, textTransform: 'uppercase', marginBottom: 6 }}>
+               ★ {isSlivshchik ? 'ТЫ СЛИВЩИК' : 'ТЫ ХОЗЯИН'}
+             </div>
+             <div style={{ fontSize: 10, color: '#f4ebd0', opacity: 0.8, lineHeight: 1.3 }}>
+               {isSlivshchik 
+                 ? 'Сливай бензин, устраивай саботажи и не дай хозяевам заполнить шкалу единства.'
+                 : 'Выполняй задания во дворе, следи за уровнем бензина и выгони сливщика.'}
+             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Minimap — bottom-left */}
+      <div style={{ position: 'absolute', bottom: 10, left: 10, pointerEvents: 'all' }}>
+        <Minimap state={state} />
+      </div>
+
+      {/* ── Sabotage Menu (Slivshchik) ── */}
+      {isSlivshchik && (
+        <div style={{
+          position: 'absolute', bottom: 140, right: 30,
+          pointerEvents: 'all', zIndex: 40,
+        }}>
+          {showSabotageMenu && (
+             <div className="pp-dropdown" style={{ position: 'absolute', bottom: 50, right: 0, minWidth: 180 }}>
+               {SABOTAGE_KEYS.map(key => (
+                 <button key={key}
+                   className="pp-btn"
+                   disabled={sabotageCooldown > 0}
+                   onClick={() => { triggerSabotage(key); setShowSabotageMenu(false); }}
+                   style={{ width: '100%', marginBottom: 4, fontSize: 10, padding: '5px' }}
+                 >
+                   {SABOTAGE_LABELS[key]}
+                 </button>
+               ))}
+             </div>
+          )}
           <button
-            className={`pp-corner-btn${showSettings ? ' active' : ''}`}
-            onClick={() => setShowSettings(v => !v)}
-            title={t('hud_settings', state.language)}
-            style={{ width: 36, height: 36 }}
+            className={`pp-sabotage-btn ${sabotageCooldown > 0 ? 'cooldown' : ''}`}
+            onClick={() => setShowSabotageMenu(v => !v)}
           >
-            ⚙️
+            {sabotageCooldown > 0 ? Math.ceil(sabotageCooldown) : '⚡'}
           </button>
         </div>
-      </div>
+      )}
+
 
       {/* ── §3.1.3 Neutral role ability buttons ── */}
       {localPlayer.isAlive && localPlayer.neutralRole && (

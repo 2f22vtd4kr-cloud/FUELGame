@@ -5,9 +5,17 @@ import {
   drawCharacterVec, drawCarVec,
   drawBenchVec, drawDumpsterVec, drawFlowerbedVec,
   drawTreeVec, drawLampVec, drawKvassVec, drawEvChargerVec,
+  drawHydrantVec, drawTrashBinVec, drawBicycleRackVec,
 } from './vecDraw';
 import { TASK_DEFS } from '../data/tasks';
-import { DECORATIONS, ENTRANCE_POS, DUMPSTER_POSITIONS, VISION_BUILDINGS, VALVE_POSITIONS, BABUSHKA_CERBERUS_POS, BABUSHKA_NPC_POS, PLAYGROUND } from '../data/map';
+import {
+  DECORATIONS, ENTRANCE_POS, DUMPSTER_POSITIONS, VISION_BUILDINGS, VALVE_POSITIONS,
+  BABUSHKA_CERBERUS_POS, BABUSHKA_NPC_POS, PLAYGROUND, CAR_SPAWNS,
+} from '../data/map';
+import {
+  getSprite, SPRITE_SHEETS, CAR_SPRITE_MAP, DECOR_SPRITE_META,
+} from './sprites';
+import { getTexturePattern } from './textures';
 import { CHARACTERS } from '../data/characters';
 import {
   computeVisionPolygon,
@@ -555,19 +563,13 @@ function seededHash(x: number, y: number): number {
 }
 
 function drawBackground(ctx: CanvasRenderingContext2D): void {
-  // ── AI-generated courtyard background image ──────────────────────────────────
-  const bgImg = getSprite('courtyard_bg');
-  if (bgImg) {
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    // Image is square (1024×1024); world is 4:3 (1200×900).
-    // Crop the vertical centre to produce a 4:3 source rect — no distortion.
-    const srcW = bgImg.width;
-    const srcH = Math.round(bgImg.width * (MAP_H / MAP_W)); // 1024 × (900/1200) ≈ 768
-    const srcY = Math.round((bgImg.height - srcH) / 2);    // crop equally top & bottom
-    ctx.drawImage(bgImg, 0, srcY, srcW, srcH, 0, 0, MAP_W, MAP_H);
-    return;
-  }
+  // ── Primary: clean Among Us-style vector background (vecDraw) ───────────────
+  drawBackgroundVec(ctx, MAP_W, MAP_H, PLAYGROUND);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _drawBackgroundLegacy(ctx: CanvasRenderingContext2D): void {
+  // Kept for reference — replaced by drawBackgroundVec above.
   // ── Fallback: procedural background ─────────────────────────────────────────
   // ── Building strips ──────────────────────────────────────────────────────────
   fillTexturedRect(ctx, 'roof', COLORS.building, 0, 0, 1200, 90);
@@ -715,29 +717,9 @@ function drawBackground(ctx: CanvasRenderingContext2D): void {
   ctx.fillRect(636, 470, 4, 340);
 }
 
-function drawParkingLot(ctx: CanvasRenderingContext2D): void {
-  // Skip if AI courtyard background is loaded (it includes ground, parking, playground)
-  if (getSprite('courtyard_bg')) return;
-  // Path from garden to entrance
-  fillTexturedRect(ctx, 'path', '#6A5A4A', 560, 780, 80, 30);
-
-  // §01.2 Playground zone — mustard rubber-flooring sub-area with faded label
-  const pattern = getTexturePattern(ctx, 'playground');
-  ctx.fillStyle = pattern ?? '#C8A96E';
-  ctx.fillRect(PLAYGROUND.x, PLAYGROUND.y, PLAYGROUND.w, PLAYGROUND.h);
-  // Dashed border
-  ctx.strokeStyle = '#8B6914';
-  ctx.lineWidth = 1;
-  ctx.setLineDash([6, 4]);
-  ctx.strokeRect(PLAYGROUND.x, PLAYGROUND.y, PLAYGROUND.w, PLAYGROUND.h);
-  ctx.setLineDash([]);
-  // Zone label
-  ctx.fillStyle = '#6B4F10';
-  ctx.globalAlpha = 0.6;
-  ctx.font = 'bold 11px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('🛝 Детская', PLAYGROUND.x + PLAYGROUND.w / 2, PLAYGROUND.y + PLAYGROUND.h / 2);
-  ctx.globalAlpha = 1;
+function drawParkingLot(_ctx: CanvasRenderingContext2D): void {
+  // drawBackgroundVec (called from drawBackground) already renders parking, garden,
+  // playground and paths — nothing left to add here.
 }
 
 // ─── Decorations ─────────────────────────────────────────────────────────────
@@ -745,114 +727,46 @@ function drawParkingLot(ctx: CanvasRenderingContext2D): void {
 function drawDecorations(ctx: CanvasRenderingContext2D): void {
   for (const deco of DECORATIONS) {
     const { x, y } = deco.pos;
-    const spriteKey = `decor_${deco.type}`;
-    const sprite = getSprite(spriteKey);
-    const meta = DECOR_SPRITE_META[spriteKey];
-    if (sprite && meta) {
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(sprite, x - meta.w / 2, y + meta.offsetY - meta.h / 2, meta.w, meta.h);
-      continue;
-    }
+
+    // Drop Shadow
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.beginPath();
+    ctx.ellipse(x, y + 4, 20, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
     switch (deco.type) {
       case 'bench':
-        ctx.fillStyle = '#8B6914';
-        ctx.fillRect(x - 22, y - 6, 44, 12);
-        ctx.fillStyle = '#A0785C';
-        ctx.fillRect(x - 24, y + 4, 48, 5);
+        drawBenchVec(ctx, x, y);
         break;
       case 'dumpster':
-        ctx.fillStyle = '#4CAF50';
-        ctx.fillRect(x - 16, y - 14, 32, 28);
-        ctx.fillStyle = '#388E3C';
-        ctx.fillRect(x - 16, y - 14, 32, 6);
-        ctx.fillStyle = '#fff';
-        ctx.font = '10px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('♻', x, y + 6);
+        drawDumpsterVec(ctx, x, y);
         break;
       case 'flowerbed':
-        ctx.fillStyle = '#4A9430';
-        ctx.beginPath();
-        ctx.ellipse(x, y, 28, 18, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#FF69B4';
-        for (let i = 0; i < 5; i++) {
-          const a = (i / 5) * Math.PI * 2;
-          ctx.fillRect(x + Math.cos(a) * 12 - 4, y + Math.sin(a) * 7 - 4, 8, 8);
-        }
+        drawFlowerbedVec(ctx, x, y);
         break;
       case 'tree':
-        ctx.fillStyle = '#2E7D32';
-        ctx.beginPath();
-        ctx.arc(x, y - 10, 22, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#1B5E20';
-        ctx.beginPath();
-        ctx.arc(x, y - 18, 14, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#5D4037';
-        ctx.fillRect(x - 5, y + 8, 10, 18);
+        drawTreeVec(ctx, x, y);
         break;
       case 'lamppost':
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(x, y + 30); ctx.lineTo(x, y - 30);
-        ctx.stroke();
-        ctx.fillStyle = '#FFF9C4';
-        ctx.beginPath();
-        ctx.arc(x, y - 30, 6, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = '#FFD54F';
-        ctx.lineWidth = 1;
-        ctx.stroke();
+        drawLampVec(ctx, x, y);
         break;
       case 'kvass_stand':
-        ctx.fillStyle = '#E65100';
-        ctx.fillRect(x - 18, y - 22, 36, 30);
-        ctx.fillStyle = '#FFF';
-        ctx.font = 'bold 7px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('КВАС', x, y - 8);
-        ctx.fillStyle = '#FFC107';
-        ctx.fillRect(x - 4, y + 8, 8, 10);
+        drawKvassVec(ctx, x, y);
         break;
-      case 'ev_charger': {
-        // §01.2 Broken EV Charger — weathered station with cracked screen + broken cable
-        // Post
-        ctx.fillStyle = '#546E7A';
-        ctx.fillRect(x - 7, y - 36, 14, 48);
-        // Screen (cracked, off)
-        ctx.fillStyle = '#1A237E';
-        ctx.fillRect(x - 12, y - 50, 24, 20);
-        ctx.strokeStyle = '#FF1744';
-        ctx.lineWidth = 1.5;
-        // Crack lines on screen
-        ctx.beginPath();
-        ctx.moveTo(x - 5, y - 48); ctx.lineTo(x + 3, y - 34);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(x + 2, y - 46); ctx.lineTo(x - 2, y - 38);
-        ctx.stroke();
-        // Broken cable hanging
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(x + 5, y);
-        ctx.bezierCurveTo(x + 18, y + 8, x + 14, y + 18, x + 10, y + 22);
-        ctx.stroke();
-        // Lightning bolt icon (EV)
-        ctx.fillStyle = '#FFD600';
-        ctx.font = 'bold 9px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('⚡', x, y - 36);
-        // "BROKEN" indicator dot
-        ctx.fillStyle = '#FF1744';
-        ctx.beginPath();
-        ctx.arc(x + 10, y - 46, 3, 0, Math.PI * 2);
-        ctx.fill();
+      case 'ev_charger':
+        drawEvChargerVec(ctx, x, y);
         break;
-      }
+      case 'hydrant':
+        drawHydrantVec(ctx, x, y);
+        break;
+      case 'trash_bin':
+        drawTrashBinVec(ctx, x, y);
+        break;
+      case 'bicycle_rack':
+        drawBicycleRackVec(ctx, x, y);
+        break;
     }
   }
 }
@@ -914,7 +828,7 @@ function drawCars(ctx: CanvasRenderingContext2D, state: GameState): void {
     ctx.fill();
     ctx.restore();
 
-    // §7.3 Car sprite (generated PNG) or primitive-rect fallback
+    // §7.3 Car sprite (generated PNG) or vector-car fallback
     const carSpriteKey = CAR_SPRITE_MAP[car.id];
     const carSprite = carSpriteKey ? getSprite(carSpriteKey) : null;
     if (carSprite) {
@@ -923,66 +837,88 @@ function drawCars(ctx: CanvasRenderingContext2D, state: GameState): void {
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(carSprite, x - 45, y - 45, 90, 90);
     } else {
-      // Fallback primitive rendering
-      ctx.fillStyle = car.color;
-      ctx.fillRect(x - 35, y - 18, 70, 36);
-      ctx.fillStyle = 'rgba(135,206,235,0.55)';
-      ctx.fillRect(x - 28, y - 14, 22, 28);
-      ctx.fillRect(x + 6, y - 14, 22, 28);
-      ctx.fillStyle = '#222';
-      [{ dx: -28, dy: -18 }, { dx: 18, dy: -18 }, { dx: -28, dy: 12 }, { dx: 18, dy: 12 }]
-        .forEach(({ dx, dy }) => ctx.fillRect(x + dx - 2, y + dy - 2, 14, 8));
+      // Vector car renderer (Among Us style)
+      drawCarVec(ctx, x, y, car.color);
     }
 
-    // Fuel indicator above car (positioned above 90×90 isometric sprite)
-    const barW = 50; const barH = 5;
-    const bx = x - barW / 2; const by = y - 52;
-    ctx.fillStyle = '#333';
-    ctx.fillRect(bx - 1, by - 1, barW + 2, barH + 2);
-    const fuelColor = fuel > 40 ? '#4CAF50' : fuel > 20 ? '#FF9800' : '#F44336';
+    // Fuel indicator above car — clean Among Us style pill bar
+    const barW = 44; const barH = 7;
+    const bx = x - barW / 2; const by = y - 56;
+    
+    // Background pill
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.beginPath();
+    ctx.roundRect(bx - 2, by - 2, barW + 4, barH + 4, 4);
+    ctx.fill();
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    const fuelColor = fuel > 50 ? '#4CAF50' : fuel > 20 ? '#FFEB3B' : '#F44336';
     ctx.fillStyle = fuelColor;
-    ctx.fillRect(bx, by, (fuel / 100) * barW, barH);
+    ctx.beginPath();
+    ctx.roundRect(bx, by, Math.max(2, (fuel / 100) * barW), barH, 2);
+    ctx.fill();
 
-    // Fuel % text
-    ctx.font = '8px sans-serif';
-    ctx.fillStyle = '#fff';
+    // Car Label (License Plate Badge) below car
+    ctx.save();
+    ctx.font = 'bold 9px monospace';
+    const spawnDef = CAR_SPAWNS.find(s => s.id === car.id);
+    const labelText = spawnDef?.label || 'БАКСТАБ';
+    const labelW = ctx.measureText(labelText).width + 8;
+    const lx = x - labelW / 2;
+    const ly = y + 42;
+    
+    // Badge background
+    ctx.fillStyle = '#EEE';
+    ctx.beginPath();
+    ctx.roundRect(lx, ly, labelW, 14, 3);
+    ctx.fill();
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    
+    // Badge text
+    ctx.fillStyle = '#111';
     ctx.textAlign = 'center';
-    ctx.fillText(`${Math.round(fuel)}%`, x, by - 2);
+    ctx.fillText(labelText, x, ly + 10);
+    ctx.restore();
 
-    // Siphon visual
+    // Siphon visual — dashed animated pulsing line
     if (car.siphonPhase === 1) {
-      // Setup phase — subtle shimmer
+      // Setup phase — subtle shimmer ring
       ctx.globalAlpha = 0.4 + 0.3 * Math.sin(Date.now() / 200);
       ctx.strokeStyle = '#A5D6A7';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([3, 3]);
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([4, 4]);
+      ctx.lineDashOffset = -Date.now() / 50;
       ctx.beginPath();
-      ctx.arc(x, y, 28, 0, Math.PI * 2);
+      ctx.arc(x, y, 30, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.globalAlpha = 1;
     } else if (car.siphonPhase === 2) {
-      // Active drain — animated green stream (visible even if siphoner is in fog;
-      // the stream going into darkness is an intentional tension cue)
+      // Active drain — animated green stream pulse
       const siphoner = state.players.find(p => p.id === car.siphoner);
       if (siphoner) {
+        ctx.save();
         ctx.strokeStyle = '#00E676';
-        ctx.lineWidth = 3;
-        ctx.globalAlpha = 0.7 + 0.3 * Math.sin(Date.now() / 100);
-        ctx.setLineDash([6, 4]);
+        ctx.lineWidth = 4;
+        ctx.globalAlpha = 0.8 + 0.2 * Math.sin(Date.now() / 80);
+        ctx.setLineDash([8, 6]);
+        ctx.lineDashOffset = -Date.now() / 20;
         ctx.beginPath();
         ctx.moveTo(x, y);
         ctx.lineTo(siphoner.pos.x, siphoner.pos.y);
         ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.globalAlpha = 1;
+        ctx.restore();
       }
       // Red alert ring
       ctx.strokeStyle = '#FF1744';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 3;
       ctx.globalAlpha = 0.5 + 0.5 * Math.sin(Date.now() / 150);
       ctx.beginPath();
-      ctx.arc(x, y, 32, 0, Math.PI * 2);
+      ctx.arc(x, y, 34, 0, Math.PI * 2);
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
@@ -1485,11 +1421,17 @@ function drawPlayers(
       ctx.drawImage(charSprite, x - spriteDisplaySize / 2, y - spriteDisplaySize / 2, spriteDisplaySize, spriteDisplaySize);
       ctx.restore();
     } else {
-      // Fallback primitive rendering
-      ctx.fillStyle = charDef.color;
-      ctx.beginPath();
-      ctx.arc(x, y, playerRadius, 0, Math.PI * 2);
-      ctx.fill();
+      // Use Among Us style vector character
+      drawCharacterVec(
+        ctx,
+        x,
+        y,
+        charDef.color,
+        player.facingAngle,
+        player.isCrouching,
+        isBarsik,
+      );
+      // Accessories
       drawCharacterDetails(ctx, x, y, player.character, playerRadius);
     }
 
@@ -1579,20 +1521,20 @@ function drawPlayers(
       ctx.textBaseline = 'alphabetic';
     }
 
-    // Name tag — offset below sprite bottom
-    const nameTagY = y + effectiveHalf + 12;
-    ctx.font = `${isLocal ? 'bold ' : ''}10px sans-serif`;
-    ctx.fillStyle = isLocal ? '#FFD700' : '#E8E8E8';
+    // Name tag — positioned ABOVE character
+    const nameTagY = y - effectiveHalf - 15;
+    ctx.font = `${isLocal ? 'bold ' : ''}11px sans-serif`;
     ctx.textAlign = 'center';
-    // Dark pill background for readability
+
+    // Dark pill background (Among Us style)
     const nameW = ctx.measureText(player.name).width;
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
     ctx.beginPath();
-    ctx.roundRect(x - nameW / 2 - 4, nameTagY - 9, nameW + 8, 12, 4);
+    ctx.roundRect(x - nameW / 2 - 6, nameTagY - 11, nameW + 12, 16, 8);
     ctx.fill();
-    ctx.font = `${isLocal ? 'bold ' : ''}10px sans-serif`;
-    ctx.fillStyle = isLocal ? '#FFD700' : '#E8E8E8';
-    ctx.fillText(player.name, x, nameTagY);
+
+    ctx.fillStyle = isLocal ? '#FFD700' : '#FFFFFF';
+    ctx.fillText(player.name, x, nameTagY + 1);
 
     // Ambush charge indicator — ring around sprite
     if (player.ambushChargeTimer > 0) {

@@ -2,35 +2,7 @@
 // Pre-loads all character and car PNG sprites from /sprites/.
 // Falls back gracefully to the primitive circle/rect renderer when not loaded.
 
-const SPRITE_KEYS = [
-  'courtyard_bg',
-  'char_denis',
-  'char_anya',
-  'char_vova',
-  'char_uncle_seryozha',
-  'char_petrovich',
-  'char_marina',
-  'char_akhmet',
-  'char_oleg',
-  'char_lena',
-  'char_barsik',
-  'car_moskvich',
-  'car_zeekr',
-  'car_yandex',
-  'car_tesla',
-  'car_haval',
-  'car_vesta',
-  'decor_bench',
-  'decor_dumpster',
-  'decor_flowerbed',
-  'decor_tree',
-  'decor_lamppost',
-  'decor_kvass_stand',
-  'decor_ev_charger',
-  'decor_hydrant',
-  'decor_trash_bin',
-  'decor_bicycle_rack',
-];
+const SPRITE_KEYS: string[] = [];
 
 /** Draw size + vertical anchor offset (px, relative to the decoration's (x,y) point) for each prop sprite. */
 // Dimensions must match the actual generated PNGs in public/sprites/ (see

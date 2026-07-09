@@ -382,6 +382,11 @@
   100% { transform: translateX(-50%) scale(1);    opacity: 1; }
 }
 
+@keyframes pp-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; visibility: hidden; }
+}
+
 /* ── High contrast mode ─────────────────────────────────────────────────── */
 [data-hc="1"] { text-shadow: 0 0 4px #000, 0 1px 3px #000 !important; }
 [data-hc="1"] div, [data-hc="1"] span, [data-hc="1"] button { letter-spacing: 0.01em; }
