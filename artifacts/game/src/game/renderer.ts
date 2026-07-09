@@ -1,7 +1,11 @@
 import type { GameState, Player, Vec2 } from './types';
 import { ALARM_RADIUS, MAP_W, MAP_H, CROUCH_VISIBILITY_MULT, VENT_FLASH_DURATION } from './types';
-import { getSprite, CAR_SPRITE_MAP, SPRITE_SHEETS, DECOR_SPRITE_META } from './sprites';
-import { getTexturePattern } from './textures';
+import {
+  drawBackgroundVec,
+  drawCharacterVec, drawCarVec,
+  drawBenchVec, drawDumpsterVec, drawFlowerbedVec,
+  drawTreeVec, drawLampVec, drawKvassVec, drawEvChargerVec,
+} from './vecDraw';
 import { TASK_DEFS } from '../data/tasks';
 import { DECORATIONS, ENTRANCE_POS, DUMPSTER_POSITIONS, VISION_BUILDINGS, VALVE_POSITIONS, BABUSHKA_CERBERUS_POS, BABUSHKA_NPC_POS, PLAYGROUND } from '../data/map';
 import { CHARACTERS } from '../data/characters';
