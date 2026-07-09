@@ -62,14 +62,13 @@ The game is then available at the Replit preview URL (root path `/`).
   draws the sprite first, falling back to the old primitive-shape drawing if a sprite fails to load.
   Regenerate all sprites (characters + props) with `pnpm --filter @workspace/game run gen:sprites`.
 
-## Main menu redesign (in progress)
+## Main menu (Propaganda Pop — LIVE)
 
-- `docs/design/main-menu-style-guide.md` — "Propaganda Pop" (Soviet-retro poster) visual style
-  approved for the main menu/lobby screen. Currently only exists as a mockup at
-  `artifacts/mockup-sandbox/src/components/mockups/main-menu/Propaganda.tsx` — **not yet graduated**
-  into `artifacts/game/src/components/Lobby.tsx`. Next session: graduate it into the real Lobby
-  component using this style guide as the reference, then extend the same visual system to other
-  screens (Shop, Leaderboard, Meeting) over time.
+- `docs/design/main-menu-style-guide.md` — "Propaganda Pop" (Soviet-retro poster) visual style.
+  **Graduated and live** in `artifacts/game/src/components/Lobby.tsx` as of the July 2026 session.
+  The mockup at `artifacts/mockup-sandbox/src/components/mockups/main-menu/Propaganda.tsx` is now
+  a historical reference only. Next: extend the Propaganda Pop visual language to Shop,
+  Leaderboard, and Meeting screens for consistency.
 
 ## Design bible
 

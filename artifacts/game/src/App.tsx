@@ -7,6 +7,7 @@ import { skipBriefing } from './game/logic';
 import { clearMoment } from './game/replayBuffer';
 import { GameNetwork } from './game/network';
 import { audio } from './game/audio';
+import { isTouchDevice } from './lib/utils';
 import Lobby from './components/Lobby';
 import MultiplayerLobby from './components/MultiplayerLobby';
 import GameCanvas from './components/GameCanvas';
@@ -253,10 +254,21 @@ export default function App() {
               padding: '8px 12px', fontSize: 10, color: '#bbb',
               textAlign: 'left', lineHeight: 1.8,
             }}>
-              <div>🕹️ WASD / стрелки — движение</div>
-              <div>⚡ Shift — спринт (переключатель)</div>
-              <div>🦆 Ctrl / Z — пригнуться</div>
-              <div>🔔 E — взаимодействие / слив</div>
+              {isTouchDevice() ? (
+                <>
+                  <div>🕹️ Джойстик — движение</div>
+                  <div>⚡ Двойной тап — спринт</div>
+                  <div>🦆 Удержать ⚡ — присесть</div>
+                  <div>🔔 Тап ⚡ — взаимодействие</div>
+                </>
+              ) : (
+                <>
+                  <div>🕹️ WASD / стрелки — движение</div>
+                  <div>⚡ Shift — спринт (переключатель)</div>
+                  <div>🦆 Ctrl / Z — пригнуться</div>
+                  <div>🔔 E — взаимодействие / слив</div>
+                </>
+              )}
             </div>
           </div>
 

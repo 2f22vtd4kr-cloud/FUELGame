@@ -1,6 +1,18 @@
 import './HUD.css';
 import { useState, useEffect } from 'react';
 import type { GameState, SabotageKey } from '../game/types';
+import { isTouchDevice } from '../lib/utils';
+
+/** Replace keyboard key hints with touch-appropriate text when on a touch device. */
+const IS_TOUCH = isTouchDevice();
+function touchPrompt(text: string): string {
+  if (!IS_TOUCH) return text;
+  return text
+    .replace(/\[удерживай E\]/g, '[удержи]')
+    .replace(/\[E\]/g, '[ТАП]')
+    .replace(/нажми E/gi, 'нажми кнопку')
+    .replace(/press E/gi, 'tap');
+}
 import { downloadMoment, getMomentDataUrl } from '../game/replayBuffer';
 import { SPRINT_MAX, SABOTAGE_LABELS, SABOTAGE_COOLDOWNS, SABOTAGE_DURATIONS, SIPHON_AUDIO_RADIUS } from '../game/types';
 import { NEWS_HEADLINES } from '../data/ticker';
@@ -536,7 +548,7 @@ export default function HUD({ state }: HUDProps) {
       {state.promptText && !state.activeMiniGame && (
         <div style={{ textAlign: 'center', padding: '5px 0', pointerEvents: 'none' }}>
           <span className="pp-prompt" style={{ fontSize: Math.round(12 * textScale) }}>
-            {state.promptText}
+            {touchPrompt(state.promptText)}
           </span>
         </div>
       )}
@@ -678,14 +690,14 @@ export default function HUD({ state }: HUDProps) {
                 {isSlivshchik ? (
                   <>
                     <div style={{ color: '#cc2b1d', fontWeight: 900, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>★ Ты — Сливщик</div>
-                    {['Подойди к машине [E] → сливай бензин', 'Подними канистру после слива', 'Выброси канистру у мусорки', 'Делай вид, что выполняешь задачи', 'Вызывай диверсии через кнопку 🔧', 'Устраивай засаду в одиночестве'].map((s, i) => (
+                    {['Подойди к машине → сливай бензин', 'Подними канистру после слива', 'Выброси канистру у мусорки', 'Делай вид, что выполняешь задачи', 'Вызывай диверсии через кнопку 🔧', 'Устраивай засаду в одиночестве'].map((s, i) => (
                       <div key={i} style={{ fontSize: 10, color: '#f4ebd0', opacity: 0.75, marginBottom: 3 }}>• {s}</div>
                     ))}
                   </>
                 ) : (
                   <>
                     <div style={{ color: '#e5a50a', fontWeight: 900, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>★ Ты — Хозяин</div>
-                    {['Выполняй задачи → метр единства', 'Следи за уровнем бензина в машинах', 'У арки [E] → вызвать сходку', 'На сходке голосуй за подозреваемых', 'Выгони сливщиков или доведи метр до 100%'].map((s, i) => (
+                    {['Выполняй задачи → метр единства', 'Следи за уровнем бензина в машинах', 'У арки → вызвать сходку', 'На сходке голосуй за подозреваемых', 'Выгони сливщиков или доведи метр до 100%'].map((s, i) => (
                       <div key={i} style={{ fontSize: 10, color: '#f4ebd0', opacity: 0.75, marginBottom: 3 }}>• {s}</div>
                     ))}
                   </>
@@ -783,7 +795,7 @@ export default function HUD({ state }: HUDProps) {
         <div style={{ position: 'absolute', top: 80, right: 12, pointerEvents: 'none' }}>
           <div className="pp-ticket-badge">
             🎟️ ТАЛОН В РУКАХ
-            <span style={{ fontSize: 8, fontWeight: 600, opacity: 0.7 }}>Подойди к баку [E]</span>
+            <span style={{ fontSize: 8, fontWeight: 600, opacity: 0.7 }}>Подойди к баку и нажми</span>
           </div>
         </div>
       )}
@@ -835,7 +847,7 @@ export default function HUD({ state }: HUDProps) {
                   Ты у ларька!
                 </div>
                 <div className="pp-tutorial-body" style={{ fontSize: Math.round(11 * textScale) }}>
-                  Нажми [E] чтобы купить шаверму<br />
+                  Нажми кнопку взаимодействия чтобы купить шаверму<br />
                   <span style={{ fontSize: Math.round(9 * textScale), opacity: 0.5 }}>Задачи пополняют метр единства</span>
                 </div>
               </>

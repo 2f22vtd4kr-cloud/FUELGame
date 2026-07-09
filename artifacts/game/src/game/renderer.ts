@@ -35,6 +35,14 @@ let _camSmoothX = -1; // -1 signals "uninitialised — snap on first frame"
 let _camSmoothY = -1;
 const CAM_LERP = 0.15;
 
+// ─── Vision obstacle cache ─────────────────────────────────────────────────
+// buildVisionObstacles is O(n) and called 60× per second. Cars and dumpsters
+// are static within a match, so we build once and invalidate only when car
+// count changes (i.e. a new match started).
+let _visionObstacles: ReturnType<typeof buildVisionObstacles> | null = null;
+let _visionObstacleCarCount = -1;
+let _visionObstaclePhase = '';
+
 // ─── Directional sprite-sheet animation state ──────────────────────────────
 // Purely a rendering concern: derived each frame from how far a player's
 // pos actually moved, so it needs no changes to Player/network types and
@@ -150,7 +158,14 @@ export function renderGame(
     const fovDeg = localPlayer.role === 'slivshchik'
       ? VISION_FOV_SLIVSHCHIK
       : VISION_FOV_KHOZAIN;
-    const obstacles = buildVisionObstacles(VISION_BUILDINGS, state.cars, DUMPSTER_POSITIONS);
+    // Use cached obstacles — positions are static within a match.
+    // Invalidate when car count or game phase changes (new match = new layout).
+    if (!_visionObstacles || _visionObstacleCarCount !== state.cars.length || _visionObstaclePhase !== state.phase) {
+      _visionObstacles = buildVisionObstacles(VISION_BUILDINGS, state.cars, DUMPSTER_POSITIONS);
+      _visionObstacleCarCount = state.cars.length;
+      _visionObstaclePhase = state.phase;
+    }
+    const obstacles = _visionObstacles;
     visionPoly = computeVisionPolygon(
       localPlayer.pos,
       localPlayer.facingAngle,
@@ -313,7 +328,7 @@ function drawPersistentGrandma(ctx: CanvasRenderingContext2D, state: GameState):
   ctx.font = '8px sans-serif';
   ctx.fillStyle = '#E1BEE7';
   ctx.textAlign = 'center';
-  ctx.fillText('[E] Спросить', x, y - 17);
+  ctx.fillText('Спросить', x, y - 17);
 }
 
 // ─── §3.1.3 Post-fog janitor canister X-ray ──────────────────────────────────
@@ -1047,7 +1062,8 @@ function drawImmunityTickets(ctx: CanvasRenderingContext2D, state: GameState): v
 // ─── Bodies ───────────────────────────────────────────────────────────────────
 
 function drawBodies(ctx: CanvasRenderingContext2D, state: GameState): void {
-  for (const body of state.bodies) {
+  const sortedBodies = [...state.bodies].sort((a, b) => a.pos.y - b.pos.y);
+  for (const body of sortedBodies) {
     const { x, y } = body.pos;
 
     // Shadow
@@ -1100,7 +1116,8 @@ function drawBodies(ctx: CanvasRenderingContext2D, state: GameState): void {
 // ─── Canisters ────────────────────────────────────────────────────────────────
 
 function drawCanisters(ctx: CanvasRenderingContext2D, state: GameState): void {
-  for (const can of state.canisters) {
+  const sortedCans = [...state.canisters].sort((a, b) => a.pos.y - b.pos.y);
+  for (const can of sortedCans) {
     const { x, y } = can.pos;
 
     // Canister shape
@@ -1390,7 +1407,10 @@ function drawPlayers(
     }
   }
 
-  for (const player of state.players) {
+  // Y-sort players so characters lower on screen (higher Y) render on top — correct depth
+  const sortedPlayers = [...state.players].sort((a, b) => a.pos.y - b.pos.y);
+
+  for (const player of sortedPlayers) {
     if (!player.isAlive) continue;
     const { x, y } = player.pos;
     const charDef = CHARACTERS[player.character];
@@ -1422,17 +1442,15 @@ function drawPlayers(
     // Note: fellow-slivshchik teammate outline is drawn in drawTeammateOutlines()
     // AFTER the fog overlay so it pierces the fog (§3.1.2 team awareness).
 
-    // Shadow — radial gradient for a natural ground-shadow look
+    // Shadow — flat ellipse, consistent with car/body/NPC shadow style (no per-frame gradient alloc)
     const shadowR = player.character === 'barsik' ? 10 : 18;
-    const shadowCX = x, shadowCY = y + shadowR + 2;
-    const shadowGrad = ctx.createRadialGradient(shadowCX, shadowCY, 0, shadowCX, shadowCY, shadowR);
-    shadowGrad.addColorStop(0, 'rgba(0,0,0,0.45)');
-    shadowGrad.addColorStop(0.55, 'rgba(0,0,0,0.2)');
-    shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = shadowGrad;
+    ctx.save();
+    ctx.globalAlpha = 0.28;
+    ctx.fillStyle = '#000';
     ctx.beginPath();
-    ctx.ellipse(shadowCX, shadowCY, shadowR, shadowR * 0.36, 0, 0, Math.PI * 2);
+    ctx.ellipse(x, y + 14, shadowR, shadowR * 0.35, 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
 
     // §3.1.3 Барсик character is slightly smaller
     const isBarsik = player.character === 'barsik';

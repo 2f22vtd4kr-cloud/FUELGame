@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
+import { gs } from '../game/state';
 
 interface Props {
   onMove: (dx: number, dy: number) => void;
@@ -26,6 +27,7 @@ export default function VirtualJoystick({ onMove, onInteract, onSprintToggle, on
   const leftTouchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [hintOpacity, setHintOpacity] = useState(JOYSTICK_ACTIVE_OPACITY);
+  const [interactPressed, setInteractPressed] = useState(false);
 
   // Start hint-fade timer when visible
   useEffect(() => {
@@ -55,6 +57,8 @@ export default function VirtualJoystick({ onMove, onInteract, onSprintToggle, on
   }, []);
 
   const handleTouchStart = useCallback((e: TouchEvent) => {
+    // Don't intercept touches when a minigame modal is open — let panel buttons receive them
+    if (gs.activeMiniGame) return;
     e.preventDefault();
     if (touchIdRef.current !== null) return;
     const touch = e.changedTouches[0];
@@ -158,6 +162,7 @@ export default function VirtualJoystick({ onMove, onInteract, onSprintToggle, on
           zIndex: 19,
         }}
         onTouchStart={(e) => {
+          if (gs.activeMiniGame) return; // let minigame panels handle touches
           const t = e.changedTouches[0];
           leftTouchStartRef.current = { x: t.clientX, y: t.clientY, time: Date.now() };
         }}
@@ -223,10 +228,11 @@ export default function VirtualJoystick({ onMove, onInteract, onSprintToggle, on
         />
       </div>
 
-      {/* Interact / E button — left of joystick */}
+      {/* Interact button — touch-native, no keyboard hints */}
       <button
         onTouchStart={(e) => {
           e.preventDefault();
+          setInteractPressed(true);
           const now = Date.now();
           // §2.2 Double-tap = sprint toggle
           if (now - lastInteractTapRef.current < 300) {
@@ -237,9 +243,11 @@ export default function VirtualJoystick({ onMove, onInteract, onSprintToggle, on
           }
           onInteract(true);
         }}
-        onTouchEnd={(e) => { e.preventDefault(); onInteract(false); }}
-        onMouseDown={() => onInteract(true)}
-        onMouseUp={() => onInteract(false)}
+        onTouchEnd={(e) => { e.preventDefault(); setInteractPressed(false); onInteract(false); }}
+        onTouchCancel={(e) => { e.preventDefault(); setInteractPressed(false); onInteract(false); }}
+        onMouseDown={() => { setInteractPressed(true); onInteract(true); }}
+        onMouseUp={() => { setInteractPressed(false); onInteract(false); }}
+        onMouseLeave={() => { setInteractPressed(false); onInteract(false); }}
         style={{
           position: 'fixed',
           right: JOYSTICK_RIGHT + JOYSTICK_RADIUS * 2 + 18,
@@ -247,9 +255,9 @@ export default function VirtualJoystick({ onMove, onInteract, onSprintToggle, on
           width: 64,
           height: 64,
           borderRadius: '50%',
-          background: 'rgba(229,165,10,0.92)',
+          background: interactPressed ? 'rgba(180,125,5,0.97)' : 'rgba(229,165,10,0.92)',
           border: '3px solid rgba(26,26,26,0.85)',
-          fontSize: 22,
+          fontSize: 28,
           fontWeight: 'bold',
           color: '#1A1A1A',
           cursor: 'pointer',
@@ -259,10 +267,12 @@ export default function VirtualJoystick({ onMove, onInteract, onSprintToggle, on
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: '3px 3px 0 rgba(0,0,0,0.6)',
+          boxShadow: interactPressed ? '1px 1px 0 rgba(0,0,0,0.6)' : '3px 3px 0 rgba(0,0,0,0.6)',
+          transform: interactPressed ? 'scale(0.91) translate(1px, 1px)' : 'scale(1)',
+          transition: 'transform 0.05s, box-shadow 0.05s, background 0.05s',
         }}
       >
-        E
+        ⚡
       </button>
     </>
   );

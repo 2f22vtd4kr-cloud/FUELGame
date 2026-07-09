@@ -3,6 +3,7 @@
 
 import React, { useState } from 'react';
 import { saveProfile, loadProfile } from '../game/profile';
+import { isTouchDevice } from '../lib/utils';
 
 interface Props {
   onComplete: () => void;
@@ -66,14 +67,21 @@ const STEPS: Step[] = [
     title: 'Управление',
     body: (
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        {[
+        {(isTouchDevice() ? [
+          ['🕹️', 'Джойстик', 'Движение'],
+          ['⚡', 'Двойной тап ⚡', 'Спринт'],
+          ['🦆', 'Удержать ⚡', 'Присесть (стелс)'],
+          ['🔔', 'Тап ⚡', 'Взаимодействие'],
+          ['📢', 'Тап ⚡ у арки', 'Созвать сходку'],
+          ['😂', 'Свайп вверх ↑', 'Колесо эмоций'],
+        ] : [
           ['🕹️', 'WASD / стрелки', 'Движение'],
           ['⚡', 'Shift', 'Спринт (переключатель)'],
           ['🦆', 'Ctrl / Z', 'Пригнуться (стелс)'],
           ['🔔', 'E', 'Взаимодействие / слив'],
           ['📢', 'Пробел', 'Созвать сходку (у арки)'],
           ['😂', 'Q', 'Колесо эмоций'],
-        ].map(([icon, key, desc]) => (
+        ]).map(([icon, key, desc]) => (
           <div key={key} style={{
             background: 'rgba(255,255,255,0.05)',
             borderRadius: 8, padding: '8px 10px',

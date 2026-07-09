@@ -24,10 +24,14 @@ export default function TaskMiniGame({ mg }: Props) {
     color: '#fff',
     fontFamily: 'sans-serif',
     userSelect: 'none',
+    touchAction: 'manipulation', // eliminates 300ms iOS click delay on all children
   };
 
+  // Prevent joystick/game touch handlers from intercepting taps inside the minigame panel
+  const stopTouch = (e: React.TouchEvent | React.PointerEvent) => e.stopPropagation();
+
   return (
-    <div style={panelStyle}>
+    <div style={panelStyle} onTouchStart={stopTouch} onTouchEnd={stopTouch} onPointerDown={stopTouch}>
       {/* Fake task badge — only visible to the Сливщик themselves */}
       {mg.isFake && (
         <div style={{
@@ -121,7 +125,7 @@ function TapTiming({ mg }: { mg: MiniGameState }) {
           borderRadius: 14, color: '#fff', fontSize: 15, cursor: 'pointer', fontWeight: 'bold',
         }}
       >
-        {mg.feedback === 'hit' ? '✅' : mg.feedback === 'miss' ? '❌' : '[E] В зелёную зону!'}
+        {mg.feedback === 'hit' ? '✅' : mg.feedback === 'miss' ? '❌' : '👆 В зелёную зону!'}
       </button>
     </div>
   );
@@ -277,7 +281,7 @@ function Dial({ mg }: { mg: MiniGameState }) {
         }} />
       </div>
       <div style={{ fontSize: 11, color: '#aaa', marginBottom: 12 }}>
-        {inZone ? '🟢 В зелёной зоне!' : (mg.defKey === 'intercom' ? 'ЖК-чат: «У кого Ростелеком?» Крути до зелёной.' : 'Удерживай E → крути, отпусти в зелёной зоне')}
+        {inZone ? '🟢 В зелёной зоне!' : (mg.defKey === 'intercom' ? 'ЖК-чат: «У кого Ростелеком?» Крути до зелёной.' : 'Крути — останови в зелёной зоне')}
       </div>
       <div style={{ fontSize: 10, color: '#666' }}>
         {mg.feedback === 'hit' ? '✅ Стоп!' : mg.feedback === 'miss' ? '❌ Мимо!' : `Позиция: ${Math.round(mg.dialAngle)}°`}

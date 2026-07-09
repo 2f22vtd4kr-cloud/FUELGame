@@ -627,8 +627,8 @@ export function onMiniGameWireSocket(socketPos: number): void {
 
   const socketColor = mg.wireSockets[socketPos];
   if (socketColor === mg.wireDragging) {
-    // Correct match
-    mg.wireConnected[mg.wireDragging] = true;
+    // Correct match — create new array so shallow React snapshot triggers re-render
+    mg.wireConnected = mg.wireConnected.map((v, i) => i === mg.wireDragging ? true : v);
     mg.feedback = 'hit';
     mg.feedbackTimer = 0.4;
     mg.wireDragging = -1;
