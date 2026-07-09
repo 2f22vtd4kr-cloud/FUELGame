@@ -171,8 +171,8 @@ export function drawBackgroundVec(
   ctx.fillStyle = VC.asphalt;
   ctx.fillRect(90, 90, 1020, 380);
 
-  // Very subtle tile grid (same hue, barely visible — like Among Us floors)
-  ctx.strokeStyle = VC.asphaltGrid;
+  // Tile grid — slightly more visible for Among Us floor readability
+  ctx.strokeStyle = 'rgba(255,255,255,0.14)';
   ctx.lineWidth = 1;
   for (let gx = 90; gx <= 1110; gx += 55) {
     ctx.beginPath(); ctx.moveTo(gx, 90); ctx.lineTo(gx, 470); ctx.stroke();
@@ -280,6 +280,38 @@ export function drawBackgroundVec(
       ctx.fillRect(bx, by, 4, bh);
     }
   }
+
+  // ── Deep inner-edge shadows cast by buildings onto the courtyard ──────────
+  // These give strong depth — the courtyard "sinks" away from the walls
+  ctx.save();
+  const topCast = ctx.createLinearGradient(0, 90, 0, 150);
+  topCast.addColorStop(0,   'rgba(0,0,0,0.38)');
+  topCast.addColorStop(0.6, 'rgba(0,0,0,0.10)');
+  topCast.addColorStop(1,   'rgba(0,0,0,0)');
+  ctx.fillStyle = topCast;
+  ctx.fillRect(90, 90, 1020, 60);
+
+  const botCast = ctx.createLinearGradient(0, 810, 0, 750);
+  botCast.addColorStop(0,   'rgba(0,0,0,0.32)');
+  botCast.addColorStop(0.6, 'rgba(0,0,0,0.08)');
+  botCast.addColorStop(1,   'rgba(0,0,0,0)');
+  ctx.fillStyle = botCast;
+  ctx.fillRect(90, 750, 1020, 60);
+
+  const leftCast = ctx.createLinearGradient(90, 0, 150, 0);
+  leftCast.addColorStop(0,   'rgba(0,0,0,0.28)');
+  leftCast.addColorStop(0.7, 'rgba(0,0,0,0.06)');
+  leftCast.addColorStop(1,   'rgba(0,0,0,0)');
+  ctx.fillStyle = leftCast;
+  ctx.fillRect(90, 90, 60, 720);
+
+  const rightCast = ctx.createLinearGradient(1110, 0, 1050, 0);
+  rightCast.addColorStop(0,   'rgba(0,0,0,0.28)');
+  rightCast.addColorStop(0.7, 'rgba(0,0,0,0.06)');
+  rightCast.addColorStop(1,   'rgba(0,0,0,0)');
+  ctx.fillStyle = rightCast;
+  ctx.fillRect(1050, 90, 60, 720);
+  ctx.restore();
 
   // ── Building outline borders (Among Us thick outlines) ─────────────────────
   ctx.strokeStyle = VC.outline;
@@ -407,8 +439,8 @@ export function drawCharacterVec(
   isBarsik: boolean,
 ): void {
   const s  = isCrouching ? 0.80 : 1.0;
-  const RW = (isBarsik ? 11 : 18) * s;   // half-width
-  const RH = (isBarsik ? 13 : 22) * s;  // half-height (slightly taller)
+  const RW = (isBarsik ? 12 : 22) * s;   // half-width
+  const RH = (isBarsik ? 15 : 27) * s;  // half-height (slightly taller)
 
   // Determine cardinal facing direction
   const a = ((facingAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
@@ -421,10 +453,10 @@ export function drawCharacterVec(
   ctx.save();
   ctx.translate(x, y);
 
-  // ── Shadow (subtle drop shadow ellipse) ───────────────────────────────────
-  ctx.fillStyle = 'rgba(0,0,0,0.32)';
+  // ── Shadow (flat drop shadow beneath feet — Among Us style) ──────────────
+  ctx.fillStyle = 'rgba(0,0,0,0.38)';
   ctx.beginPath();
-  ctx.ellipse(2, RH * 0.88, RW * 1.2, RH * 0.30, 0, 0, Math.PI * 2);
+  ctx.ellipse(3, RH * 1.05, RW * 1.35, RH * 0.28, 0, 0, Math.PI * 2);
   ctx.fill();
 
   // ── Backpack (rounded rect peeking out on back side) ──────────────────────

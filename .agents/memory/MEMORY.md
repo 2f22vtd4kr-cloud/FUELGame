@@ -35,3 +35,4 @@
 - [Production standards reset](game-production-standards-reset.md) — owner's July 2026 quality/process manifesto lives in docs/PRODUCTION_STANDARDS.md; read every session; mobile-first hard rule via isTouchDevice()
 - [Mobile touch fixes](mobile-touch-fixes.md) — joystick zones must bail when gs.activeMiniGame is set; touchAction:manipulation kills iOS 300ms delay; vision obstacle cache invalidated by phase+carCount
 - [QA gameplay screenshot](game-qa-screenshot.md) — use /?qa_autostart=1 on port 24631; suppresses tutorial+role splash; shows full live canvas with fog-of-war, beans, HUD
+- [95-Y character bean sizing](game-bean-sizing.md) — vecDraw bean RW=22 RH=27 (was 18/22); playerRadius in renderer MUST match RW (currently 22); suspectR=32, ringRadius=30; Barsik: RW=12 RH=15, suspectR=18

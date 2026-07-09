@@ -1,0 +1,172 @@
+Anthropic Google Gemini OpenAI 
+
+Now you can take screenshots directly from the game session - that's a game changer! Last time you implemented only 12 workers, minimum is 100 (subagents or whatever you call them) in parallel! If you are somewhat limited - then just do multiple times 12 workers to get there at any cost.
+
+Game looks outdated, it's grainy instead of simple modern graphics. Deploy 10 workers to study visuals of "Among Us" game. Here are some examples. Gemini generated one of these in less then a second, so there is no reason and excuse for you not to generate maps like these. Of course, we have our setting, not a space station, Among Us reference purely for gamma, shapes, style, feeling etc.
+
+You are one Agent but with use of all these LLMs - by workers I mean separate threads. You have already previously created multiple workers and said it yourself. So you can. Let's go, GODSPEED
+ You now have access to multiple frontier LLMs, including Fable 5, Claude, GPT, Gemini, Canvas and any additional models available within Replit. Use your full orchestration capabilities. Create at least 100 autonomous workers—or as many as your infrastructure permits if it can exceed that number. Do not execute work sequentially. Every worker must own exactly one subsystem, feature, mechanic, asset pipeline, optimization task, QA task, or production responsibility. Every worker must continuously communicate findings, review other workers’ outputs, detect regressions, and refine its subsystem until it reaches production quality. Idle compute is unacceptable—every available model and worker should always be contributing to the project. STOP PATCHING. START OPERATING LIKE A WORLD-CLASS AAA GAME STUDIO.
+The current development methodology has failed.
+Despite multiple frontier LLMs (Claude, GPT, Gemini, Fable, Canvas and every supporting system available inside Replit) working on this repository, the project still feels like an unpolished prototype instead of a commercial-quality game.
+This changes now.
+Forget incremental patching.
+Forget “fix one issue.”
+Forget “good enough.”
+From this moment forward you are operating as a fully autonomous AAA game studio whose only objective is to ship a production-ready multiplayer game. THIS IS YOUR EXECUTION MODEL
+Spawn as many independent reasoning agents as your architecture allows.
+Treat it as if there are 100+ specialized workers operating simultaneously.
+Not sequentially.
+Parallel.
+Every worker owns a domain.
+Examples:
+* Art Direction
+* Environment Art
+* Lighting
+* Shadows
+* Sprite Generation
+* Character Animation
+* UI
+* UX
+* Audio
+* Music
+* Networking
+* AI
+* NPC Behaviour
+* Vehicle System
+* Minigames
+* Economy
+* Balancing
+* Accessibility
+* Mobile Controls
+* Camera
+* Performance
+* Memory
+* Rendering
+* QA
+* Automated Testing
+* Bug Hunting
+* Code Review
+* Architecture
+* Production Readiness Every worker continuously reports problems.
+No worker is allowed to assume another worker solved something.
+⸻
+EVERY FEATURE IS NOW A PRODUCT
+Read BOTH attached design documents completely.
+Break them into individual systems.
+Every single mechanic becomes an independent development project.
+For every feature:
+• understand the intended gameplay
+• research industry best practices
+• compare against successful implementations
+• implement
+• test
+• profile
+• polish
+• repeat until there are no known issues.
+Do not stop because something “works.”
+Stop when it feels commercial. IMPLEMENTATIONS ARE NO LONGER ALLOWED TO BE “GOOD ENOUGH”
+Every feature must satisfy five conditions.
+Functional
+Works every single time.
+No broken buttons.
+No dead interactions.
+No hidden edge cases.
+No race conditions.
+No mobile issues.
+No browser inconsistencies.
+⸻
+Visual
+Looks modern.
+Fits the art direction.
+Matches the environment.
+Correct scale.
+Correct perspective.
+Correct lighting.
+Correct shadows.
+Correct depth.
+Correct animation.
+Correct feedback.
+⸻
+Performance
+Runs smoothly.
+Stable FPS.
+Minimal GPU usage.
+Minimal CPU usage.
+No unnecessary redraws.
+No unnecessary allocations.
+No memory leaks.
+No battery drain.
+No overheating.
+This is an HTML5 mobile game.
+Phones should not become space heaters.
+Profile everything.
+Optimize continuously.
+⸻
+User Experience
+Every interaction must feel satisfying.
+Every animation has anticipation.
+Every sound has purpose.
+Every button provides feedback.
+Every popup feels intentional.
+Every transition is smooth.
+No abrupt changes.
+No visual noise.
+⸻
+Production Quality
+Would you honestly publish this to Steam?
+Would you confidently submit this to Google Play?
+Would you proudly show it on your portfolio?
+If the answer is “not yet”…
+…then it isn’t finished.
+⸻
+STOP INVENTING SOLUTIONS THAT ALREADY EXIST
+You possess access to decades of accumulated game design knowledge.
+Use it.
+Before implementing ANY mechanic:
+Research how successful games solved it.
+Not to copy assets.
+To understand WHY those solutions work.
+Study games like:
+Among Us
+Project Zomboid
+Stardew Valley
+Core Keeper
+Don’t Starve
+Vampire Survivors
+Hotline Miami
+Nuclear Throne
+Children of Morta
+Death Road to Canada
+If a mechanic already has an industry standard—
+understand it first.
+Then build something original that reaches or exceeds that level of quality.
+⸻
+OUR PRIMARY REFERENCE
+The overall feeling, readability, polish and consistency should compete with Among Us.
+Not because we are cloning it.
+Because it proves how polished a relatively simple 2D game can become.
+Movement.
+Camera.
+Lighting.
+Shadows.
+Interaction prompts.
+Task systems.
+Animation timing.
+Feedback.
+Everything should achieve that level of quality or higher.
+⸻
+ART DIRECTION
+The Gemini-generated mock-up demonstrates the visual quality we are aiming for.
+NOT the literal scene.
+NOT identical assets.
+NOT copied artwork.
+The target is:
+consistent proportions
+cohesive palette
+clean readability
+professional HUD
+high-quality sprites
+proper environmental composition
+modern production value
+Currently our game looks like different art packs stitched together. That is unacceptable.
+Every asset must look like it belongs in the same universe.

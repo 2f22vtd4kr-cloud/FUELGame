@@ -1558,13 +1558,14 @@ function drawPlayers(
     const crouchFadeAlpha = (!isLocal && player.isCrouching && inFullCone && !inCrouchCone) ? 0.35 : 1;
     ctx.globalAlpha = crouchFadeAlpha;
 
-    // Suspected outline
+    // Suspected outline — radius matches new bean size (RH=27 vecDraw, 30 ring)
     if (player.suspectedTimer > 0) {
+      const suspectR = player.character === 'barsik' ? 18 : 32;
       ctx.strokeStyle = '#FF1744';
       ctx.lineWidth = 4;
       ctx.globalAlpha = 0.8;
       ctx.beginPath();
-      ctx.arc(x, y, 22, 0, Math.PI * 2);
+      ctx.arc(x, y, suspectR, 0, Math.PI * 2);
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
@@ -1572,19 +1573,19 @@ function drawPlayers(
     // Note: fellow-slivshchik teammate outline is drawn in drawTeammateOutlines()
     // AFTER the fog overlay so it pierces the fog (§3.1.2 team awareness).
 
-    // Shadow — flat ellipse, consistent with car/body/NPC shadow style (no per-frame gradient alloc)
-    const shadowR = player.character === 'barsik' ? 12 : 24;
+    // Shadow — flat ellipse offset below the feet, consistent with Among Us style
+    const shadowR = player.character === 'barsik' ? 13 : 28;
     ctx.save();
-    ctx.globalAlpha = 0.30;
+    ctx.globalAlpha = 0.35;
     ctx.fillStyle = '#000';
     ctx.beginPath();
-    ctx.ellipse(x + 2, y + 16, shadowR, shadowR * 0.30, 0, 0, Math.PI * 2);
+    ctx.ellipse(x + 3, y + 22, shadowR, shadowR * 0.28, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
     // §3.1.3 Барсик character is slightly smaller
     const isBarsik = player.character === 'barsik';
-    const playerRadius = isBarsik ? 10 : 14;
+    const playerRadius = isBarsik ? 11 : 22;  // matches new vecDraw bean RW
 
     // §7.3 Character sprite (generated PNG) or primitive-circle fallback
     const charSprite = getSprite(`char_${player.character}`);
@@ -1625,16 +1626,14 @@ function drawPlayers(
       drawCharacterDetails(ctx, x, y, player.character, playerRadius);
     }
 
-    // Identification ring — gold for local player, translucent white for others.
+    // Identification ring — gold glow for local player only (Among Us style).
     // Ring radius matched to sprite size so it wraps just outside the sprite.
-    // Ring matches the bean's actual half-height (RH for vecDraw bean)
-    const ringRadius = charSprite ? spriteDisplaySize / 2 + 3 : 24; // 24 ≈ RH=22 + small gap
-    // Local player: gold ring; others: subtle white ring
+    const ringRadius = charSprite ? spriteDisplaySize / 2 + 3 : 30; // 30 ≈ RH=27 + small gap
     if (isLocal) {
       // Soft gold glow halo
-      ctx.globalAlpha = 0.20;
+      ctx.globalAlpha = 0.22;
       ctx.strokeStyle = '#FFD700';
-      ctx.lineWidth = 6;
+      ctx.lineWidth = 7;
       ctx.beginPath();
       ctx.arc(x, y, ringRadius + 2, 0, Math.PI * 2);
       ctx.stroke();
@@ -1642,28 +1641,13 @@ function drawPlayers(
       // Sharp gold ring
       ctx.strokeStyle = '#FFD700';
       ctx.lineWidth = 2.5;
-    } else {
-      ctx.strokeStyle = 'rgba(255,255,255,0.40)';
-      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(x, y, ringRadius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
     }
-    ctx.beginPath();
-    ctx.arc(x, y, ringRadius, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
 
-    // Facing direction dot — larger, outlined for readability against any background
-    const facingDist = charSprite
-      ? (isBarsik ? spriteDisplaySize / 2 + 2 : spriteDisplaySize / 2 + 4)
-      : 26; // just past the bean edge
-    const fx = x + Math.cos(player.facingAngle) * facingDist;
-    const fy = y + Math.sin(player.facingAngle) * facingDist;
-    ctx.fillStyle = '#fff';
-    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(fx, fy, 4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
+    // Facing direction is shown by the visor on the bean — no redundant dot needed.
 
     // Crouching indicator
     if (player.isCrouching) {
